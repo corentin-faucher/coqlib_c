@@ -1,0 +1,1 @@
+Coqlib_c © 2023 by Corentin Faucher is licensed under cc-by-4.0 (Attribution-ShareAlike 4.0 )International. To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/4.0/
