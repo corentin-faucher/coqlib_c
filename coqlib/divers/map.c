@@ -1,0 +1,297 @@
+//
+//  MyHashTable.c
+//  coqlib_c_xcode_test
+//
+//  Created by Corentin Faucher on 2023-10-24.
+//
+
+#include "map.h"
+#include <string.h>
+#include <stdlib.h>
+#include "utils.h"
+
+#define _MAP_MAX_NAME_COMPARE 16
+#define _MAP_MAX_NAME_HASH    32
+
+size_t Map_maxStringLenght = 128;
+
+typedef struct _HashSlot HashSlot;
+/// Contient les couples key/value.
+/// -> size_t size_slot = sizeof(HashSlot) - 1 + size_value;
+typedef struct _HashSlot {
+    HashSlot* next;
+    char      key[_MAP_MAX_NAME_COMPARE];
+//    size_t    size_value;   // Ajouter ?
+    char      valueData[1]; // Taille variable... DataArray avec la value de taille size_value.
+} HashSlot;
+
+typedef struct _MyStringMap {
+    uint32_t  count;
+    size_t    size_value;  // Taille des valeur par defaut.
+    uint32_t  it_index;    // Pour iterer dans la map.
+    HashSlot* it_hs;
+    HashSlot* table[1];    // Liste de pointeurs vers les Hashslots. (array de taille sizeof(void*) * count.)
+} StringMap;
+
+uint32_t _hash(const char *name) {
+    uint32_t hash = 0;
+    const char* p = name;
+    const char* end = name + _MAP_MAX_NAME_HASH;
+    while(p < end && *p) {
+        // Change pas grand chose en fait... ? Faut juste un truc random.
+        hash = (hash << 4) ^ *p ^ hash;
+        p++;
+    }
+    return hash;
+}
+
+HashSlot*  _hashslot_create(const char* key, const char* valueDataOpt, size_t size_value) {
+    size_t size_slot = sizeof(HashSlot) - 1 + size_value;
+//    size_t size_value = size_slot - sizeof(HashSlot) + 1;
+    HashSlot* hs = coq_calloc(1, size_slot);
+    strncpy(hs->key, key, _MAP_MAX_NAME_COMPARE);
+    // (s'assurer d'avoir une string fini pour l'affichage)
+    hs->key[_MAP_MAX_NAME_COMPARE-1] = '\0';
+    if(valueDataOpt)
+        memcpy(hs->valueData, valueDataOpt, size_value);
+    else
+        memset(hs->valueData, 0, size_value);
+    return hs;
+}
+HashSlot* _hashslot_foundFirstInListWithKey(HashSlot* hs, const char* key) {
+    while(hs) {
+        if(strncmp(key, hs->key, _MAP_MAX_NAME_COMPARE-1) == 0) {
+            return hs;
+        }
+        hs = hs->next;
+    }
+    return NULL;
+}
+/// Retourne la nouvelle tete de liste. (Peut etre NULL, si plus d'elements.)
+HashSlot* _hashslot_destroyWithKey(HashSlot* hs, const char* key) {
+    HashSlot* last = NULL;
+    HashSlot* first = hs;
+    while(hs) {
+        if(strncmp(key, hs->key, _MAP_MAX_NAME_COMPARE-1) == 0) {
+            if(hs == first) {
+                first = hs->next;
+            } else {
+                last->next = hs->next;
+            }
+            coq_free(hs);
+            return first;
+        }
+        last = hs;
+        hs = hs->next;
+    }
+    printwarning("Key %s not found", key);
+    return first;
+}
+void  _hashslot_print(HashSlot* hs, void (*printValue)(const char*)) {
+    int i = 0;
+    while(hs) {
+        if(i > 0)
+            printf("   ");
+        printf(" %d) key: %s -> value: ", i, hs->key);
+        printValue(hs->valueData);
+        printf("\n");
+        i++;
+        hs = hs->next;
+    }
+}
+
+StringMap* Map_create(uint32_t count, size_t size_value) {
+    size_t map_size = sizeof(StringMap) + sizeof(HashSlot*) * (count - 1);
+    StringMap* ht = coq_calloc(1, map_size);
+    ht->count = count;
+    ht->size_value = size_value;
+    return ht;
+}
+void       map_destroyAndNull(StringMap** const map, void (*value_deinit)(void*)) {
+    if(*map == NULL) return;
+    // Deinit
+    HashSlot** p = (*map)->table;
+    HashSlot** end = &(*map)->table[(*map)->count];
+    HashSlot* last;
+    HashSlot* hs;
+    while(p < end) {
+        if(*p != NULL) {
+            hs = *p;
+            while(hs) {
+                last = hs;
+                hs = hs->next;
+                if(value_deinit)
+                    value_deinit(last->valueData);
+                coq_free(last);
+            }
+        }
+        p++;
+    }
+    // Destroy
+    coq_free(*map);
+    // Null
+    *map = NULL;
+}
+
+void  map_print(StringMap* map, void (*printValue)(const char*)) {
+    HashSlot** p = map->table;
+    HashSlot** end = &map->table[map->count];
+    printf("[\n");
+    uint32_t hash = 0;
+    while(p < end) {
+        if(*p != NULL) {
+            printf(" hash %d : ", hash);
+            _hashslot_print(*p, printValue);
+        }
+        p++; hash++;
+    }
+    printf("].\n");
+}
+char* map_putWithSize(StringMap* map, const char* key, const void* const valueDataOpt, const size_t size_value) {
+    size_t hashKey = _hash(key) % map->count;
+    HashSlot** const hsref = &map->table[hashKey];
+    // Emplacement vide. Premier element.
+    if(*hsref == NULL) {
+        HashSlot* newHs = _hashslot_create(key, valueDataOpt, size_value);
+        *hsref = newHs;
+        return newHs->valueData;
+    }
+    // Sinon verifier si existe.
+    HashSlot* hs = _hashslot_foundFirstInListWithKey(*hsref, key);
+    if(hs == NULL) { // Pas trouvé -> Ajout (insertion dans la liste)
+        HashSlot* newHs = _hashslot_create(key, valueDataOpt, size_value);
+        newHs->next = *hsref;
+        *hsref = newHs;
+        return newHs->valueData;
+    }
+    // Sinon remplacer la valeur existante ?
+    // Non, finalement, pas de overwrite... size_value peut varier d'une slot a l'autre... (et d'une fois a l'autre)
+//    if(overwrite) {
+//        if(valueDataOpt)
+//            memcpy(hs->valueData, valueDataOpt, size_value);
+//        else
+//            memset(hs->valueData, 0, size_value);
+//    }
+    return hs->valueData;
+}
+char* map_putAsString(StringMap* map, const char* key, const char* const string, Bool overwrite) {
+    if(string == NULL) {
+        printwarning("No string to put in map.");
+        return NULL;
+    }
+    size_t size_value = strnlen(string, Map_maxStringLenght) + 1; // +1 pour null terminate...
+    return map_putWithSize(map, key, string, size_value);
+}
+char* map_put(StringMap* map, const char* key, const void* const valueDataOpt) {
+    return map_putWithSize(map, key, valueDataOpt, map->size_value);
+}
+void  map_removeKeyValue(StringMap* map, const char* key) {
+    size_t hashKey = _hash(key) % map->count;
+    HashSlot** hsRef = &map->table[hashKey];
+    *hsRef = _hashslot_destroyWithKey(*hsRef, key);
+}
+const char* map_valueRefOptOfKey(StringMap* map, const char* key) {
+    size_t hashKey = _hash(key) % map->count;
+    HashSlot* hs = map->table[hashKey];
+    if(hs == NULL)
+        return NULL;
+    hs = _hashslot_foundFirstInListWithKey(hs, key);
+    if(hs != NULL)
+        return hs->valueData;
+    return NULL;
+}
+
+Bool map_iterator_init(StringMap* map) {
+    map->it_index = 0;
+    while(map->it_index < map->count) {
+        if(map->table[map->it_index] != NULL) {
+            map->it_hs = map->table[map->it_index];
+            return true;
+        }
+        map->it_index++;
+    }
+    map->it_hs = NULL;
+    return false;
+}
+Bool map_iterator_next(StringMap* map) {
+    if(map->it_hs == NULL)
+        return false;
+    // S'il y a d'autre slots...
+    if(map->it_hs->next) {
+        map->it_hs = map->it_hs->next;
+        return true;
+    }
+    // Sinon chercher le prochain hash.
+    map->it_index++;
+    while(map->it_index < map->count) {
+        if(map->table[map->it_index] != NULL) {
+            map->it_hs = map->table[map->it_index];
+            return true;
+        }
+        map->it_index++;
+    }
+    map->it_hs = NULL;
+    return false;
+}
+const char* map_iterator_valueRefOpt(StringMap* map) {
+    if(map->it_hs == NULL)
+        return NULL;
+    return map->it_hs->valueData;
+}
+
+void map_applyToAll(StringMap* map, void (*block)(char* valueData)) {
+    if(!map)
+        return;
+    if(!map_iterator_init(map))
+        return;
+    do {
+        block(map->it_hs->valueData);
+    } while(map_iterator_next(map));
+}
+
+void _printint(const char* intRef) {
+    if(intRef == NULL) {
+        printf("Nothing to print!\n");
+        return;
+    }
+    printf("%d", *((int*)intRef));
+}
+void _Map_test(void) {
+    StringMap* ht = Map_create(10, sizeof(int));
+    int value = 5;
+    map_put(ht, "Gustave", &value);
+    value = 7;
+    map_put(ht, "Monique", &value);
+
+    map_print(ht, _printint);
+
+    value = 15;
+    map_put(ht, "Roger", &value);
+    value = 1;
+    map_put(ht, "Alber", &value);
+    value = -15;
+    map_put(ht, "Gustave", &value);
+    value = 42;
+    map_put(ht, "Antoine", &value);
+
+    map_print(ht, _printint);
+
+
+    value = 15;
+    map_put(ht, "Flaubert", &value);
+    value = 1;
+    map_put(ht, "George", &value);
+    value = -15;
+    map_put(ht, "Fluffy", &value);
+    value = 42;
+    map_put(ht, "Bertrand", &value);
+
+    map_print(ht, _printint);
+
+    const char* gVal = map_valueRefOptOfKey(ht, "George");
+    const char* zVal = map_valueRefOptOfKey(ht, "Zoe");
+    printf("Values of George and Zoe");
+    _printint(gVal); _printint(zVal);
+}
+
+
