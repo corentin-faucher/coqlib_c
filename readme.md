@@ -12,7 +12,7 @@
 - `a_init(A* a)` : Initialisation (seulement) d'un objet existant.
 - `a_deinit(A* a)` : Préparation pour déallocation (dealloc les sous-objets).
 - `a_destroy(A* a)` : Deinit et destruction *free* d'un objet.
-- `a_set...` : Setters, définir une/des variable(s) d'un objet, e.g. void a_setIsOn(A *a, Bool isOn).
+- `a_set...` : Setters, définir une/des variable(s) d'un objet, e.g. `void a_setIsOn(A *a, Bool isOn)`.
 - `a_update()` : Setter indirect, e.g. ChoronoRender_update(60.f).
 - `a_(action)...` : Fonction quelconque appliquée à l'objet, e.g. void chrono_pause(Chrono *c).
 - `a_(propriété)...` : Getter quelconque ("get" est sous-entendu),
