@@ -59,7 +59,7 @@ Bool sq_goUpPS(Squirrel *sq);
 Bool sq_goToNext(Squirrel *sq);
 Bool sq_goToNextToDisplay(Squirrel *sq);
 
-Bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq, int toLittle);
+Bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq);
 
 Vector2 vector2_inReferentialOfSquirrel(Vector2 v, Squirrel *sq);
 

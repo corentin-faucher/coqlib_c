@@ -192,9 +192,10 @@ Bool sq_goToNextToDisplay(Squirrel *sq) {
     } while(sq_goUp(sq));
     return false;
 }
-Bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq, int toLittle) {
+Bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq) {
     Node *toDelete = sq->pos;
-    Node *bro = toLittle ? sq->pos->littleBro : sq->pos->bigBro;
+    Node* bro = sq->pos->littleBro;
+//    Node *bro = toLittle ? sq->pos->littleBro : sq->pos->bigBro;
     if(bro) {
         sq->pos = bro;
         node_tree_throwToGarbage(toDelete);

@@ -49,14 +49,7 @@ void _drawable_updateScaleXAndWidth(Drawable* const surf, float twoDxOpt, float 
     surf->n.sx = sx;
     surf->n.w = alpha + extra_x/sx;  // (car 2dx = w*sx, sx = (2dx - e)/alpha... voir dessin.)
 }
-
-Drawable* _Drawable_create(Node* const refOpt,
-                           float x, float y, flag_t flags, uint8_t node_place,
-                           Texture* const tex, Mesh* const mesh) {
-    Drawable *d = _Node_createEmptyOfType(node_type_leaf_drawable, sizeof(Drawable),
-                                       flags, refOpt, node_place);
-    d->n.x = x;
-    d->n.y = y;
+void     drawable_init(Drawable* d, Texture* tex, Mesh* mesh) {
     smtrans_init(&d->trShow);
     smtrans_init(&d->trExtra);
     d->tex = tex;
@@ -71,6 +64,24 @@ Drawable* _Drawable_create(Node* const refOpt,
         d->n._type |= node_type_flag_notCopyable;
         d->n.deinit = _drawable_deinit_freeMesh;
     }
+}
+Drawable* Drawable_create(Node* const refOpt,
+                          Texture* const tex, Mesh* const mesh,
+                          flag_t flags, uint8_t node_place) {
+    Drawable *d = _Node_createEmptyOfType(node_type_leaf_drawable, sizeof(Drawable),
+                                       flags, refOpt, node_place);
+    drawable_init(d, tex, mesh);
+    return d;
+}
+Drawable* Drawable_createAndSetDims(Node* const refOpt,
+                                    float x, float y, float twoDx, float twoDy,
+                                    Texture* const tex, Mesh* const mesh,
+                                    flag_t flags, uint8_t node_place) {
+    Drawable *d = _Node_createEmptyOfType(node_type_leaf_drawable, sizeof(Drawable),
+                                        flags, refOpt, node_place);
+    d->n.x = x; d->n.y = y;
+    drawable_init(d, tex, mesh);
+    drawable_updateDimsWithDeltas(d, twoDx, twoDy);
     return d;
 }
 Drawable* node_asDrawableOpt(Node* nd) {
@@ -79,50 +90,36 @@ Drawable* node_asDrawableOpt(Node* nd) {
 }
 /*-- Surface d'image (png), peut etre une tile du png... ----------------------------------*/
 Drawable* Drawable_createImage(Node* const refOpt, uint pngId,
-                             float x, float y, float twoDy,
-                          flag_t flags, uint8_t node_place) {
+                               float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL)
         printerror("Missing Mesh_init().");
-    Drawable* surf = _Drawable_create(refOpt, x, y, flags, node_place,
-         Texture_sharedImage(pngId), mesh_sprite);
-    drawable_updateDimsWithDeltas(surf, 0.f, twoDy);
-    return surf;
+    return Drawable_createAndSetDims(refOpt, x, y, 0.f, twoDy,
+                                     Texture_sharedImage(pngId), mesh_sprite, flags, 0);
 }
 Drawable* Drawable_createImageWithName(Node* const refOpt, const char* pngName,
-                          float x, float y, float twoDy,
-                          flag_t flags, uint8_t node_place) {
+                          float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL)
         printerror("Missing Mesh_init().");
-    Drawable* surf = _Drawable_create(refOpt, x, y, flags, node_place,
-         Texture_sharedImageByName(pngName), mesh_sprite);
-    drawable_updateDimsWithDeltas(surf, 0.f, twoDy);
-    return surf;
+    return Drawable_createAndSetDims(refOpt, x, y, 0.f, twoDy,
+                                     Texture_sharedImageByName(pngName), mesh_sprite, flags, 0);
 }
-Drawable* Drawable_createImageWithFixedWidth(Node* const refOpt, uint pngId,
-                          float x, float y, float twoDx, float twoDy,
-                          flag_t flags, uint8_t node_place) {
-    if(mesh_sprite == NULL)
-        printerror("Mesh not init.");
-    Drawable* surf = _Drawable_create(refOpt, x, y, flags|flag_drawableDontRespectRatio, node_place,
-         Texture_sharedImage(pngId), mesh_sprite);
-    drawable_updateDimsWithDeltas(surf, twoDx, twoDy);
-    return surf;
-}
-void      _node_drawable_imagelanguage_open(Node* nd) {
+void      _drawable_open_imagelanguage(Node* nd) {
     Drawable* d = (Drawable*)nd;
     drawable_setTile(d, Language_current(), 0);
 }
 Drawable* Drawable_createImageLanguage(Node* refOpt, uint32_t pngId,
-                                       float x, float y, float twoDy,
-                                       flag_t flags, uint8_t node_place) {
+                                       float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL)
         printerror("Mesh not init.");
-    Drawable* d = _Drawable_create(refOpt, x, y, flags, node_place,
-         Texture_sharedImage(pngId), mesh_sprite);
-    d->n.open = _node_drawable_imagelanguage_open;
-    drawable_updateDimsWithDeltas(d, 0.f, twoDy);
+    Drawable *d =  Drawable_createAndSetDims(refOpt, x, y, 0.f, twoDy,
+                                     Texture_sharedImage(pngId), mesh_sprite, flags, 0);
+    d->n.open = _drawable_open_imagelanguage;
     return d;
 }
+
+
+/*-- Setters --------------------------------------------------------------------*/
+
 void      drawable_updateDimsWithDeltas(Drawable* const d, float twoDxOpt, float twoDy) {
     _drawable_updateScaleYAndHeihgt(d, twoDy);
     _drawable_updateScaleXAndWidth(d, twoDxOpt, twoDy);
@@ -171,8 +168,9 @@ void   node_tryToAddTestFrame(Node* ref) {
     if(!ref) {
         printerror("No parent."); return;
     }
-    Drawable* d = _Drawable_create(ref, 0.f, 0.f, 0, 0,
-                                   Texture_sharedImageByName("coqlib_test_frame"), mesh_sprite);
+    Drawable *d = _Node_createEmptyOfType(node_type_leaf_drawable, sizeof(Drawable),
+                                          0, ref, 0);
+    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), mesh_sprite);
     d->n.open = _drawable_open_testframe_getSizesOfParent;
     if(ref->reshape) {
         ref->flags |= flag_parentOfReshapable;
@@ -186,42 +184,40 @@ void   node_last_tryToAddTestFrame(void) {
 /*-- Surface de String constante. -----------------------------------------------------------*/
 Drawable* Drawable_createConstantString(Node* const refOpt, const char* c_str,
                               float x, float y, float maxTwoDxOpt, float twoDy,
-                              flag_t flags, uint8_t node_place) {
+                              flag_t flags) {
     if(mesh_sprite == NULL)
         printerror("Missing Mesh_init().");
-    Drawable* d = _Drawable_create(refOpt, x, y, flags, node_place,
-                                   Texture_sharedConstantString(c_str), mesh_sprite);
+    Drawable* d = Drawable_createAndSetDims(refOpt, x, y, maxTwoDxOpt, twoDy,
+                       Texture_sharedConstantString(c_str), mesh_sprite, flags, 0);
     d->n.piu.color = color4_black;
-    drawable_updateDimsWithDeltas(d, maxTwoDxOpt, twoDy);
     return d;
 }
 /*-- Surface de String localisee. -----------------------------------------------------------*/
 Drawable* Drawable_createString(Node* const refOpt, UnownedString str,
                    float x, float y, float maxTwoDxOpt, float twoDy,
-                   flag_t flags, uint8_t node_place) {
+                   flag_t flags) {
     if(mesh_sprite == NULL)
         printerror("Missing Mesh_init().");
-    Drawable* d = _Drawable_create(refOpt, x, y, flags, node_place,
-                                   Texture_createString(str), mesh_sprite);
+    Drawable* d = Drawable_createAndSetDims(refOpt, x, y, maxTwoDxOpt, twoDy,
+                       Texture_createString(str), mesh_sprite, flags, 0);
     d->n.piu.color = color4_black;
     drawable_updateDimsWithDeltas(d, maxTwoDxOpt, twoDy);
     return d;
 }
 
-/*-- Surface "Fan" (un rond). --------------------------------------------------------------*/
-Drawable* Drawable_createFan(Node* const refOpt, uint32_t pngId,
-                             float x, float y, float twoDy,
-                             flag_t flags, uint8_t node_place) {
-    if(mesh_sprite == NULL)
-        printerror("Missing Mesh_init().");
-    Drawable* d = _Drawable_create(refOpt, x, y, flags, node_place,
-         Texture_sharedImage(pngId), Mesh_createFan());
-    d->n.w = 1.f;
-    d->n.h = 1.f;
-    d->n.sx = 2.f*twoDy;
-    d->n.sy = 2.f*twoDy;
-    return d;
-}
+/*-- Surface "Fan" (un rond). Utile ? -------------------------------------------------------*/
+//Drawable* Drawable_createFan(Node* const refOpt, uint32_t pngId,
+//                             float x, float y, float twoDy,
+//                             flag_t flags, uint8_t node_place) {
+//    if(mesh_sprite == NULL)
+//        printerror("Missing Mesh_init().");
+//    Drawable* d = Drawable_create(refOpt, Texture_sharedImage(pngId), Mesh_createFan(),
+//                                  flags, node_place);
+//    d->n.x = x;        d->n.y = y;
+//    d->n.w = 1.f;      d->n.h = 1.f;
+//    d->n.sx = twoDy;   d->n.sy = twoDy;
+//    return d;
+//}
 Drawable* node_defaultUpdateModelAndGetAsDrawableOpt(Node* const node) {
     // 0. Cas root
     {

@@ -13,8 +13,6 @@
 
 @implementation AppDelegate
 
-static dispatch_queue_t      _my_queue = NULL;
-
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
     // Creation d'un menu simple (juste quit)
     id menubar = [NSMenu new];
@@ -37,13 +35,11 @@ static dispatch_queue_t      _my_queue = NULL;
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    // Taille de la window
-    CGRect rect = CGRectMake(0, 0, 800, 500);
     // Creation d'une fenetre
     NSUInteger uistlyle =  NSWindowStyleMaskClosable|NSWindowStyleMaskTitled|
          NSWindowStyleMaskResizable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView;
     NSBackingStoreType bss = NSBackingStoreBuffered;
-    window = [[NSWindow alloc] initWithContentRect:rect
+    window = [[NSWindow alloc] initWithContentRect:CGRectMake(0, 0, 800, 500)
         styleMask:uistlyle backing:bss defer:NO];
     [window setTitle:[NSBundle.mainBundle localizedStringForKey:@"app_name"
                                                           value:@"Demo Xcode" table:nil]];
@@ -86,28 +82,14 @@ static dispatch_queue_t      _my_queue = NULL;
 }
 
 -(void)applicationWillResignActive:(NSNotification *)notification {
-    printdebug("Resign active !");
-    NSView* view = [window contentView];
-    if(![view isKindOfClass:[CoqMetalView class]]) {
-        printerror("MTKView is not a custom MetalView.");
-        return;
-    }
-    CoqMetalView* metalView = (CoqMetalView*)view;
-    [metalView setSuspended:YES];
+    [view setSuspended:YES];
     Texture_suspend();
     _Sound_suspend();
 }
 -(void)applicationDidBecomeActive:(NSNotification *)notification {
-    printdebug("become active !");
-    NSView* view = [window contentView];
-    if(![view isKindOfClass:[CoqMetalView class]]) {
-        printerror("MTKView is not a custom MetalView.");
-        return;
-    }
-    CoqMetalView* metalView = (CoqMetalView*)view;
     Texture_resume();
     _Sound_resume();
-    [metalView setSuspended:NO];
+    [view setSuspended:NO];
 }
 
 

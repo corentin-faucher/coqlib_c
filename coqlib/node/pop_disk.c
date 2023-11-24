@@ -61,7 +61,7 @@ void PopDisk_spawn(Node* const refOpt, PopDisk** const refererOpt,
     // Surface init
     smtrans_init(&pop->d.trShow);
     smtrans_init(&pop->d.trExtra);
-    pop->d.tex = Texture_sharedImage(pngId);
+    pop->d.tex =   Texture_sharedImage(pngId);
     pop->d.mesh =  Mesh_createFan();
     drawable_setTile(&pop->d, tile, 0);
     // PopDisk init
@@ -109,13 +109,8 @@ void   PopMessage_spawn(Node* refOpt,
     // Init as Fluid.
     _fluid_init(&pm->s, 10.f);
     // Structure (frame et localized string)
-    Frame_create(&pm->n, 0, 0.35*height, 0, 0, framePngId, frametype_giveSizesToParent);
-    Texture* tex = Texture_createString(str);
-    Drawable* string = _Drawable_create(&pm->n, 0, 0, flag_giveSizeToBigbroFrame, 0,
-                                        tex, mesh_sprite);
-    string->n.piu.color = color4_black;
-    string->x_margin = 0.5;
-    drawable_updateDimsWithDeltas(string, maxWidth, height);
+    Frame_create(&pm->n, 0, 0.35*height, 0, 0, framePngId, frame_option_giveSizesToParent);
+    Drawable_createString(&pm->n, str, 0.f, 0.f, maxWidth, height, flag_giveSizeToBigbroFrame);
     // PopMessage init
     timer_scheduled(&pm->timer, (int64_t)(timeSec*1000.f), false, &pm->n, node_tree_close);
     node_tree_openAndShow(&pm->n);

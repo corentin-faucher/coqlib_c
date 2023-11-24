@@ -46,7 +46,8 @@ View* View_createTest(Root* rt) {
     
     Fluid* bloc = Fluid_create(&v->n, 0.5f, 0.f, 1.f, 1.f, 5.f,
                                flag_fluidFadeInRight, 0);
-    Drawable_createImageWithName(&bloc->n, "coqlib_the_cat", -1.f, 0.f, 0.5f, 0, 0);
+    fluid_setZ(bloc, 3, true);
+    Drawable_createImageWithName(&bloc->n, "coqlib_the_cat", -1.f, 0.f, 0.5f, 0);
     
     // Setter la police avant d'ajouter des strings.
     Texture_setCurrentFontSize(144);
@@ -59,14 +60,18 @@ View* View_createTest(Root* rt) {
     str.c_str = Loc_strKey(loc_menu);
     node_last_addFramedString(png_frame_mocha, str,
                               0.8f, 0.20f, 0.f, true);
-    Drawable_createImageWithFixedWidth(&v->n, png_frame_red, -0.55, -0.4, 0.8, 0.15, 0, 0);
+    Drawable_createAndSetDims(&v->n, -0.55, -0.4, 0.8, 0.15,
+                              Texture_sharedImage(png_frame_red), mesh_sprite,
+                              flag_drawableDontRespectRatio, 0);
     str.c_str = Loc_strKey(loc_quit);
     ButtonHoverable_create(&v->n, rt, button_action_terminate,
                            png_frame_white_back, str,
                            -0.55, -0.6, 0.15, 10, 0);
     node_last_addFramedString(png_frame_mocha, str,
                               0.8f, 0.20f, 0.f, false);
-    Drawable_createImageWithFixedWidth(&v->n, png_frame_red, -0.55, -0.6, 0.8, 0.15, 0, 0);
+    Drawable_createAndSetDims(&v->n, -0.55, -0.6, 0.8, 0.15,
+                              Texture_sharedImage(png_frame_red), mesh_sprite,
+                              flag_drawableDontRespectRatio, 0);
     
     SecurePopInfo spi = {
         2.f, png_disks, disk_color_red,
@@ -75,7 +80,7 @@ View* View_createTest(Root* rt) {
     ButtonSecure_create(&v->n, rt, button_action_doubleDeltaT, spi, -0.5, 0.5, 0.25, 10, 0);
     node_last_addIcon(png_disks, disk_color_orange, png_icons, icon_help);
     str.c_str = Loc_strKey(loc_app_name);
-    Drawable_createString(&v->n, str, 0.f,  0.85f, 2.f, 0.15f, 0, 0);
+    Drawable_createString(&v->n, str, 0.f, 0.9f,  2.f, 0.15f, 0);
     
     PopDisk_spawn(&v->n, NULL, png_disks, disk_color_blue, 3.f, -0.15f, -0.25f, 0.3f);
     

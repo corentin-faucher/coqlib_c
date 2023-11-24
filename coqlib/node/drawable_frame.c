@@ -10,27 +10,43 @@
 #include "_node_types.h"
 
 /*-- Surface de "Bar". Un segment de taille ajustable. Version 1D de "Frame". --------------*/
-void   _bar_update(Frame* bar, float deltaX) {
+void   _bar_update(Frame* bar, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, bar->inside));
     float delta = bar->delta;
-    float smallDeltaX = fmaxf(0.f, deltaX - 2*delta * inside);
+    float smallDeltaX = fmaxf(0.f, deltas.x - 2*delta * inside);
     float actualDx = (smallDeltaX + 2.f * delta);
     bar->n.w = 1.f;
     bar->n.h = 1.f;
     bar->n.sx = 2.f*actualDx;
     bar->n.sy = 2.f*delta;
-    float xPos = 0.5f * smallDeltaX / (smallDeltaX + 2.f * delta);
+    float xPos = 0.5f * smallDeltaX / actualDx;
     Vertex* vertices = mesh_vertices(bar->d.mesh);
     vertices[2].x = -xPos;
     vertices[3].x = -xPos;
     vertices[4].x =  xPos;
     vertices[5].x =  xPos;
 }
-void   _frame_update(Frame* frame, float deltaX, float deltaY) {
+void   _vbar_update(Frame* vbar, Vector2 deltas) {
+    float inside = fminf(1.f, fmaxf(0.f, vbar->inside));
+    float delta = vbar->delta;
+    float smallDeltaY = fmaxf(0.f, deltas.y - 2.f*delta * inside);
+    float actualDy = (smallDeltaY + 2.f * delta);
+    vbar->n.w = 1.f;
+    vbar->n.h = 1.f;
+    vbar->n.sx = 2.f*delta;
+    vbar->n.sy = 2.f*actualDy;
+    float yPos = 0.5f * smallDeltaY / actualDy;
+    Vertex* vertices = mesh_vertices(vbar->d.mesh);
+    vertices[2].y =  yPos;
+    vertices[3].y =  yPos;
+    vertices[4].y = -yPos;
+    vertices[5].y = -yPos;
+}
+void   _frame_update(Frame* frame, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, frame->inside));
     float delta = frame->delta;
-    float smallDeltaX = fmaxf(0.f, deltaX - delta * inside);
-    float smallDeltaY = fmaxf(0.f, deltaY - delta * inside);
+    float smallDeltaX = fmaxf(0.f, deltas.x - delta * inside);
+    float smallDeltaY = fmaxf(0.f, deltas.y - delta * inside);
     float actualDx = (smallDeltaX + delta);
     float actualDy = (smallDeltaY + delta);
     frame->n.w = 1.f;
@@ -70,70 +86,59 @@ void   _frame_open_getSizesOfParent(Node* nd) {
     Frame* f = (Frame*)nd;
     Node* p = nd->parent;
     if(!p) { printerror("No parent."); return; }
-    if(f->_isBar)
-        _bar_update(f, 0.5f*p->w);
-    else
-        _frame_update(f, 0.5f*p->w, 0.5f*p->h);
-}
-Frame* Frame_createBar(Node* const refOpt, float inside,
-                       float delta, float twoDxOpt, uint pngId) {
-    Frame* bar = _Node_createEmptyOfType(node_type_dl_frame, sizeof(Frame),
-                                       flag_drawableDontRespectRatio, refOpt, 0);
-    // Init as drawable.
-    smtrans_init(&bar->d.trShow);
-    smtrans_init(&bar->d.trExtra);
-    bar->d.tex = Texture_sharedImage(pngId);
-    bar->d.mesh =  Mesh_createBar(); // ** Mesh owner.
-    bar->n.deinit = _drawable_deinit_freeMesh;
-    // Init as frame
-    bar->delta = delta;
-    bar->inside = inside;
-    bar->_isBar = true;
-    if(twoDxOpt > 0.f)
-        _bar_update(bar, 0.5f*twoDxOpt);
-    return bar;
+    f->setDims(f, (Vector2){0.5f*p->w, 0.5f*p->h});
 }
 /*-- Surface de "Frame". Un cadre ajustable. Typiquement autour d'un autre noeud. -----------*/
 Frame* Frame_createWithTex(Node* const refOpt, float inside,
                     float delta, float twoDxOpt, float twoDyOpt,
-                    Texture* shrTex, FrameType frametype) {
+                    Texture* tex, uint16_t options) {
     Frame* frame = _Node_createEmptyOfType(node_type_dl_frame, sizeof(Frame),
                                    flag_drawableDontRespectRatio, refOpt, 0);
     // Init as drawable.
     smtrans_init(&frame->d.trShow);
     smtrans_init(&frame->d.trExtra);
-    frame->d.tex = shrTex;
-    frame->d.mesh =  Mesh_createFrame(); // ** Mesh owner.
-    frame->n.deinit = _drawable_deinit_freeMesh;
+    frame->d.tex = tex;
+    // Mesh (owner) et fonction pour setter les dimensions du frame.
+    if(options & frame_option_horizotalBar) {
+        frame->d.mesh = Mesh_createHorizontalBar();
+        frame->setDims = _bar_update;
+    } else if(options & frame_option_verticalBar) {
+        frame->d.mesh = Mesh_createVerticalBar();
+        frame->setDims = _vbar_update;
+    } else {
+        frame->d.mesh = Mesh_createFrame();
+        frame->setDims = _frame_update;
+    }
+    if(texture_isShared(tex))
+        frame->n.deinit = _drawable_deinit_freeMesh;
+    else
+        frame->n.deinit = _drawable_deinit_freeTextureAndMesh;
     // Init as frame
     frame->delta = delta;
     frame->inside = inside;
-    frame->_isBar = false;
-    if(frametype == frametype_getSizesFromParent) {
+    if(options & frame_option_getSizesFromParent) {
         frame->n.open =    _frame_open_getSizesOfParent;
         frame->n.reshape = _frame_open_getSizesOfParent;
     }
-    if(frametype == frametype_giveSizesToParent)
+    if(options & frame_option_giveSizesToParent)
         frame->n.flags |= flag_giveSizeToParent;
-    if(twoDxOpt > 0.f && twoDyOpt > 0.f)
-        _frame_update(frame, 0.5f*twoDxOpt, 0.5f*twoDyOpt);
+    // Setter tout de suite les dimensions ?
+    if(twoDxOpt <= 0.f && twoDyOpt <= 0.f)
+        return frame;
+    frame->setDims(frame, (Vector2) {0.5f*twoDxOpt, 0.5f*twoDyOpt});
     return frame;
 }
 Frame* Frame_create(Node* const refOpt, float inside, float delta,
-                    float twoDxOpt, float twoDyOpt, uint pngId, FrameType frametype) {
+                    float twoDxOpt, float twoDyOpt, uint pngId, uint16_t options) {
     Texture* frameTex = Texture_sharedImage(pngId);
     return Frame_createWithTex(refOpt, inside, delta,
-           twoDxOpt, twoDyOpt, frameTex, frametype);
+           twoDxOpt, twoDyOpt, frameTex, options);
 }
-void  node_tryUpdatingAsFrameOfBro(Node* nodeOpt, Node* refBro) {
-    if(!nodeOpt) return;
+void  node_tryUpdatingAsFrameOfBro(Node* nodeOpt, Node* broOpt) {
+    if(!nodeOpt || !broOpt) return;
     if(!(nodeOpt->_type & node_type_flag_frame)) return;
     Frame* f = (Frame*)nodeOpt;
-    if(!f || !refBro) return;
-    if(f->_isBar)
-        _bar_update(f, node_deltaX(refBro));
-    else
-        _frame_update(f, node_deltaX(refBro), node_deltaY(refBro));
+    f->setDims(f, node_deltas(broOpt));
 }
 
 

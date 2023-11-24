@@ -15,6 +15,7 @@
 #include "node_tree.h"
 #include "sound.h"
 #include "sliding_menu.h"
+#include "coqevent.h"
 #include <math.h>
 
 @implementation CoqMetalView
@@ -50,24 +51,31 @@
     if(_my_queue == NULL)
         _my_queue = dispatch_queue_create("coqviewcheckup.queue", NULL);
     dispatch_async(_my_queue, ^{
-        int64_t lastDeltaT = 0;
         ChronoChecker cc;
         while(true) {
-            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - lastDeltaT;
-            if(sleepDeltaT < 1) sleepDeltaT = 1;
-            struct timespec time = {0, sleepDeltaT*ONE_MILLION};
-            nanosleep(&time, NULL);
+            // Checks
             if(self.isPaused) { break; }
             Root* root = self->root;
             if(root == NULL) { break; }
             if(root->shouldTerminate || [self willTerminate]) { break; }
             _chronochecker_set(&cc);
+            // Updates prioritaires
+            CoqEvent_processEvents(root);
             Timer_check();
-            Texture_checkToFullyDraw(&cc);
-            Texture_checkUnused();
             if(root->iterationUpdate) root->iterationUpdate(root);
             NodeGarbage_burn();
-            lastDeltaT = _chronochceker_elapsedMS(&cc);
+            // Check optionnels
+            if(_chronochceker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
+                printwarning("Overwork?"); continue;
+            }
+            Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
+            // Sleep s'il reste du temps.
+            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochceker_elapsedMS(&cc);
+            if(sleepDeltaT < 1) {
+                sleepDeltaT = 1;
+            }
+            struct timespec time = {0, sleepDeltaT*ONE_MILLION};
+            nanosleep(&time, NULL);
         }
         // Terminate ?
         Bool shouldTerminate = true;
@@ -106,18 +114,25 @@
 
 -(void)updateRootFrame {
     if(!root) { printerror("root not init"); return; }
+    CoqEvent coq_event;
+    coq_event.flags = event_type_resize;
 #if TARGET_OS_OSX == 1
     NSWindow* window = [self window];
     CGFloat headerHeight = (window.styleMask & NSWindowStyleMaskFullScreen) ?
         22 : window.frame.size.height - window.contentLayoutRect.size.height;
     window = nil;
-    root->margins = (Margins) { headerHeight, 0, 0, 0 };
-    root_setFrame(root,  self.frame.size.width, self.frame.size.height, false);
+    
+    coq_event.margins = (Margins) { headerHeight, 0, 0, 0 };
+    coq_event.sizesPx = (Vector2) { self.frame.size.width, self.frame.size.height };
+    coq_event.inTransition = false;
 #else
     UIEdgeInsets m =  [self safeAreaInsets];
-    root->margins = (Margins) { m.top, m.left, m.bottom, m.right };
-    root_setFrame(root,  self.frame.size.width, self.frame.size.height, false);
+    
+    coq_event.margins = (Margins) { m.top, m.left, m.bottom, m.right };
+    coq_event.sizesPx = (Vector2) { self.frame.size.width, self.frame.size.height };
+    coq_event.inTransition = false;
 #endif
+    CoqEvent_addEvent(coq_event);
 }
 
 -(void)safeAreaInsetsDidChange {
@@ -128,6 +143,7 @@
 #if TARGET_OS_OSX == 1
 /*-- Mouse ---------------------------------------------*/
 -(void)mouseEntered:(NSEvent *)event {
+    // TODO ?
 }
 -(void)mouseExited:(NSEvent *)event {
 }
@@ -147,71 +163,41 @@
     [self setPaused:NO];
     NSPoint viewPosNSP = event.locationInWindow;
     Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    Vector2 abspos = root_absposFromViewPos(root, viewPos, false);
     
-    Button* const hovered = root_searchButtonOpt(root, abspos, NULL);
-    Button* const lastHovered = root->selectedButton;
-    if(lastHovered == hovered)
-        return;
-    if(lastHovered) if(lastHovered->stopHovering)
-        lastHovered->stopHovering(lastHovered);
-    root->selectedButton = hovered;
-    if(hovered) if(hovered->startHovering)
-        hovered->startHovering(hovered);
+    CoqEvent coq_event;
+    coq_event.flags = event_type_hovering;
+    coq_event.pos = root_absposFromViewPos(root, viewPos, false);
+    CoqEvent_addEvent(coq_event);
 }
 -(void)mouseDown:(NSEvent *)event {
     if(root == NULL) return;
     [self setPaused:NO];
     NSPoint viewPosNSP = event.locationInWindow;
     Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    Vector2 abspos = root_absposFromViewPos(root, viewPos, false);
-    root->lastTouchedPos = abspos;
-    Button* const lastSelected = root->selectedButton;
-    if(lastSelected) if(lastSelected->stopHovering)
-        lastSelected->stopHovering(lastSelected);
-    root->selectedButton = NULL;
-    // 0. Trouver un bouton sélectionable
-    Button* const toTouch = root_searchButtonOpt(root, abspos, NULL);
-    if(toTouch == NULL) return;
-    // 1. Grab le noeud draggable (si on drag on ne select pas)
-    if(toTouch->grab) {
-        root->selectedButton = toTouch;
-        Vector2 relpos = vector2_absPosToPosInReferentialOfNode(abspos, &toTouch->n);
-        toTouch->grab(toTouch, relpos);
-        return;
-    }
-    // 2. Sinon activer le noeud sélectionné (non grabbable)
-    if(toTouch->action) {
-        toTouch->action(toTouch);
-        return;
-    }
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_down;
+    coq_event.pos = root_absposFromViewPos(root, viewPos, false);
+    CoqEvent_addEvent(coq_event);
 }
 -(void)mouseDragged:(NSEvent *)event {
     if(root == NULL) return;
     [self setPaused:NO];
-    Button* const grabbed = root->selectedButton;
-    if(grabbed == NULL) return;
-    if(grabbed->drag == NULL) {
-        printwarning("Grabbed node without drag function.");
-        return;
-    }
     NSPoint viewPosNSP = event.locationInWindow;
     Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    Vector2 abspos = root_absposFromViewPos(root, viewPos, false);
-    Vector2 relpos = vector2_absPosToPosInReferentialOfNode(abspos, &grabbed->n);
-    grabbed->drag(root->selectedButton, relpos);
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_drag;
+    coq_event.pos = root_absposFromViewPos(root, viewPos, false);
+    CoqEvent_addEvent(coq_event);
 }
 -(void)mouseUp:(NSEvent *)event {
     if(root == NULL) return;
     [self setPaused:NO];
-    Button* const grabbed = root->selectedButton;
-    if(grabbed == NULL) return;
-    if(grabbed->letGo) {
-        grabbed->letGo(root->selectedButton);
-    } else {
-        printwarning("Grabbed node without letGo function.");
-    }
-    root->selectedButton = NULL;
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_up;
+    CoqEvent_addEvent(coq_event);
 }
 -(void)scrollWheel:(NSEvent *)event {
     if(root == NULL) return;
@@ -219,19 +205,26 @@
     // (slidingmenu a sa propre "inertie", si != 0 -> on a un "NSEventPhase" que l'on ignore)
     if(event.momentumPhase != 0)
         return;
-    SlidingMenu* sm = root_searchFirstSlidingMenuOpt(root);
-    if(sm == NULL) return;
+    CoqEvent coq_event;
     switch(event.phase) {
         case NSEventPhaseNone:
-            slidingmenu_scroll(sm, event.scrollingDeltaY > 0);
+            coq_event.flags = event_type_scroll;
+            coq_event.deltas = (Vector2) {event.scrollingDeltaX, event.scrollingDeltaY };
+            break;
         case NSEventPhaseBegan:
-            slidingmenu_trackPadScrollBegan(sm); break;
+            coq_event.flags = event_type_scrollTrackBegin; break;
         case NSEventPhaseChanged:
-            slidingmenu_trackPadScroll(sm, (float)event.scrollingDeltaY); break;
+            coq_event.flags = event_type_scrollTrack;
+            coq_event.deltas = (Vector2) {event.scrollingDeltaX, event.scrollingDeltaY };
+            break;
         case NSEventPhaseEnded:
-            slidingmenu_trackPadScrollEnded(sm);
-        default: break;
-    }    
+            coq_event.flags = event_type_scrollTrackEnd; break;
+        default:
+            coq_event.flags = 0;
+            break;
+    }
+    if(coq_event.flags)
+        CoqEvent_addEvent(coq_event);
 }
 #else
 /*-- Touches (similaire a mouse)----------------------------------------*/
@@ -241,65 +234,40 @@
     UITouch* touch = [touches anyObject];
     CGPoint location = [touch locationInView:self];
     Vector2 viewPos = { location.x, location.y };
-    Vector2 abspos = root_absposFromViewPos(root, viewPos, true);
-    root->lastTouchedPos = abspos;
-    // 0. Trouver un bouton sélectionable
-    root->selectedButton = NULL;
-    // 0. Trouver un bouton sélectionable
-    Button* const toTouch = root_searchButtonOpt(root, abspos, NULL);
-    if(toTouch == NULL) return;
-    // 1. Grab le noeud draggable (si on drag on ne select pas)
-    if(toTouch->grab) {
-        root->selectedButton = toTouch;
-        Vector2 relpos = vector2_absPosToPosInReferentialOfNode(abspos, &toTouch->n);
-        toTouch->grab(toTouch, relpos);
-        return;
-    }
-    // 2. Sinon activer le noeud sélectionné (non grabbable)
-    if(toTouch->action) {
-        toTouch->action(toTouch);
-        return;
-    }
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_down;
+    coq_event.pos = root_absposFromViewPos(root, viewPos, false);
+    CoqEvent_addEvent(coq_event);
 }
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     if(root == NULL || touches.count == 0) return;
     [self setPaused:NO];
-    Button* const grabbed = root->selectedButton;
-    if(grabbed == NULL) return;
-    if(grabbed->drag == NULL) {
-        printwarning("Grabbed node without drag function.");
-        return;
-    }
     UITouch* touch = [touches anyObject];
     CGPoint location = [touch locationInView:self];
     Vector2 viewPos = { location.x, location.y };
-    Vector2 abspos = root_absposFromViewPos(root, viewPos, true);
-    Vector2 relpos = vector2_absPosToPosInReferentialOfNode(abspos, &grabbed->n);
-    grabbed->drag(root->selectedButton, relpos);
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_drag;
+    coq_event.pos = root_absposFromViewPos(root, viewPos, false);
+    CoqEvent_addEvent(coq_event);
+    
 }
 -(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     if(root == NULL || touches.count == 0) return;
     [self setPaused:NO];
-    Button* const grabbed = root->selectedButton;
-    if(grabbed == NULL) return;
-    if(grabbed->letGo) {
-        grabbed->letGo(root->selectedButton);
-    } else {
-        printwarning("Grabbed node without letGo function.");
-    }
-    root->selectedButton = NULL;
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_up;
+    CoqEvent_addEvent(coq_event);
 }
 -(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     if(root == NULL || touches.count == 0) return;
     [self setPaused:NO];
-    Button* const grabbed = root->selectedButton;
-    if(grabbed == NULL) return;
-    if(grabbed->letGo) {
-        grabbed->letGo(root->selectedButton);
-    } else {
-        printwarning("Grabbed node without letGo function.");
-    }
-    root->selectedButton = NULL;
+    
+    CoqEvent coq_event;
+    coq_event.flags = event_type_up;
+    CoqEvent_addEvent(coq_event);
 }
 #endif
 /*-- Keyboard input ---------------------------------------------*/

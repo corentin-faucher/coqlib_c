@@ -53,8 +53,8 @@ Fluid* node_asFluidOpt(Node* n);
 // Internals
 void    _fluid_setRelatively(Fluid* const f, const Bool fix);
 // Les fonctions de base d'ouverture, fermeture, reshape de Node pour sous-classes.
-void    fluid_open_default(Node* node);
-void    fluid_close_fadeOut(Node* node);
-void    fluid_reshape_relatively(Node* node);
+void    fluid_open(Node* node);
+void    fluid_close(Node* node);
+void    fluid_reshape(Node* node);
 
 #endif /* fluid_h */

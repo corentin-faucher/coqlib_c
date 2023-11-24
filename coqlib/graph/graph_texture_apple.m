@@ -316,6 +316,7 @@ void  _texture_drawFully(Texture* const tex) {
     tex->flags |= tex_flag_fullyDrawn;
 }
 void  _texture_unset(Texture* const tex) {
+    printdebug("Unsetting texture %s.", tex->string);
     tex->mtlTexture = nil;
     tex->flags &= ~tex_flag_miniOrFullyDrawn;
 }
@@ -361,8 +362,8 @@ static Texture**         _nonSharedCurrent = _nonSharedStrTexArray;
 
 /// Liste des pngs par defaut
 const PngInfo _coqlib_pngInfos[] = {
-    {"coqlib_scroll_bar_back", 1, 3},
-    {"coqlib_scroll_bar_front", 1, 3},
+    {"coqlib_scroll_bar_back", 1, 1},
+    {"coqlib_scroll_bar_front", 1, 1},
     {"coqlib_sliding_menu_back", 1, 1},
     {"coqlib_sparkle_stars", 3, 2},
     {"coqlib_switch_back", 1, 1},
@@ -438,7 +439,7 @@ void     Texture_suspend(void) {
 }
 void     Texture_resume(void) {
     _Texture_isLoaded = true;
-#warning Superflu finalement ? Texture utilisees seront chargees si besoin dans la premiere frame.
+//#warning Superflu finalement ? Texture utilisees seront chargees si besoin dans la premiere frame.
 //    if(!_Texture_isInit || _Texture_isLoaded) return;
     // Pas besoin, ceux qui on besoin seront redessiner...
 //    map_applyToAll(_textureOfConstantString, _map_block_texture_redrawAsString);
@@ -451,14 +452,21 @@ void     Texture_resume(void) {
 //    }
 //    _Texture_isLoaded = true;
 }
-void     Texture_checkToFullyDraw(ChronoChecker* cc) {
-    if(!_Texture_needToFullyDraw) return;
+
+static  uint32_t _Texture_checkunset_counter = 0;
+void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
+    if(!_Texture_needToFullyDraw) {
+        if(_Texture_checkunset_counter == 0)
+            map_applyToAll(_textureOfPngName, _map_block_texture_unsetUnused);
+        _Texture_checkunset_counter = (_Texture_checkunset_counter + 1) % 30;
+        return;
+    }
     if(map_iterator_init(_textureOfPngName)) do {
         Texture* tex = (Texture*)map_iterator_valueRefOpt(_textureOfPngName);
         if(!_texture_isUsed(tex)) continue;
         if(!(tex->flags & tex_flag_fullyDrawn)) {
             _texture_drawFully(tex);
-            if(_chronochceker_elapsedMS(cc) > Chrono_UpdateDeltaTMS) {
+            if(_chronochceker_elapsedMS(cc) > timesUp) {
                 return;
             }
         }
@@ -468,7 +476,7 @@ void     Texture_checkToFullyDraw(ChronoChecker* cc) {
         if(!_texture_isUsed(tex)) continue;
         if(!(tex->flags & tex_flag_fullyDrawn)) {
             _texture_drawFully(tex);
-            if(_chronochceker_elapsedMS(cc) > Chrono_UpdateDeltaTMS) {
+            if(_chronochceker_elapsedMS(cc) > timesUp) {
                 return;
             }
         }
@@ -477,16 +485,13 @@ void     Texture_checkToFullyDraw(ChronoChecker* cc) {
     while(tr < _nonSharedEnd) {
         if(*tr) if(!((*tr)->flags & tex_flag_fullyDrawn)) {
             _texture_drawFully(*tr);
-            if(_chronochceker_elapsedMS(cc) > Chrono_UpdateDeltaTMS) {
+            if(_chronochceker_elapsedMS(cc) > timesUp) {
                 return;
             }
         }
         tr ++;
     }
     _Texture_needToFullyDraw = false;
-}
-void     Texture_checkUnused(void) {
-    map_applyToAll(_textureOfPngName, _map_block_texture_unsetUnused);
 }
 void     _Texture_deinit(void) {
     _Texture_isInit = false;
@@ -498,7 +503,6 @@ void     _Texture_deinit(void) {
         coq_free(_textureOfPngId);
     _pngCount = 0;
 }
-
 
 Texture* Texture_sharedImage(uint const pngId) {
     if(!_textureOfPngId) { printerror("pngs not loaded."); return &_Texture_dummy; }

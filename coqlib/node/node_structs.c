@@ -15,27 +15,31 @@ void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
         printerror("No last node."); return;
     }
     float height = nd->h;
-    Drawable* surf = Drawable_createImage(nd, diskPngId, 0, 0, height, 0, 0);
-    drawable_setTile(surf, diskTile, 0);
-    surf->n.piu.emph = 0.1f;
-    surf = Drawable_createImage(nd, iconPngId, 0, 0, height, 0, 0);
-    drawable_setTile(surf, iconTile, 0);
+    
+    Drawable* d = Drawable_createAndSetDims(nd, 0.f, 0.f, 0.f, height,
+                         Texture_sharedImage(diskPngId), mesh_sprite, 0, 0);
+    drawable_setTile(d, diskTile, 0);
+    d->n.piu.emph = 0.1f;
+    d = Drawable_createAndSetDims(nd, 0.f, 0.f, 0.f, height,
+                                  Texture_sharedImage(iconPngId), mesh_sprite, 0, 0);
+    drawable_setTile(d, iconTile, 0);
 }
 void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile) {
     Node* nd = _node_last_created;
     if(nd == NULL) { printerror("No last node."); return; }
     float height = nd->h;
-    Drawable* d = Drawable_createImage(nd, iconPngId, 0, 0, height, 0, 0);
+    Drawable* d = Drawable_createAndSetDims(nd, 0.f, 0.f, 0.f, height,
+                     Texture_sharedImage(iconPngId), mesh_sprite, 0, 0);
     drawable_setTile(d, iconTile, 0);
     d->n.piu.emph = 0.1f;
 }
-void node_last_addImageLanguage(uint32_t pngId) {
+void node_last_addIconLanguage(uint32_t pngId) {
     Node* nd = _node_last_created;
     if(nd == NULL) {
         printerror("No last node."); return;
     }
     float height = nd->h;
-    Drawable* d = Drawable_createImageLanguage(nd, pngId, 0, 0, height, 0, 0);
+    Drawable* d = Drawable_createImageLanguage(nd, pngId, 0, 0, height, 0);
     d->n.piu.emph = 0.1f;
 }
 void node_last_addFramedString(uint32_t framePngId, UnownedString str, float maxWidth,
@@ -58,11 +62,9 @@ void node_last_addFramedString(uint32_t framePngId, UnownedString str, float max
         delta = frame_ratio * strH;
         strW = maxWidth;
     }
-    Frame_create(nd, frame_inside, delta, 0, 0, framePngId, frametype_giveSizesToParent);
-    Texture* stringTex = Texture_createString(str);
-    Drawable* string = _Drawable_create(nd, 0, 0, flag_giveSizeToBigbroFrame, 0,
-        stringTex, mesh_sprite);
-    string->n.piu.color = color4_black;
-    string->x_margin = 0.5;
-    drawable_updateDimsWithDeltas(string, strW, strH);
+    Frame_create(nd, frame_inside, delta, 0, 0, framePngId, frame_option_giveSizesToParent);
+    Drawable *d = Drawable_create(nd, Texture_createString(str), mesh_sprite, flag_giveSizeToBigbroFrame, 0);
+    d->n.piu.color = color4_black;
+    d->x_margin = 0.5;
+    drawable_updateDimsWithDeltas(d, strW, strH);
 }

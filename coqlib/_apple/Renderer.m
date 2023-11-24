@@ -136,6 +136,8 @@
     
     pfu_default.time = ChronoRender_elapsedAngleSec();
     matrix4_initProjectionWithRoot(&pfu_default.projection, root);
+//    printdebug("projection");
+//    matrix4_print(&pfu_default.projection);
     [enc setVertexBytes:&pfu_default length:sizeof(PerFrameUniforms) atIndex:2];
     Vector4 cc = sp_array_toVec4(root->back_RGBA);
     [view setClearColor:MTLClearColorMake(cc.r, cc.g, cc.b, cc.a)];

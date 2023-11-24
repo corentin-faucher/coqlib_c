@@ -8,6 +8,7 @@
 #include "maths.h"
 #include <simd/vector.h>
 #include <stdlib.h>
+#include <arm/arch.h>
 
 const Vector2 vector2_ones =  {1, 1};
 const Vector2 vector2_zeros = {0, 0};
@@ -179,6 +180,36 @@ int64_t rand_float_toInt(float f) {
     return i + (int64_t)rand_bool(f - (float)i);
 }
 
+/*-- Extensions de uint. -------------------------------*/
+static const uint32_t _pow10s[] = {
+    1,       10,       100,
+    1000,    10000,    100000,
+    1000000, 10000000, 100000000,
+    1000000000,
+};
+static const uint32_t _pow10m1s[] = {
+    9,       99,       999,
+    9999,    99999,    999999,
+    9999999, 99999999, 999999999,
+    4294967295
+};
+/// Nombre de chiffres (-1) dans les puissance de 2, i.e.
+/// {1, 2, 4, 8 } -> 0, {16, 32, 64} -> 1, {128, 256, 512} -> 2, ...
+static const uint32_t _pow2numberOfDigit[] = {
+    0, 0, 0, 0, 1, 1, 1, 2, 2, 2,
+    3, 3, 3, 3, 4, 4, 4, 5, 5, 5,
+    6, 6, 6, 6, 7, 7, 7, 8, 8, 8,
+    9, 9, 9
+};
+uint32_t  uint_highestDecimal(uint32_t u) {
+    uint32_t highestDecimal = _pow2numberOfDigit[u ? 31 - __builtin_clz(u) : 0];
+    return highestDecimal + ((u > _pow10m1s[highestDecimal]) ? 1 : 0);
+}
+uint32_t  uint_digitAt(uint32_t u, uint32_t decimal) {
+    if(decimal > 9) { printerror("Bad decimal %d.", decimal); return 0; }
+    return (u / _pow10s[decimal]) % 10;
+}
+
 void  uintarr_linspace(uint32_t* const u_arr, uint32_t value,
                        uint32_t const delta, uint32_t const count) {
     uint32_t* p = u_arr;
@@ -198,4 +229,30 @@ void  uintarr_print(uint32_t* u_arr, uint32_t count) {
         p++;
     }
     printf("]\n");
+}
+
+/// Retourne une angle dans l'interval [-pi, pi].
+float float_toNormalizedAngle(float f) {
+    return f - ceilf((f - M_PI) / (2.f * M_PI)) * 2.f * M_PI;
+}
+/** Retourne la plus grosse "subdivision" pour le nombre présent en base 10.
+ * Le premier chiffre peut être : 1, 2 ou 5. Utile pour les axes de graphiques.
+ * e.g.: 792 -> 500, 192 -> 100, 385 -> 200. */
+float float_toRoundedSubDiv(float f) {
+    float pow10 = powf(10.f, floorf(log10f(f)));
+    float mantissa = f / pow10;
+    if(mantissa < 2.f)
+        return pow10;
+    if(mantissa < 5.f)
+        return pow10 * 2.f;
+    return pow10 * 5;
+}
+/**-- Fonction "coupé", "en S", i.e.    __/
+ *                                     /        */
+float float_truncated(float f, float delta) {
+    if(f > 0.f) {
+        return fmaxf(0.f, f - delta);
+    } else {
+        return fminf(0.f, f + delta);
+    }
 }

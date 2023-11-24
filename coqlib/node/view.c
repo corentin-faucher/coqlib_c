@@ -11,40 +11,45 @@
 #include "node_tree.h"
 #include <math.h>
 
-void    view_default_open(Node* const node) {
+void    view_open(Node* const node) {
     View* v = node_asViewOpt(node);
     if(v) view_alignElements(v, true);
 }
-void    view_default_reshape(Node* const node) {
+void    view_reshape(Node* const node) {
     View* v = node_asViewOpt(node);
     if(v) view_alignElements(v, false);
 }
 
-View* View_create(Root* const root, flag_t flags) {
+void  view_connectToRootAndInit(View* v, Root* root) {
+    if(v->n.parent) {
+        printerror("View already connected."); return;
+    }
     /** Les écrans sont toujours ajoutés juste après l'ainé.
     * add back : root->back,  add front : root->{back,front},
     * add 3 : root->{back,3,front},  add 4 : root->{back,4,3,front}, ...
     * i.e. les deux premiers écrans sont le back et le front respectivement,
     * les autres sont au milieu. */
-    // Init as Node.
     Node* bigBro = root->n.firstChild;
-    View *v;
-    if(bigBro) {
-        v = _Node_createEmptyOfType(node_type_smooth_view, sizeof(View),
-                                     flags|flag_parentOfReshapable, bigBro, node_place_asBro);
-    } else {
-        v = _Node_createEmptyOfType(node_type_smooth_view, sizeof(View),
-                                     flags|flag_parentOfReshapable, &root->n, 0);
-    }
+    if(bigBro)
+        node_simpleMoveToBro(&v->n, bigBro, false);
+    else
+        node_simpleMoveToParent(&v->n, &root->n, false);
+    // Init as Node.
     v->n.w = 4;
     v->n.h = 4;
+    v->n.flags |= flag_parentOfReshapable;
     // Init as Smooth.
     _fluid_init(&v->f, 10.f);
-    // Init as Screen -> Open and reshape for screen.
+    // Init as View -> Open and reshape for screen.
     v->root = root;
-    v->n.open =    view_default_open;
-    v->n.reshape = view_default_reshape;
+    v->n.open =    view_open;
+    v->n.reshape = view_reshape;
     // (Les autres methodes sont laissee a NULL par defaut.)
+}
+View* View_create(Root* const root, flag_t flags) {
+    View* v = _Node_createEmptyOfType(node_type_smooth_view, sizeof(View),
+                                      flags, NULL, 0);
+    view_connectToRootAndInit(v, root);
     return v;
 }
 View* node_asViewOpt(Node* n) {

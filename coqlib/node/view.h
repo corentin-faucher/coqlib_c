@@ -39,15 +39,17 @@ typedef struct _View {
     void (*charAction)(View*, char);
 } View;
 
-View*  View_create(Root* const root, flag_t flags);
-// void   _view_init(View* v); pas encore eu besoin...
+// Constructeur et init par defaut.
+View* View_create(Root* const root, flag_t flags);
+// Init pour sub-structs.
+void  view_connectToRootAndInit(View* v, Root* root);
 // Downcasting
 View*  node_asViewOpt(Node* n);
 
 void   view_alignElements(View* v, Bool isOpening);
 
 // Open et reshape de Node (pour sous-structs).
-void   view_default_open(Node* const node);
-void   view_default_reshape(Node* const node);
+void   view_open(Node* const node);
+void   view_reshape(Node* const node);
 
 #endif /* node_screen_h */

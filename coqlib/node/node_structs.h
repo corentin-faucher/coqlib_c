@@ -13,7 +13,7 @@
 void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
                        uint32_t iconPngId, uint32_t iconTile);
 void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile);
-void node_last_addImageLanguage(uint32_t pngId);
+void node_last_addIconLanguage(uint32_t pngId);
 void node_last_addFramedString(uint32_t framePngId, UnownedString str, float maxWidth,
                                float frame_ratio, float frame_inside, Bool frame_isSpilling);
 

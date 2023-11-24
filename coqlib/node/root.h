@@ -60,6 +60,7 @@ typedef struct _Root {
     Button*     selectedButton;
     /// La derniére position clické/touché.
     Vector2     lastTouchedPos;
+    Root*       parentRoot;
     
     /// Events... ? Juste shouldTerminate pour l'instant.
     Bool        shouldTerminate;    
@@ -77,12 +78,12 @@ typedef struct _Root {
 /// (On peut laisser size = 0, sera init avec sizeof(NodeRoot).)
 Root* Root_create(void);
 /// Init pour sub-struct
-void  _root_init(Root* r);
+void  root_init(Root* root, Node* parentOpt, Root* parentRootOpt);
 /// Downcasting.
 Root* node_asRootOpt(Node* n);
 
 void      root_changeActiveScreenTo(Root* rt, View* newView);
-void      root_setFrame(Root *rt, float widthPx, float heightPx, Bool inTransition);
+void      root_setFrame(Root *rt, Margins newMargins, Vector2 newSizesPx, Bool inTransition);
 void      root_updateModelMatrix(Root *rt);
 /*-- Init d'autres struct utilisant la root. --*/
 /// Obtenir le rectangle (en pixels) associé à une position (origin)

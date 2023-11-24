@@ -15,20 +15,20 @@
 // N'est pas caché, sinon ne pourrait pas être placé dans d'autres structs.
 typedef struct _SmoothPos {
     // Position vers où on tend (dernier set) ou "real" pos.
-    float _pos;
+    float    _pos;
     // Position par défaut (mémoire, editable)
-    float def;
+    float    def;
     // Paramètres de la courbe (exponentielle typiquement)
-    float _A;
-    float _B;
-    float _lambda;
-    float _beta;
-    uint8_t  _type;
+    float    _A;
+    float    _B;
+    float    _lambda;
+    float    _beta;
     uint32_t _time;
+    uint32_t _flags;
     // float* ref; Superflu ?? Si smoothpos est utilise en priorite.
 } SmoothPos;
 
-void  sp_init(SmoothPos *sp, float pos, float lambda);
+void  sp_init(SmoothPos *sp, float pos, float lambda, Bool asAngle);
 /// Mettre a jour avec nouveaux gamma et k.
 /// gamma -> amortissement.
 /// k -> force du ressort.

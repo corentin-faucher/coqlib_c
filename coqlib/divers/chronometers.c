@@ -21,7 +21,7 @@ static       int64_t _CR_touchTimeMS = 0;
 static const int64_t _CR_angleLoopTimeMS = (int64_t)(24000 * M_PI);
 static       int64_t _CR_sleepTime = 16000;
 
-int64_t Chrono_UpdateDeltaTMS = 40;
+int64_t Chrono_UpdateDeltaTMS = 30;
 // Methodes
 void    ChronoRender_update(int64_t deltaTMS) {
     if(_CR_isPaused) return;

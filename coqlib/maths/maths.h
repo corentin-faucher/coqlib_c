@@ -140,8 +140,22 @@ int64_t rand_float_toInt(float f);
 
 /*-- Extensions de uint. -------------------------------*/
 
-void  uintarr_linspace(uint32_t* u_arr, uint32_t start,
+uint32_t  uint_highestDecimal(uint32_t u);
+uint32_t  uint_digitAt(uint32_t u, uint32_t decimal);
+
+void   uintarr_linspace(uint32_t* u_arr, uint32_t start,
                        uint32_t delta, uint32_t count);
-void  uintarr_print(uint32_t* u_arr, uint32_t count);
+void   uintarr_print(uint32_t* u_arr, uint32_t count);
+
+/*-- Extensions de float. -------------------------------*/
+/// Retourne une angle dans l'interval [-pi, pi].
+float float_toNormalizedAngle(float f);
+/** Retourne la plus grosse "subdivision" pour le nombre présent en base 10.
+ * Le premier chiffre peut être : 1, 2 ou 5. Utile pour les axes de graphiques.
+ * e.g.: 792 -> 500, 192 -> 100, 385 -> 200. */
+float float_toRoundedSubDiv(float f);
+/**-- Fonction "coupé", "en S", i.e.    __/
+ *                                     /        */
+float float_truncated(float f, float delta);
 
 #endif /* maths_h */

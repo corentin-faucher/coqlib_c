@@ -13,11 +13,11 @@ void _fluid_init(Fluid* f, float lambda) {
     sp_array_init(&f->sx, &f->n.sx, _NODESMOOTH_DIMS_N, lambda);
     // Fonction de positionnement pour les node smooth.
     if(f->n.flags & flag_fluidOpenFlags)
-        f->n.open = fluid_open_default;
+        f->n.open = fluid_open;
     if(f->n.flags & flag_fluidCloseFlags)
-        f->n.close = fluid_close_fadeOut;
+        f->n.close = fluid_close;
     if(f->n.flags & flag_fluidReshapeFlags)
-        f->n.reshape = fluid_reshape_relatively;
+        f->n.reshape = fluid_reshape;
 }
 Fluid* Fluid_create(Node* const refOpt, float x, float y, float w, float h,
                               float lambda, flag_t flags, uint8_t node_place) {
@@ -105,7 +105,7 @@ void    _fluid_setRelatively(Fluid* const f, const Bool fix) {
     fluid_setXRelToDef(f, xDec, fix);
     fluid_setYRelToDef(f, yDec, fix);
 }
-void    fluid_open_default(Node* const node) {
+void    fluid_open(Node* const node) {
     Fluid* s = node_asFluidOpt(node);
     if(!s) { printerror("Not smooth."); return; }
     if(node->flags & flag_fluidRelativeFlags)
@@ -113,12 +113,12 @@ void    fluid_open_default(Node* const node) {
     if(!(node->flags & flag_show) && (node->flags & flag_fluidFadeInRight))
         sp_fadeIn(&s->x, Fluid_defaultFadeInDelta);
 }
-void    fluid_close_fadeOut(Node* const node) {
+void    fluid_close(Node* const node) {
     Fluid* s = node_asFluidOpt(node);
     if(!s) { printerror("Not smooth."); return; }
     sp_fadeOut(&s->x, Fluid_defaultFadeInDelta);
 }
-void    fluid_reshape_relatively(Node* const node) {
+void    fluid_reshape(Node* const node) {
     Fluid* s = node_asFluidOpt(node);
     if(!s) { printerror("Not smooth."); return; }
     _fluid_setRelatively(s, false);

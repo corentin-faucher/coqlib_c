@@ -14,7 +14,7 @@
 #include "utils.h"
 
 /// Le delai entre les update Timer, Garbage, Root->iterationUpdate.
-/// À 40 ms par defaut.
+/// À 30 ms par defaut.
 extern int64_t Chrono_UpdateDeltaTMS;
 /*--Chrono global pour le rendering --*/
 /// Mise à jour à chaque frame, e.g. +1/60 sec ~= 16ms au elapsed time.

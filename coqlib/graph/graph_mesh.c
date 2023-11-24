@@ -22,6 +22,16 @@ static Vertex _mesh_bar_vertices[8] = {
     { 0.5000, 0.5, 0,  1.000,0,  0,0,1},
     { 0.5000,-0.5, 0,  1.000,1,  0,0,1},
 };
+static Vertex _mesh_vbar_vertices[8] = {
+    { 0.5, 0.5000, 0,  1, 0.000,  0,0,1},
+    {-0.5, 0.5000, 0,  0, 0.000,  0,0,1},
+    { 0.5, 0.1667, 0,  1, 0.333,  0,0,1},
+    {-0.5, 0.1667, 0,  0, 0.333,  0,0,1},
+    { 0.5,-0.1667, 0,  1, 0.667,  0,0,1},
+    {-0.5,-0.1667, 0,  0, 0.667,  0,0,1},
+    { 0.5,-0.5000, 0,  1, 1.000,  0,0,1},
+    {-0.5,-0.5000, 0,  0, 1.000,  0,0,1},
+};
 static Vertex _mesh_frame_vertices[] = {
     {-0.5000, 0.5000, 0,  0.000,0.000,  0,0,1},
     {-0.5000, 0.1667, 0,  0.000,0.333,  0,0,1},
@@ -59,15 +69,17 @@ static uint16_t _mesh_fan_indices[] = {
     0, 7, 8,   0, 8, 9
 };
 
-Mesh*  Mesh_createBar(void) {
-    Mesh* bar = Mesh_createEmpty(_mesh_bar_vertices, 8, NULL, 0,
-                                 mesh_primitive_triangleStrip, mesh_cullMode_none, false);
-    return bar;
+Mesh*  Mesh_createHorizontalBar(void) {
+    return Mesh_createEmpty(_mesh_bar_vertices, 8, NULL, 0,
+                            mesh_primitive_triangleStrip, mesh_cullMode_none, false);
+}
+Mesh* Mesh_createVerticalBar(void) {
+    return Mesh_createEmpty(_mesh_vbar_vertices, 8, NULL, 0,
+                            mesh_primitive_triangleStrip, mesh_cullMode_none, false);
 }
 Mesh*  Mesh_createFrame(void) {
-    Mesh* frame = Mesh_createEmpty(_mesh_frame_vertices, 16, _mesh_frame_indices, 54,
-                                   mesh_primitive_triangle, mesh_cullMode_none, false);
-    return frame;
+    return Mesh_createEmpty(_mesh_frame_vertices, 16, _mesh_frame_indices, 54,
+                            mesh_primitive_triangle, mesh_cullMode_none, false);
 }
 
 Mesh*  Mesh_createFan(void) {

@@ -13,10 +13,20 @@
 
 Root* Root_create(void) {
     Root* root = _Node_createEmptyOfType(node_type_root, sizeof(Root), 0, NULL, 0);
-    _root_init(root);
+    root_init(root, NULL, NULL);
     return root;
 }
-void  _root_init(Root* root) {
+void  root_init(Root* root, Node* parentOpt, Root* parentRootOpt) {
+    if(parentOpt) {
+        if(parentRootOpt == NULL)
+            printerror("Non absolute root without parent.");
+        root->parentRoot = parentRootOpt;
+        node_simpleMoveToParent(&root->n, parentOpt, false);
+    } else {
+        if(parentRootOpt)
+            printwarning("Absolute root have no need for parentRoot.");
+        root->parentRoot = NULL;
+    }
     root->n.flags = flag_rootDefaultFlags;
     root->n.w = 4.f;
     root->n.h = 4.f;
@@ -71,14 +81,15 @@ void   root_changeActiveScreenTo(Root* rt, View* const newScreen) {
     _root_setActiveScreen(rt, newScreen);
 }
 
-void root_setFrame(Root *rt, float widthPx, float heightPx, Bool inTransition) {
-    rt->viewWidthPx = widthPx;
-    rt->viewHeightPx = heightPx;
+void root_setFrame(Root *rt, Margins newMargins, Vector2 newSizesPx, Bool inTransition) {
+    rt->margins = newMargins;
+    rt->viewWidthPx =  newSizesPx.w;
+    rt->viewHeightPx = newSizesPx.h;
     // 0. Marges...
-    float realRatio = widthPx / heightPx;
-    float ratioT = rt->margins.top / heightPx + 0.01;
-    float ratioB = rt->margins.bottom / heightPx + 0.01;
-    float ratioLR = (rt->margins.left + rt->margins.right) / widthPx + 0.015;
+    float realRatio = newSizesPx.w / newSizesPx.h;
+    float ratioT = rt->margins.top / newSizesPx.h + 0.01;
+    float ratioB = rt->margins.bottom / newSizesPx.h + 0.01;
+    float ratioLR = (rt->margins.left + rt->margins.right) / newSizesPx.w + 0.015;
     // 1. Full Frame
     if(realRatio > 1) { // Landscape
         rt->frameHeight = 2 / ( 1 - ratioT - ratioB);

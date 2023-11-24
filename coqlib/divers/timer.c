@@ -17,18 +17,13 @@ typedef struct _Timer {
     int64_t ringTimeMS;
 } Timer;
 
-static Timer*     _Timer_list = NULL;
-static uint32_t   _Timer_listCount = 0;  // Nombre de timer.
-static Timer*     _Timer_listEnd = NULL;
-// On utilise des index au lieu des pointeurs car la liste peut etre realloc...
-// Sinon, on pourrait mettre une taille fixe pour _Timer_list ?
-//static uint32_t   _Timer_freeFirst = 0;
-//static uint32_t   _Timer_activeFirst = 0;  // Premier timer actif.
-//static uint32_t   _Timer_activeEnd = 0;    // taille actuelle, juste apres le dernier element.
-// Version Pointeurs
-static Timer*     _Timer_freeFirst = NULL;
-static Timer*     _Timer_activeFirst = NULL;  // Premier timer actif.
-static Timer*     _Timer_activeEnd = NULL;    // Fin (apres le dernier actif), mieux activeLast ?
+#define _Timer_count 64
+static uint32_t     _Timer_active_count = 0;  // (pour debuging)
+static Timer        _Timer_list[_Timer_count];
+static Timer* const _Timer_listEnd =     &_Timer_list[_Timer_count];
+static Timer*       _Timer_freeFirst =   _Timer_list;
+static Timer*       _Timer_activeFirst = _Timer_list;  // Premier timer actif.
+static Timer*       _Timer_activeEnd =   _Timer_list;  // Fin (apres le dernier actif), mieux activeLast ?
 
 
 void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, Bool isRepeating,
@@ -37,29 +32,33 @@ void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, Bool isRepeating,
         printerror("Missing node_target or callBack.");
         return;
     }
-    // Realloc ?
+    // Realloc ? Non, les objets garde une ref vers les timers.
     if(_Timer_freeFirst >= _Timer_listEnd) {
-        if(_Timer_list) {
-            printwarning("Need to realloc _Timer_list.");
-        }
-        // Realloc
-        _Timer_listCount += 16;
-        Timer* oldHead = _Timer_list;
-        _Timer_list = coq_realloc(_Timer_list, sizeof(Timer) * _Timer_listCount);
-        // Set pointers... Stuff dangereux... ?
-        ptrdiff_t delta = (char*)_Timer_list - (char*)oldHead;
-        _Timer_listEnd = &_Timer_list[_Timer_listCount];
-        _Timer_freeFirst =   (Timer*)((char*)_Timer_freeFirst + delta);
-        _Timer_activeFirst = (Timer*)((char*)_Timer_activeFirst + delta);
-        _Timer_activeEnd =   (Timer*)((char*)_Timer_activeEnd + delta);
-        
+        printerror("Too many timer active ! Max timer is %d.", _Timer_count);
+        return;
+    }
+//    if(_Timer_freeFirst >= _Timer_listEnd) {
+//        if(_Timer_list) {
+//            printwarning("Need to realloc _Timer_list.");
+//        }
+//        // Realloc
+//        _Timer_listCount += 16;
+//        Timer* oldHead = _Timer_list;
+//        _Timer_list = coq_realloc(_Timer_list, sizeof(Timer) * _Timer_listCount);
+//        // Set pointers... Stuff dangereux... ?
+//        ptrdiff_t delta = (char*)_Timer_list - (char*)oldHead;
+//        _Timer_listEnd = &_Timer_list[_Timer_listCount];
+//        _Timer_freeFirst =   (Timer*)((char*)_Timer_freeFirst + delta);
+//        _Timer_activeFirst = (Timer*)((char*)_Timer_activeFirst + delta);
+//        _Timer_activeEnd =   (Timer*)((char*)_Timer_activeEnd + delta);
+//
 //        printdebug("🐸 scheduled list %p,  activeFirst %p, activeFirst with delta %p, delta %p.",
 //                   _Timer_list,
 //                   _Timer_activeFirst,
 //                   _Timer_activeEnd,
 //                   (void*)delta
 //                   );
-    }
+//    }
     if(deltaTimeMS < 1) {
         printwarning("deltaTimeMS < 1.");
         deltaTimeMS = 1;
@@ -71,6 +70,7 @@ void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, Bool isRepeating,
     newTimer->deltaTimeMS = isRepeating ? deltaTimeMS : 0;
     newTimer->ringTimeMS = ChronoApp_elapsedMS() + deltaTimeMS;
     newTimer->referer = timerRefOpt;
+    _Timer_active_count ++;
     if(timerRefOpt)
         *timerRefOpt = newTimer;
     // Replacer les pointeurs debut et fin actives.
@@ -129,6 +129,7 @@ void _timer_deinit(Timer* removed) {
         *(removed->referer) = (Timer*)NULL;
     // Clear.
     memset(removed, 0, sizeof(Timer));
+    _Timer_active_count --;
     if(removed < _Timer_freeFirst) {
         _Timer_freeFirst = removed;
     }

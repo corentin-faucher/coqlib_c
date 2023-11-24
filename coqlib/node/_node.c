@@ -32,16 +32,19 @@ void _node_disconnect(Node * const node) {
 /** Connect au parent. (Doit être fullyDeconnect.) */
 void _node_connectToParent(Node* const node, Node * const parentOpt, const Bool asElder) {
     if(parentOpt == NULL) return;
-    Node* const parent = parentOpt;
+    if(parentOpt->_type & node_type_flag_noChildren) {
+        printerror("Adding child to leaf node.");
+        return;
+    }
     // Dans tout les cas, on a le parent:
-    node->parent = parent;
+    node->parent = parentOpt;
     
-    Node* oldParentFirstChild = parent->firstChild;
-    Node* oldParentLastChild = parent->lastChild;
-    // Cas parent pas d'enfants
+    Node* oldParentFirstChild = parentOpt->firstChild;
+    Node* oldParentLastChild = parentOpt->lastChild;
+    // Cas parentOpt pas d'enfants
     if(oldParentLastChild == NULL || oldParentFirstChild == NULL) {
-        parent->firstChild = node;
-        parent->lastChild = node;
+        parentOpt->firstChild = node;
+        parentOpt->lastChild = node;
         return;
     }
     // Ajout au début
@@ -50,13 +53,13 @@ void _node_connectToParent(Node* const node, Node * const parentOpt, const Bool 
         node->littleBro = oldParentFirstChild;
         // Branchement
         oldParentFirstChild->bigBro = node;
-        parent->firstChild = node;
+        parentOpt->firstChild = node;
     } else { // Ajout a la fin.
         // Insertion
         node->bigBro = oldParentLastChild;
         // Branchement
         oldParentLastChild->littleBro = node;
-        parent->lastChild = node;
+        parentOpt->lastChild = node;
     }
 }
 void _node_connectToBro(Node* const node, Node* const broOpt, const Bool asBigbro) {
@@ -103,13 +106,16 @@ void* _Node_createEmptyOfType(const uint32_t type, size_t size, const flag_t fla
     nd->_size = size;
     nd->piu = piu_default;
     nd->scales = vector2_ones;
-    if(refOpt) node_simpleMoveTo(nd, refOpt, node_place);
+    if(refOpt) {
+        node_simpleMoveTo(nd, refOpt, node_place);
+    }
     // Les boutons et scrollable sont "selectionnable".
     if(type & node_type_flag_button)
         node_tree_addRootFlag(nd, flag_parentOfButton);
     if(type & node_type_flag_scrollable)
         node_tree_addRootFlag(nd, flag_parentOfScrollable);
-    _node_last_created = nd;
+    if(!(type & node_type_flag_noChildren))
+        _node_last_created = nd;
     return nd;
 }
 Node* Node_createEmpty(void)
@@ -140,7 +146,8 @@ Node* Node_default_createCopy(const Node* const other) {
     nd->lastChild = NULL;
     nd->bigBro = NULL;
     nd->littleBro = NULL;
-    _node_last_created = nd;
+    if(!(nd->_type & node_type_flag_noChildren))
+        _node_last_created = nd;
     return nd;
 }
 
@@ -311,6 +318,41 @@ void    node_simpleMoveToParent(Node* const node, Node* const parentOpt, const B
     _node_disconnect(node);
     _node_connectToParent(node, parentOpt, asElder);
 }
+
+void    node_moveWithinBroAsElder(Node* const node, Bool asElder) {
+    if(asElder && (node->bigBro == NULL)) return;
+    if(!asElder && (node->littleBro == NULL)) return;
+    Node* const parent = node->parent;
+    if(!parent) { printerror("No parent."); return; }
+    // Retrait
+    if(node->bigBro)
+        node->bigBro->littleBro = node->littleBro;
+    else  // Pas de grand frère -> probablement l'ainé.
+        parent->firstChild = node->littleBro;
+    if(node->littleBro)
+        node->littleBro->bigBro = node->bigBro;
+    else  // Pas de petit frère -> probablement le cadet.
+        parent->lastChild = node->bigBro;
+    
+    if(asElder) {
+        // Insertion
+        node->littleBro = parent->firstChild;
+        node->bigBro = NULL;
+        // Branchement
+        if(parent->firstChild)
+            parent->firstChild->bigBro = node;
+        parent->firstChild = node;
+    } else {
+        // Insertion
+        node->littleBro = NULL;
+        node->bigBro = parent->lastChild;
+        // Branchement
+        if(parent->lastChild)
+            parent->lastChild->littleBro = node;
+        parent->lastChild = node;
+    }
+}
+
 
 /*-- Vector, Matrix... --------------------------------------*/
 

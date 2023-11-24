@@ -9,21 +9,23 @@
 #include <math.h>
 #include "chronometers.h"
 
-const static uint8_t _sm_type_static =     0;
-const static uint8_t _sm_type_oscAmorti  = 1;
-const static uint8_t _sm_type_amortiCrit = 2;
-const static uint8_t _sm_type_surAmorti  = 3;
+const static uint32_t _sm_type_static =     0x0000;
+const static uint32_t _sm_type_oscAmorti  = 0x0001;
+const static uint32_t _sm_type_amortiCrit = 0x0002;
+const static uint32_t _sm_type_surAmorti  = 0x0003;
+const static uint32_t _sm_types =           0x0003;
+const static uint32_t _sm_flag_angle =      0x0004;
 
 Vector2 _sp_getDeltaAndSlope(SmoothPos *sp) {
-    if(sp->_type == _sm_type_static) return vector2_zeros;
+    if((sp->_flags & _sm_types) == _sm_type_static) return vector2_zeros;
     float elapsedSec = (float)((uint32_t)ChronoRender_elapsedMS() - sp->_time) * 0.001f;
-    if(sp->_type == _sm_type_amortiCrit)
+    if((sp->_flags & _sm_types) == _sm_type_amortiCrit)
         return (Vector2) {
             expf(-sp->_lambda * elapsedSec) * (sp->_A + sp->_B * elapsedSec),
             expf(-sp->_lambda * elapsedSec)
             * (sp->_B*(1 - sp->_lambda*elapsedSec) - sp->_lambda*sp->_A)
         };
-    if(sp->_type == _sm_type_surAmorti)
+    if((sp->_flags & _sm_types) == _sm_type_surAmorti)
         return (Vector2) {
               sp->_A * expf(-sp->_lambda * elapsedSec)
             + sp->_B * expf(-sp->_beta   * elapsedSec),
@@ -41,7 +43,7 @@ Vector2 _sp_getDeltaAndSlope(SmoothPos *sp) {
 }
 
 void  _sp_setABT(SmoothPos *sp, Vector2 ds) {
-    switch(sp->_type) {
+    switch(sp->_flags & _sm_types) {
         case _sm_type_oscAmorti:
             sp->_A = ds.x;
             sp->_B = (ds.y + sp->_lambda * sp->_A) / sp->_beta;
@@ -61,25 +63,26 @@ void  _sp_setABT(SmoothPos *sp, Vector2 ds) {
     sp->_time = (uint32_t)ChronoRender_elapsedMS();
 }
 void  _sp_setLambdaBetaType(SmoothPos *sp, float gamma, float k) {
+    sp->_flags &= ~ _sm_types;
     if(gamma == 0 && k == 0) {
-        sp->_type = _sm_type_static;
+        sp->_flags |= _sm_type_static;
         sp->_lambda = 0.f; sp->_beta = 0.f;
         return;
     }
     float discr = gamma * gamma - 4.f * k;
     if(discr > 0.001f) {
-        sp->_type = _sm_type_surAmorti;
+        sp->_flags |= _sm_type_surAmorti;
         sp->_lambda = gamma + sqrtf(discr) / 2.f;
         sp->_beta =   gamma - sqrtf(discr) / 2.f;
         return;
     }
     if(discr < -0.001f) {
-        sp->_type = _sm_type_oscAmorti;
+        sp->_flags |= _sm_type_oscAmorti;
         sp->_lambda = gamma / 2.f;
         sp->_beta = sqrtf(-discr);
         return;
     }
-    sp->_type = _sm_type_amortiCrit;
+    sp->_flags |= _sm_type_amortiCrit;
     sp->_lambda = gamma / 2.f;
     sp->_beta =   gamma / 2.f;
 }
@@ -95,12 +98,15 @@ void  sp_updateToLambda(SmoothPos *sp, float lambda) {
     sp_updateToConstants(sp, 2*lambda, lambda * lambda);
 }
 
-void  sp_init(SmoothPos *sp, float pos, float lambda) {
-    *sp = (SmoothPos) {
-        pos, pos,
-        0, 0, 0, 0, _sm_type_static,
-        (uint32_t)ChronoApp_elapsedMS(),
-    };
+void  sp_init(SmoothPos *sp, float pos, float lambda, Bool asAngle) {
+    if(asAngle)
+        pos = float_toNormalizedAngle(pos);
+    memset(sp, 0, sizeof(SmoothPos));
+    sp->_pos = pos;
+    sp->def =  pos;
+    sp->_time = (uint32_t)ChronoApp_elapsedMS();
+    sp->_flags = _sm_type_static | (asAngle ? _sm_flag_angle : 0);
+    
     _sp_setLambdaBetaType(sp, 2*lambda, lambda * lambda);
 }
 void  sp_set(SmoothPos *sp, float pos, Bool fix) {
@@ -108,10 +114,16 @@ void  sp_set(SmoothPos *sp, float pos, Bool fix) {
         sp->_A = 0.f; sp->_B = 0.f;
     } else {
         Vector2 deltaSlope = _sp_getDeltaAndSlope(sp);
-        deltaSlope.x += sp->_pos - pos;
+        if(sp->_flags & _sm_flag_angle)
+            deltaSlope.x = float_toNormalizedAngle(deltaSlope.x + sp->_pos - pos);
+        else
+            deltaSlope.x += sp->_pos - pos;
         _sp_setABT(sp, deltaSlope);
     }
-    sp->_pos = pos;
+    if(sp->_flags & _sm_flag_angle)
+        sp->_pos = float_toNormalizedAngle(pos);
+    else
+        sp->_pos = pos;
 }
 // Les convenience du set...
 void  sp_setRelToDef(SmoothPos *sp, float shift, Bool fix) {
@@ -135,7 +147,7 @@ void  sp_fadeOut(SmoothPos *sp, float delta) {
 void  sp_array_init(SmoothPos *sp, const float *f, uint count, float lambda) {
     const float *end = &f[count];
     while(f < end) {
-        sp_init(sp, *f, lambda);
+        sp_init(sp, *f, lambda, false);
         sp ++;
         f ++;
     }
@@ -181,11 +193,11 @@ Vector4 sp_array_toVec4(SmoothPos *sp) {
 
 
 float sp_pos(SmoothPos *sp) {
-    if(sp->_type == _sm_type_static) return sp->_pos;
+    if((sp->_flags & _sm_types) == _sm_type_static) return sp->_pos;
     float elapsedSec = (float)((uint32_t)ChronoRender_elapsedMS() - sp->_time) * 0.001f;
-    if(sp->_type == _sm_type_amortiCrit)
+    if((sp->_flags & _sm_types) == _sm_type_amortiCrit)
         return (sp->_A + sp->_B * elapsedSec) * expf(-sp->_lambda * elapsedSec) + sp->_pos;
-    if(sp->_type == _sm_type_surAmorti)
+    if((sp->_flags & _sm_types) == _sm_type_surAmorti)
         return sp->_A * expf(-sp->_lambda * elapsedSec)
              + sp->_B * expf(-sp->_beta   * elapsedSec) + sp->_pos;;
     // _sm_type_oscAmorti

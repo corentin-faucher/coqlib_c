@@ -26,6 +26,7 @@ enum MeshPrimitiveType {
     mesh_primitive_triangle = 3,
     mesh_primitive_triangleStrip = 4,
 };
+// Type de cull mode. Telles que dans Metal, voir MTLRenderCommandEncoder.h.
 enum MeshCullMode {
     mesh_cullMode_none = 0,
     mesh_cullMode_front = 1,
@@ -43,7 +44,8 @@ Mesh*  Mesh_createEmpty(const Vertex* verticesOpt, uint vertexCount,
                         enum MeshPrimitiveType primitive_type,
                         enum MeshCullMode cull_mode, Bool isShared);
 void   mesh_destroy(Mesh* meshToDelete);
-Mesh*  Mesh_createBar(void);
+Mesh*  Mesh_createHorizontalBar(void);
+Mesh*  Mesh_createVerticalBar(void);
 Mesh*  Mesh_createFrame(void);
 Mesh*  Mesh_createFan(void);
 void   mesh_fan_update(Mesh* fan, float ratio);

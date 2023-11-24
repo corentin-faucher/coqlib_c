@@ -95,6 +95,7 @@ void    node_setScaleY(Node* const nd, float sy, Bool fix);
 void    node_simpleMoveTo(Node* const node, Node* const destOpt, const uint8_t node_place);
 void    node_simpleMoveToBro(Node* const node, Node* const broOpt, const Bool asBig);
 void    node_simpleMoveToParent(Node* const node, Node* const parentOpt, const Bool asElder);
+void    node_moveWithinBroAsElder(Node* const node, Bool asElder);
 
 /*-- Maths (vecteur position et model matrix) --*/
 /// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.

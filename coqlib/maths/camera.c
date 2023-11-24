@@ -13,6 +13,7 @@ static float _up[3] = {0, 1, 0};
 
 void camera_init(Camera *c, float lambda) {
     sp_array_init(c->pos, camera_def_pos.f_arr, 3, lambda);
+    printdebug("Init smooth pos de camera. flags %d.", c->pos[2]._flags);
     sp_array_init(c->up, _up, 3, lambda);
     sp_array_init(c->center, vector3_zeros.f_arr, 3, lambda);
 }

@@ -57,9 +57,8 @@ void Sparkle_spawnAt(float xabs, float yabs, float delta, Texture* texOpt) {
     for(int i = 0; i < _SPARKLES_N; i ++) {
         Fluid* part = Fluid_create(&spk->n,
              rand_floatAt(0, 0.1*delta), rand_floatAt(0, 0.1*delta), 1, 1, 5, 0, 0);
-        Drawable* d = _Drawable_create(&part->n, 0, 0, flag_poping, 0,
-             tex, mesh_sprite);
-        drawable_updateDimsWithDeltas(d, 0.f, 0.4f*delta);
+        Drawable* d = Drawable_createAndSetDims(&part->n, 0, 0, 0, 0.4f*delta,
+                                                tex, mesh_sprite, flag_poping, 0);
         drawable_setTile(d, rand() % MN, 0);
         fluid_setX(part, rand_floatAt(0, delta), false);
         fluid_setY(part, rand_floatAt(0, delta), false);

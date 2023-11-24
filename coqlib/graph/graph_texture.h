@@ -26,8 +26,7 @@ typedef struct Texture_ Texture;
 
 void            Texture_suspend(void);
 void            Texture_resume(void);
-void            Texture_checkToFullyDraw(ChronoChecker* cc);
-void            Texture_checkUnused(void);
+void            Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp);
 
 void            Texture_setCurrentFont(const char* fontName);
 void            Texture_setCurrentFontSize(double newSize);

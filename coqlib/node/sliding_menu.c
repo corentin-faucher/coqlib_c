@@ -10,12 +10,9 @@
 #include <math.h>
 
 typedef struct _ScrollBar {
-    Node        n;
-    Fluid* nub;
-#warning TODO faire vertical bar...?
-    Drawable*   nubTop;
-    Drawable*   nubMid;
-    Drawable*   nubBot;
+    Node       n;
+    Fluid*     nub;
+    Frame*     nubFrame;
 } ScrollBar;
 
 typedef struct _SlidingMenu {
@@ -25,6 +22,7 @@ typedef struct _SlidingMenu {
     uint32_t    total_count;
     float       spacing;
     Fluid*      menu;
+//    Frame*      scrollBar;
     ScrollBar*  scrollBar;
     Frame*      back;
     SmoothPos   vitY;
@@ -44,36 +42,10 @@ ScrollBar* _ScrollBar_create(SlidingMenu* sm, float width) {
     Texture* backTex = Texture_sharedImageByName("coqlib_scroll_bar_back");
     Texture* frontTex = Texture_sharedImageByName("coqlib_scroll_bar_front");
     // Back of scrollBar
-    // Top back
-    Drawable* surf = _Drawable_create(&sb->n, 0, 0.5*parHeight - 0.5*width, 0, 0,
-                     backTex, mesh_sprite);
-    drawable_updateDimsWithDeltas(surf, width, width);
-    // Mid back
-    surf = _Drawable_create(&sb->n, 0, 0, flag_drawableDontRespectRatio, 0,
-                     backTex, mesh_sprite);
-    drawable_updateDimsWithDeltas(surf, width, parHeight - 2*width);
-    drawable_setTile(surf, 1, 0);
-    // Bottom back
-    surf = _Drawable_create(&sb->n, 0, -0.5*parHeight + 0.5*width, 0, 0,
-                            backTex, mesh_sprite);
-    drawable_updateDimsWithDeltas(surf, width, width);
-    drawable_setTile(surf, 2, 0);
-    
+    Frame_createWithTex(&sb->n, 1.f, 0.5*width, 0.f, parHeight, backTex, frame_option_verticalBar);
     // Nub (sliding)
     sb->nub = Fluid_create(&sb->n, 0, 0.25f*parHeight, width, width*3, 30, 0, 0);
-    sb->nubTop = _Drawable_create(&sb->nub->n, 0, width, 0, 0,
-                                  frontTex, mesh_sprite);
-    drawable_updateDimsWithDeltas(sb->nubTop, width, width);
-    
-    sb->nubMid = _Drawable_create(&sb->nub->n, 0, 0, flag_drawableDontRespectRatio, 0,
-                                  frontTex, mesh_sprite);
-    drawable_updateDimsWithDeltas(sb->nubMid, width, width);
-    drawable_setTile(sb->nubMid, 1, 0);
-    
-    sb->nubBot = _Drawable_create(&sb->nub->n, 0, -width, 0, 0,
-                                  frontTex, mesh_sprite);
-    drawable_updateDimsWithDeltas(sb->nubBot, width, width);
-    drawable_setTile(sb->nubBot, 2, 0);
+    sb->nubFrame = Frame_createWithTex(&sb->nub->n, 1.f, 0.5f*width, 0.f, 0.25f*parHeight, frontTex, frame_option_verticalBar);
     
     return sb;
 }
@@ -84,14 +56,10 @@ Bool _scrollbar_setNubHeightWithRelHeight(ScrollBar* sb, float newRelHeight) {
         return false;
     }
     sb->n.flags &= ~ flag_hidden;
-    float w = sb->n.w;
-    float htmp = sb->n.h * newRelHeight;
-    float hmid = fmaxf(0.f, htmp - 2.f*w);
-    sb->nub->n.h = hmid + 2.f*w;
-    sb->nubTop->n.y =  0.5f*(hmid + w);
-    sb->nubBot->n.y = -0.5f*(hmid + w);
-    sb->nubMid->n.sy = hmid;
-
+    float nubHeight = sb->n.h * newRelHeight;
+    printdebug("Scroll bar height %f, relheight %f, nubHeight %f.", sb->n.h, newRelHeight, nubHeight);
+    sb->nub->n.h = nubHeight;
+    sb->nubFrame->setDims(sb->nubFrame, (Vector2){0.f, 0.5f*nubHeight});
     return true;
 }
 void _scrollbar_setNubRelY(ScrollBar* sb, float newRelY) {
@@ -226,17 +194,18 @@ SlidingMenu* SlidingMenu_create(Node* ref, int displayed_count, float spacing,
     sm->n.y = y;
     sm->n.w = width;
     sm->n.h = height;
+    printdebug("sliding menu %f x %f.", width, height);
     sm->n.open = _slidingmenu_open;
     sm->n.close = _slidingmenu_close;
     // Init as Sliding
     sm->displayed_count = displayed_count;
     sm->spacing = spacing;
-    sp_init(&sm->vitY, 0, 4);
+    sp_init(&sm->vitY, 0, 4, false);
     // Structure
     float scrollBarWidth = fmaxf(width, height) * 0.025f;
     Texture* frameTex = Texture_sharedImageByName("coqlib_sliding_menu_back");
     sm->back = Frame_createWithTex(&sm->n, 1, scrollBarWidth,
-                         0.f, 0.f, frameTex, frametype_getSizesFromParent);
+                         0.f, 0.f, frameTex, frame_option_getSizesFromParent);
     sm->menu = Fluid_create(&sm->n, -0.5f*scrollBarWidth, 0.f,
                                  width - scrollBarWidth, height, 20.f,
                                  flag_parentOfButton, 0);
