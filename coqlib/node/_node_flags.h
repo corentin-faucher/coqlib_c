@@ -24,19 +24,18 @@ typedef enum {
     flag_parentOfReshapable =           1<<10,
     
     // Action au resize.
-    flag_giveSizeToBigbroFrame =        1<<11,
-    flag_giveSizeToParent =             1<<12,
+    flag_giveSizeToBigbroFrame =        1<<12,
+    flag_giveSizeToParent =             1<<13,
     
     // Pour les drawables.
-    flag_drawableDontRespectRatio =      1<<16,
+    flag_drawableDontRespectRatio =      1<<15,
     
     // Pour les views.
     flag_viewDontAlignElements =         1<<17,
     flag_viewPersistent =                1<<18,
+    flag_viewBackAndFrontDefaultFlags = flag_viewPersistent|flag_viewDontAlignElements|flag_exposed|flag_show,
     
-    // Pour les boutons.
-    flag_buttonInactive =                1<<19,
-    
+    // Pour les fluids
     /*-- Les flags de positionnement du noeud. Doivent être fournis à la création du noeud smooth. --*/
     flag_fluidRelativeToRight =        1UL<<20,
     flag_fluidRelativeToLeft =         1UL<<21,
@@ -60,8 +59,13 @@ typedef enum {
     /// Besoin de la methode fluid_reshape_relatively
     flag_fluidReshapeFlags = flag_fluidRelativeFlags,
     
+    // Pour les boutons.
+    flag_buttonInactive =                1<<30,
+    
+    // Pour les root
     flag_rootDefaultFlags = flag_exposed|flag_show|flag_parentOfToDisplay|flag_parentOfButton|
         flag_parentOfScrollable|flag_parentOfReshapable,
+
     
     flag_firstCustomFlag =              1UL<<32,
 } flag_t;

@@ -1,6 +1,6 @@
 //
-//  node_surface.h
-//  Test2
+//  Drawables : les noeuds feuilles étant affichés,
+//  i.e. avec mesh et texture.
 //
 //  Created by Corentin Faucher on 2023-10-14.
 //
@@ -17,7 +17,7 @@
 
 /// Noeud affichable (image, string)
 typedef struct _Drawable {
-    Node     n;        // Peut être casté comme un noeud.
+    Node     n;        // Upcasting
     Texture* tex;      // La texture attaché. Peut être owned ou shared.
     Mesh*    mesh;     // La mesh attaché. Peut être owned ou shared.
     SmTrans  trShow;   // Smooth transition pour affichage ON/OFF.

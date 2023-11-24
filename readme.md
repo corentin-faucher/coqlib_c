@@ -18,6 +18,7 @@
 - `a_(propriété)...` : Getter quelconque ("get" est sous-entendu),
      e.g. Vector2 node_deltas(node* nd) -> hit box (espace occupé) d'un noeud.
 - `a_is...` : Is -> Getter de boolean, e.g. Bool countdown_isRinging(Countdown *cd).
+- `a_as...` : "as"/Downcasting, essaie de caster en tant que sous-struct, e.g. `Drawable *d = node_asDrawableOpt(node); if(d) draw(d);`.
 
 ## Notations sur les pointeurs
 
