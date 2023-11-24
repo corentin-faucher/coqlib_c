@@ -12,7 +12,7 @@
 - `a_init(A* a)` : Initialisation (seulement) d'un objet existant.
 - `a_deinit(A* a)` : Préparation pour déallocation (dealloc les sous-objets).
 - `a_destroy(A* a)` : Deinit et destruction *free* d'un objet.
-- `a_set...` : Définir une/des variable d'un objet, e.g. void a_setIsOn(A *a, Bool isOn).
+- `a_set...` : Setters, définir une/des variable(s) d'un objet, e.g. void a_setIsOn(A *a, Bool isOn).
 - `a_update()` : Setter indirect, e.g. ChoronoRender_update(60.f).
 - `a_(action)...` : Fonction quelconque appliquée à l'objet, e.g. void chrono_pause(Chrono *c).
 - `a_(propriété)...` : Getter quelconque ("get" est sous-entendu),
@@ -22,11 +22,11 @@
 ## Notations sur les pointeurs
 
 - `A** ptrRef` : Ref est pour "Référence" d'un pointeur, e.g. pour modifier où on pointe.
-- `pEnd` vs `pLast` : last-> pointe sur le dernier élément ou plutôt le dernier actif. end-> pointe juste après la fin de l'array, e.g. while(p < end) { if(p->actif){...}... }, le dernier élément traité sera le "last".
+- `pEnd` vs `pLast` : last-> pointe sur le dernier élément ou plutôt le dernier actif. end-> pointe juste après la fin de l'array, e.g. `while(p < end) { if(p->actif) doStuf(p); p++; }`, le dernier élément traité sera le "last".
 - `pHead` vs `pFirst` : First -> premier "actif". Head -> début de l'array (superflu en général, correspond au pointeur de l'array).
 
 ## Notations sur les arrays
 
 - `count` vs `size` : On utilise "Count" pour le nombre d'éléments et "Size" pour la taille en bytes de l'array,
-e.g. A myArray[myArrayCount]; myArraySize = myArrayCount * sizeof(A);
+e.g. `A myArray[myArrayCount]; myArraySize = myArrayCount * sizeof(A);`
 
