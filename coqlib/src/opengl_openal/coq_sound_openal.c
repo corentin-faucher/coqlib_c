@@ -1,6 +1,8 @@
+// Version OpenAL pour les sons.
+
 #include "coq_sound.h"
-#include "_math_chrono.h"
-#include "_utils_file.h"
+#include "_math/_math_chrono.h"
+#include "_utils/_utils_file.h"
 
 #define AL_SILENCE_DEPRECATION
 // #include <AL/al.h>

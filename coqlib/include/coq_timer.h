@@ -1,4 +1,4 @@
-//
+ //
 //  timer.h
 //  Struct pour les timers. Call une fonction `callback` après un certain temps.
 //
@@ -8,7 +8,7 @@
 #ifndef _coq_timer_h
 #define _coq_timer_h
 
-#include "_utils_.h"
+#include "_utils/_utils_.h"
 
 typedef struct _Timer Timer;
 

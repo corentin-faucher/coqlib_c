@@ -8,8 +8,8 @@
 #ifndef _coq_graph_font_manager_h
 #define _coq_graph_font_manager_h
 
-#include "coq_string.h"
-#include "_math_.h"
+#include "coq_utils.h"
+#include "_math/_math_.h"
 
 typedef struct {
     char    name[40];

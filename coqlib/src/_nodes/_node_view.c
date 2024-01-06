@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-18.
 //
 
-#include "_node_root.h"
-#include "_node_tree.h"
+#include "_nodes/_node_root.h"
+#include "_nodes/_node_tree.h"
 #include <math.h>
 
 void    view_open(Node* const node) {

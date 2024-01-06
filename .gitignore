@@ -22,5 +22,6 @@ gen/
 local.properties
 obj/
 lib/
+coqlib_test_xcode/
 output.json
 Thumbs.db

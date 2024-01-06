@@ -1,5 +1,5 @@
-#include "_graph__opengl.h"
-#include "_utils_file.h"
+#include "_graph/_graph__opengl.h"
+#include "_utils/_utils_file.h"
 
 #include <GLFW/glfw3.h>
 

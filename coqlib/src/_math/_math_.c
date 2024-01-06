@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
-#include "_math_.h"
+#include "_math/_math_.h"
 #include <simd/vector.h>
 #include <arm/arch.h>
 

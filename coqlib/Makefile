@@ -8,7 +8,7 @@ OBJDIR := obj
 LIBDIR := lib
 LIBNAME := coqlib
 # Flags du compileur
-CFLAGS=-g -Wall -Wno-deprecated-declarations -Iinclude -Iinclude/_nodes -DDEBUG
+CFLAGS=-g -Wall -Wno-deprecated-declarations -Iinclude -DDEBUG
 #-F/Library/Frameworks -framework SDL2
 
 # Lister les fichiers c.
@@ -20,9 +20,10 @@ LIB := $(LIBDIR)/lib$(LIBNAME).a
 
 # Rule primaire : créé la librairie (package de .o)
 $(LIB): $(OBJS)
-	@echo Creating library $@ with $<
+	@echo Creating library $@.
 	@test -d $(@D) || mkdir -p $(@D)
 	@ar -rcs $@ $(OBJS)
+	@echo Done!
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling object $@...

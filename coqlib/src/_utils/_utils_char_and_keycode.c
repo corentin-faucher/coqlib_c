@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#include "_string_char_and_keycode.h"
+#include "_utils/_utils_char_and_keycode.h"
 
 const char spchar_delete[] = "\b";
 const char spchar_deleteSymbol[] = "␈";

@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-11-29.
 //
 
-#include "_node_number.h"
-#include "_node_squirrel.h"
-#include "_node_tree.h"
+#include "_nodes/_node_number.h"
+#include "_nodes/_node_squirrel.h"
+#include "_nodes/_node_tree.h"
 
 void  _drawable_setAsDigit(Drawable* d, uint32_t digit, float x_margin) {
     drawable_setTile(d, digit, 0);

@@ -8,7 +8,7 @@
 #ifndef _coq_node_root_h
 #define _coq_node_root_h
 
-#include "_math_camera.h"
+#include "_math/_math_camera.h"
 #include "_node_button.h"
 #include "_node_view.h"
 

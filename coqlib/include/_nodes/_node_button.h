@@ -8,8 +8,8 @@
 #ifndef _coq_node_button_h
 #define _coq_node_button_h
 
+#include "_graph/_graph_texture.h"
 #include "_node_fluid.h"
-#include "_graph_texture.h"
 #include "_node_pop_disk.h"
 
 // Boutons, slider, objet deplacable...

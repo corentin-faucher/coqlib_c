@@ -1,14 +1,15 @@
 //
-//  sound.h
-//  demo_xcode
+//  coq_sound.h
+//  Pour jouer des sons. 
+//  (Utilise OpenAL ou AVFoundation, voir le .c ou .m)
 //
 //  Created by Corentin Faucher on 2023-10-31.
 //
 #ifndef _coq_sound_h
 #define _coq_sound_h
-#include "_utils_.h"
+#include "_utils/_utils_.h"
 
-extern const  uint32_t Sound_volume_count; // == 5
+extern const  uint32_t Sound_volume_count; // = 5
 extern bool            Sound_isMute; // = false
 
 void  Sound_initWithWavNames(const char* wav_names[], uint32_t wav_count);

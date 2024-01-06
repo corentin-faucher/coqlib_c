@@ -7,7 +7,7 @@
 #ifndef _coq_event_h
 #define _coq_event_h
 
-#include "_node_root.h"
+#include "_nodes/_node_root.h"
 
 typedef enum _EventFlag {
     _event_flag_toDo =            0x0001,

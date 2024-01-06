@@ -6,11 +6,10 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
-
-#include "_graph__opengl.h"
-#include "coq_map.h"
 #include "lodepng.h"
-#include "_utils_file.h"
+#include "coq_map.h"
+#include "_graph/_graph__opengl.h"
+#include "_utils/_utils_file.h"
 
 typedef enum _Texture_flag {
     tex_flag_string           = 0x0001,

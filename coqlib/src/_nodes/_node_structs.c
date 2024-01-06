@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-11-02.
 //
 
-#include "_node_structs.h"
-#include "_graph_colors.h"
+#include "_nodes/_node_structs.h"
+#include "_graph/_graph_colors.h"
 
 void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
                        uint32_t iconPngId, uint32_t iconTile) {

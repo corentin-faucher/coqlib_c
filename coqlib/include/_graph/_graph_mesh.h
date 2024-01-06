@@ -8,7 +8,7 @@
 #ifndef _coq_graph_mesh_h
 #define _coq_graph_mesh_h
 
-#include "_math_.h"
+#include "_math/_math_.h"
 
 /*-- Vertex --------------------*/
 typedef struct {

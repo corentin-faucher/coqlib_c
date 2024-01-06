@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-13.
 //
 
-#include "_node_squirrel.h"
+#include "_nodes/_node_squirrel.h"
 
 void sq_init(Squirrel* const sq, Node* const ref, enum SquirrelScaleType scale) {
     sq->pos = ref;

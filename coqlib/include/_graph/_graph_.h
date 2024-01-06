@@ -9,7 +9,7 @@
 #ifndef _coq_graph_h
 #define _coq_graph_h
 
-#include "_math_.h"
+#include "_math/_math_.h"
 
 /*-- Per instance uniforms --------------------------------*/
 /// Les informations graphiques d'un objet particulier

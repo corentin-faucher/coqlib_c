@@ -1,15 +1,14 @@
 //
-//  _string.h
+//  _utils_string.h
 //  Struct et fonction utiles pour manipuler les strings.
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#ifndef _coq_string_h
-#define _coq_string_h
+#ifndef _coq_utils_string_h
+#define _coq_utils_string_h
 
-#include "_string_char_and_keycode.h"
-#include "_string_language.h"
+#include "_utils/_utils_.h"
 
 /// Structure pratique pour passer une série de string.
 /// Il s'agit de references unowned/shared, i.e. ne doivent pas être deallocated.

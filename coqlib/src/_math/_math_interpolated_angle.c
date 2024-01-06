@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-11-26.
 //
 
-#include "_math_interpolated_angle.h"
+#include "_math/_math_interpolated_angle.h"
 
 void intangle_init(InterpolatedAngle* ia, float pos) {
     memset(ia->vT, 0, sizeof(ia->vT));

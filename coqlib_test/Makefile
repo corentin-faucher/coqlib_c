@@ -11,8 +11,8 @@ BIN :=     $(BINDIR)/$(BINNAME)
 # Flags du compileur
 # -g : Generate debug information.
 # -Wall : All warnings.
-CFLAGS=-g -DDEBUG -Wall -Iinclude -I../coqlib/include -I../coqlib/include/_nodes
-LFLAGS=-L../coqlib/lib -framework OpenGL -lcoqlib -lglfw
+CFLAGS=-g -DDEBUG -Wall -Iinclude -I../coqlib/include
+LFLAGS=-L../coqlib/lib -framework OpenGL -framework OpenAL -lcoqlib -lglfw
 #-F/Library/Frameworks -framework SDL2
 
 # Lister les fichiers c.

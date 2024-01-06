@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-11-06.
 //
 
-#include "_node_drawable.h"
-#include "_node_fluid.h"
+#include "_nodes/_node_drawable.h"
+#include "_nodes/_node_fluid.h"
 
 /*-- Surface de "Bar". Un segment de taille ajustable. Version 1D de "Frame". --------------*/
 void   _bar_update(Frame* bar, Vector2 deltas) {

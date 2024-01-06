@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-23.
 //
 #include "coq_timer.h"
-#include "_math_chrono.h"
+#include "_math/_math_chrono.h"
 
 typedef struct _Timer {
     void    (*callBack)(void*);

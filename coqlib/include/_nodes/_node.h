@@ -9,9 +9,9 @@
 #define _coq_node_h
 
 #include "coq_timer.h"
-#include "_graph_.h"
-#include "_node_flags.h"
-#include "_node_types.h"
+#include "_graph/_graph_.h"
+#include "_nodes/_node_flags.h"
+#include "_nodes/_node_types.h"
 
 typedef struct _Node Node;
 typedef struct _Root Root;

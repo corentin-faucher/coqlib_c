@@ -1,4 +1,5 @@
 #include "renderer.h"
+#include "_math/_math_camera.h"
 
 /*-- Dims de la view ---------*/
 static int    _Renderer_width = 400;

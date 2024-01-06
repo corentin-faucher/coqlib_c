@@ -9,7 +9,7 @@
 #define _coq_node_sparkles_h
 
 #include "_node_view.h"
-#include "_graph_texture.h"
+#include "_graph/_graph_texture.h"
 
 /// Init pour les "feux d'artifices". S'il n'y a pas de pngName, on prend `coqlib_sparkle_stars`.
 void Sparkle_init(View* frontView, const char* pngNameOpt, uint32_t soundId);

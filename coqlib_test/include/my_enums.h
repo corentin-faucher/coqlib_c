@@ -7,7 +7,7 @@
 #ifndef my_enums_h
 #define my_enums_h
 
-#include "_graph_texture.h"
+#include "_graph/_graph_texture.h"
 
 typedef enum _Localizable {
     loc_app_name,

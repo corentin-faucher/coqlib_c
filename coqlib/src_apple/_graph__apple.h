@@ -9,8 +9,8 @@
 #define graph_texture_apple_h
 
 #import <Metal/Metal.h>
-#include "_graph_texture.h"
-#include "_graph_mesh.h"
+#include "_graph/_graph_texture.h"
+#include "_graph/_graph_mesh.h"
 
 /*-- Texture --*/
 void           _Texture_init(id<MTLDevice> const device);

@@ -7,9 +7,9 @@
 #ifndef _coq_math_h
 #define _coq_math_h
 
-#include "_utils_.h"
 #include <math.h>
 #include <simd/simd.h>
+#include "_utils/_utils_.h"
 
 // Si on veut l'allignement, utiliser
 // struct __attribute__((aligned(16))) Vector { union {...};};

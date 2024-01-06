@@ -4,7 +4,7 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
-#include "_graph_.h"
+#include "_graph/_graph_.h"
 
 const  PerInstanceUniforms piu_default = PIU_DEFAULT;
 

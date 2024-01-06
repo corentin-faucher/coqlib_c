@@ -8,7 +8,7 @@
 #ifndef _coq_graph_colors_h
 #define _coq_graph_colors_h
 
-#include "_math_.h"
+#include "_math/_math_.h"
 
 extern const Vector4 color4_black;
 extern const Vector4 color4_black_back;

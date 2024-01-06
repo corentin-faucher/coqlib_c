@@ -8,9 +8,9 @@
 #ifndef _coq_graph_texture_h
 #define _coq_graph_texture_h
 
-#include "_math_chrono.h"
-#include "coq_string.h"
-#include "_graph_.h"
+#include "coq_utils.h"
+#include "_math/_math_chrono.h"
+#include "_graph/_graph_.h"
 
 #define TEXTURE_PNG_NAME_SIZE 32
 

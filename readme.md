@@ -1,5 +1,47 @@
 #  coqlib c
 
+## Tester avec Makefile
+
+1. Aller dans le repertoire coqlib. Compiler la librarie.
+```bash
+    coqlib_c $ cd coqlib
+    coqlib $ make
+```
+
+2. Aller dans l'exemple et compiler.
+```bash
+    coqlib $ cd ../coqlib_test
+    coqlib_test $ make
+```
+
+3. Essayer de modifier les objets affichés (ici avec l'editeur texte sublime).
+```bash
+    coqlib_test $ subl src/my_root.c
+```
+
+## Tester dans Xcode
+
+1. Créer un projet macOS -> App ; mom "coqlib_test_xcode", interface "XIB" (pas important, on va effacer le .xib) ; language Objective-C.
+
+2. Effacer les fichier créé automatiquement (AppDelegate.h et .m, Assets.xcassets, MainMenu.xib, main.m). -> Move to trash.
+
+3. Dans le projet (coqlib_test_xcode.xcodeproj la racine des fichiers), dans `Info`, effacer `MainMenu` de `Main nib file base name`. Dans `Build Settings` effacer `MainMenu` de `Main nib file base name`.
+
+4. Toujours dans `Build Settings` : Search Paths -> Header Search Paths, ajouter "../coqlib/include".
+
+5. Au projet (coqlib_test_xcode la racine des fichiers), ajouter les groupes (`New Group`) : `coqlib` ; `Resources`.
+
+6. Au groupe/dossier `coqlib`, ajouter (Add Files to coqlib_test_xcode) les repertoires `include`, `src` et `src_apple` de `coqlib` (remonter au dossier racine de coqlib_c). Choisir "Create groups" pour "Added folders".
+
+7. Au groupe `Resources`, ajouter (Add Files to coqlib_test_xcode) les repertoires `pngs`, `pngs_coqlib` et `wavs` dans `coqlib_test/res`. Choisir "Create folder references" pour "Added folders". Ajouter aussi `Assets.xcassets` et `Strings` dans `coqlib_test/res_apple`.
+
+8. Au groupe `coqlib_test_xcode`, ajouter les fichiers `AppDelegate.h`, `AppDelegate.m`, `main.m` et `Shaders.metal` de `coqlib_test/src_apple`. Ajouter aussi les fichiers `my_enums.c`, `my_root.c` de `coqlib_test/src` et `my_enums.h`, `my_root.h` de `coqlib_test/include`.
+
+9. C'est tout. Run cmd-r.
+
+
+
+
 ## Notations sur les fonctions
 
 - `A_doStuf()` : Majustcule, une fonction global de la struct A, e.g. `A_create()` -> crée une instance de A.

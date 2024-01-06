@@ -8,7 +8,7 @@
 
 #import <Foundation/Foundation.h>
 
-#include "coq_string.h"
+#include "coq_utils.h"
 
 /*----- Privates variables -----------------_*/
 const Language _Language_default = language_english;

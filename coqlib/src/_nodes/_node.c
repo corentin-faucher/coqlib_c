@@ -6,12 +6,12 @@
 //
 
 #include <stdlib.h>
-#include "_node.h"
-#include "_node_fluid.h"
-#include "_node_drawable.h"
-#include "_node_flags.h"
-#include "_node_squirrel.h"
-#include "_node_tree.h"
+#include "_nodes/_node.h"
+#include "_nodes/_node_fluid.h"
+#include "_nodes/_node_drawable.h"
+#include "_nodes/_node_flags.h"
+#include "_nodes/_node_squirrel.h"
+#include "_nodes/_node_tree.h"
 
 void _node_disconnect(Node * const node) {
     // Retrait

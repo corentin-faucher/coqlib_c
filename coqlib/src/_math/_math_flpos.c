@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-14.
 //
 
-#include "_math_flpos.h"
-#include "_math_chrono.h"
+#include "_math/_math_flpos.h"
+#include "_math/_math_chrono.h"
 
 const static uint32_t _sm_type_static =     0x0000;
 const static uint32_t _sm_type_oscAmorti  = 0x0001;

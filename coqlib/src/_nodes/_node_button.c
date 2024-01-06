@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-30.
 //
 
-#include "_node_button.h"
-#include "_node_drawable.h"
+#include "_nodes/_node_button.h"
+#include "_nodes/_node_drawable.h"
 #include <string.h>
 
 void   _button_default_action(Button* b) {

@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-16.
 //
 
-#include "_node_fluid.h"
+#include "_nodes/_node_fluid.h"
 
 float Fluid_defaultFadeInDelta = 2.2f;
 

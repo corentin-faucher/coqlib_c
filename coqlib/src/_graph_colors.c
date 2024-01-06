@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-30.
 //
 
-#include "_graph_colors.h"
+#include "_graph/_graph_colors.h"
 
 const Vector4 color4_black = {{0, 0, 0, 1 }};
 const Vector4 color4_black_back = {{0.1, 0.1, 0.05, 1 }};

@@ -10,10 +10,10 @@
 #import <MetalKit/MetalKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 
-#include "_graph__apple.h"
 #include "coq_map.h"
-#include "coq_string.h"
-#include "_graph_font_manager.h"
+#include "coq_utils.h"
+#include "_graph__apple.h"
+#include "_graph/_graph_font_manager.h"
 
 typedef enum _Texture_flag {
     tex_flag_string           = 0x0001,

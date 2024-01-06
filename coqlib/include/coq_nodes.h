@@ -5,8 +5,8 @@
 //
 //  Created by Corentin Faucher on 2024-01-04.
 //
-#ifndef _coq_nodes_base_h
-#define _coq_nodes_base_h
+#ifndef _coq_nodes_all_h
+#define _coq_nodes_all_h
 
 #include "_nodes/_node_squirrel.h"
 #include "_nodes/_node_structs.h"

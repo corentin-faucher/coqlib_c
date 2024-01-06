@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-11-04.
 //
 
-#include "_node_sparkles.h"
-#include "_node_tree.h"
-#include "_node_squirrel.h"
+#include "_nodes/_node_sparkles.h"
+#include "_nodes/_node_tree.h"
+#include "_nodes/_node_squirrel.h"
 #include "coq_sound.h"
 
 #define _SPARKLES_N 8

@@ -6,7 +6,7 @@
 //
 
 #include "coq_event.h"
-#include "_node_tree.h"
+#include "_nodes/_node_tree.h"
 
 #define _Max_Event_count 64
 

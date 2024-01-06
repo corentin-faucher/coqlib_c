@@ -9,7 +9,7 @@
 #define _coq_node_fluid_h
 
 #include "_node.h"
-#include "_math_flpos.h"
+#include "_math/_math_flpos.h"
 
 #define _NODESMOOTH_DIMS_N 5
 

@@ -7,9 +7,9 @@
 
 #include <math.h>
 #include <stdlib.h>
-#include "_node_drawable.h"
-#include "_node_root.h"
-#include "_graph_colors.h"
+#include "_nodes/_node_drawable.h"
+#include "_nodes/_node_root.h"
+#include "_graph/_graph_colors.h"
 
 static Drawable* _Drawable_last = NULL;
 

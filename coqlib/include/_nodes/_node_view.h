@@ -9,7 +9,7 @@
 #define _coq_node_view_h
 
 #include "_node_fluid.h"
-#include "_string_char_and_keycode.h"
+#include "_utils/_utils_char_and_keycode.h"
 
 typedef struct _Root Root;
 typedef struct _View View;

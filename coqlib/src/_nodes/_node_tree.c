@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-10-15.
 //
 
-#include "_node_tree.h"
-#include "_node_squirrel.h"
-#include "_node_root.h"
+#include "_nodes/_node_tree.h"
+#include "_nodes/_node_squirrel.h"
+#include "_nodes/_node_root.h"
 
 void  node_tree_addFlags(Node* const nd, flag_t flags) {
     nd->flags |= flags;

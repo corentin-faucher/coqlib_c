@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-10-15.
 //
 
-#include "_node_tree.h"
-#include "_node_root.h"
-#include "_graph_colors.h"
+#include "_nodes/_node_tree.h"
+#include "_nodes/_node_root.h"
+#include "_graph/_graph_colors.h"
 
 Root* Root_create(void) {
     Root* root = _Node_createEmptyOfType(node_type_root, sizeof(Root), 0, NULL, 0);

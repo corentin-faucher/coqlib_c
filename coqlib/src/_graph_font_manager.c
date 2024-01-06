@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-26.
 //
 
-#include "_graph_font_manager.h"
+#include "_graph/_graph_font_manager.h"
 #include "coq_map.h"
 
 static const CoqFontInfo _fontInfoList[] = {

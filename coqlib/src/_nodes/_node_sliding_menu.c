@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-11-01.
 //
 
-#include "_node_tree.h"
+#include "_nodes/_node_tree.h"
 #include <math.h>
 
 typedef struct _ScrollBar {

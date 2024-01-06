@@ -5,11 +5,11 @@
 //  Created by Corentin Faucher on 2023-10-28.
 //
 
-#include "_node_pop_disk.h"
 #include <math.h>
-#include "_node_tree.h"
-#include "_node_root.h"
-#include "_node_squirrel.h"
+#include "_nodes/_node_pop_disk.h"
+#include "_nodes/_node_squirrel.h"
+#include "_nodes/_node_tree.h"
+#include "_nodes/_node_root.h"
 
 /*-- PopDisk disk de progres qui s'autodetruit --------------------------------------------*/
 typedef struct _PopDisk {

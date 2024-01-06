@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-15.
 //
 
-#include "_math_camera.h"
+#include "_math/_math_camera.h"
 
 Vector3 camera_def_pos = {{0, 0, 4}};
 

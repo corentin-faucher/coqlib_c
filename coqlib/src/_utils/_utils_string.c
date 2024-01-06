@@ -4,7 +4,7 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "coq_string.h"
+#include "_utils/_utils_string.h"
 
 
 char* String_createCopy(const char* src) {

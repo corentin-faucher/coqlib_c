@@ -8,9 +8,8 @@
 #ifndef _coq_graph__opengl_h
 #define _coq_graph__opengl_h
 
-#include "_graph_texture.h"
-#include "_graph_mesh.h"
-#include "_math_camera.h"
+#include "_graph/_graph_texture.h"
+#include "_graph/_graph_mesh.h"
 
 #define GL_SILENCE_DEPRECATION
 #include <OpenGL/gl3.h>

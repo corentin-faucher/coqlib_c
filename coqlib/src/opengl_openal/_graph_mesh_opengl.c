@@ -6,7 +6,7 @@
 //
 
 
-#include "_graph__opengl.h"
+#include "_graph/_graph__opengl.h"
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 

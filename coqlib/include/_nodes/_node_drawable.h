@@ -10,9 +10,9 @@
 
 #include <stdio.h>
 #include "_node.h"
-#include "_math_smtrans.h"
-#include "_graph_texture.h"
-#include "_graph_mesh.h"
+#include "_math/_math_smtrans.h"
+#include "_graph/_graph_texture.h"
+#include "_graph/_graph_mesh.h"
 
 
 /// Noeud affichable (image, string).
