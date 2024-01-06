@@ -11,11 +11,16 @@
 .idea
 .navigation
 
+*.xcodeproj/
+
+**/.vscode/*
+.vscode/*
 bin/
 build/
 captures/
 gen/
 local.properties
 obj/
+lib/
 output.json
 Thumbs.db

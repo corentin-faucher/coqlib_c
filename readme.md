@@ -5,8 +5,6 @@
 - `A_doStuf()` : Majustcule, une fonction global de la struct A, e.g. `A_create()` -> crée une instance de A.
 - `a_doStuf(A* a)` : Minuscule, une fonction appliquée à une instance de la struct A, e.g. `a_update(my_a)`.
 - `_a_doPrivateStuff(A* a)` : Underscore, pour les variables ou fonction "privées"/"internes".
-
-- `myRefOpt` : Opt, pour les pointeurs/reference optionnelle (de fonction, paramètre, variable...), i.e. *pouvant* être NULL.
 - `A_create(...)` : create -> Création et initialisation d'un objet avec allocation de mémoire *malloc*/*calloc*. On est responsable de detruire l'objet -> _destroy.
 - `A_spawn(...)` : Création (et init) d'un objet qui s'autodétruit (pas besoin de deinit/destroy).
 - `a_init(A* a)` : Initialisation (seulement) d'un objet existant.
@@ -16,15 +14,18 @@
 - `a_update()` : Setter indirect, e.g. ChoronoRender_update(60.f).
 - `a_(action)...` : Fonction quelconque appliquée à l'objet, e.g. void chrono_pause(Chrono *c).
 - `a_(propriété)...` : Getter quelconque ("get" est sous-entendu),
-     e.g. Vector2 node_deltas(node* nd) -> hit box (espace occupé) d'un noeud.
+     e.g. `Vector2 node_deltas(node* nd)` -> hit box (espace occupé) d'un noeud.
 - `a_is...` : Is -> Getter de boolean, e.g. Bool countdown_isRinging(Countdown *cd).
 - `a_as...` : "as"/Downcasting, essaie de caster en tant que sous-struct, e.g. `Drawable *d = node_asDrawableOpt(node); if(d) draw(d);`.
+- `a_arr_...` : arr ou array, fonction agissant sur un array d'éléments, e.g. Conversion de 4 "fluides" en un vecteur de 4 float : `Vector4 fl_array_toVec4(FluidPos *sp);`.
 
 ## Notations sur les pointeurs
 
 - `A** ptrRef` : Ref est pour "Référence" d'un pointeur, e.g. pour modifier où on pointe.
 - `pEnd` vs `pLast` : last-> pointe sur le dernier élément ou plutôt le dernier actif. end-> pointe juste après la fin de l'array, e.g. `while(p < end) { if(p->actif) doStuf(p); p++; }`, le dernier élément traité sera le "last".
 - `pHead` vs `pFirst` : First -> premier "actif". Head -> début de l'array (superflu en général, correspond au pointeur de l'array).
+- `unowned` : On n'est *pas* propriétaire du contenu du pointeur, i.e. pas besoin de `free`.
+- `myRefOpt` : Opt, pour les pointeurs/reference optionnels (de fonction, paramètre, variable...), i.e. *pouvant* être NULL. _Normalement_, s'il n'y a pas de *opt*, il est superflu de vérifier si le pointeur est NULL.
 
 ## Notations sur les arrays
 
