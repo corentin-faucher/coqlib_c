@@ -66,7 +66,7 @@
     
     // Fini
     [window setContentView:view];
-    [view updateRootFrame];
+    [view updateRootFrame:view.drawableSize];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {

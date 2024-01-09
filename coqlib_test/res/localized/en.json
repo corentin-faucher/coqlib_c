@@ -1,0 +1,9 @@
+{
+  "app_name": "Testing Coqlib",
+  "error": "Error...",
+  "error_empty": "Error: empty field.",
+  "error_empty_directory": "Error: empty directory.",
+  "menu": "Main Menu",
+  "ok": "OK",
+  "quit": "Quit"
+}

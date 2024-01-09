@@ -24,6 +24,7 @@ void   _bar_update(Frame* bar, Vector2 deltas) {
     vertices[3].x = -xPos;
     vertices[4].x =  xPos;
     vertices[5].x =  xPos;
+    mesh_needToUpdateVertices(bar->d.mesh);
 }
 void   _vbar_update(Frame* vbar, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, vbar->inside));
@@ -40,6 +41,7 @@ void   _vbar_update(Frame* vbar, Vector2 deltas) {
     vertices[3].y =  yPos;
     vertices[4].y = -yPos;
     vertices[5].y = -yPos;
+    mesh_needToUpdateVertices(vbar->d.mesh);
 }
 void   _frame_update(Frame* frame, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, frame->inside));
@@ -71,6 +73,7 @@ void   _frame_update(Frame* frame, Vector2 deltas) {
     vertices[6].y =  -yPos;
     vertices[10].y = -yPos;
     vertices[14].y = -yPos;
+    mesh_needToUpdateVertices(frame->d.mesh);
     
     if(!(frame->n.flags & flag_giveSizeToParent)) return;
     Node* parent = frame->n.parent;

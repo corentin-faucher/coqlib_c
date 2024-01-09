@@ -22,9 +22,7 @@ typedef enum _Texture_flag {
     tex_flag_shared           = 0x0008,
     tex_flag_png              = 0x0010,
     tex_flag_png_coqlib       = 0x0020,
-//    tex_flag_miniDrawn        = 0x0040, // Redondant ?
-//    tex_flag_fullyDrawn       = 0x0080,
-//    tex_flag_miniOrFullyDrawn = tex_flag_fullyDrawn|tex_flag_miniDrawn,
+    tex_flag_nearest          = 0x0040,
 } texflag_t;
 
 #define _TEX_UNUSED_DELTATMS 1000
@@ -57,12 +55,13 @@ static Texture      _Texture_dummy = {
     "dummy", NULL, NULL, nil, nil
 };
 
+/*-- Variable globales --*/
 static int32_t           _Texture_total_count = 0;
-static MTKTextureLoader* _MTLtextureLoader = NULL;
 static bool              _Texture_isInit = false;
 static bool              _Texture_isLoaded = false;
 volatile static bool     _Texture_needToFullyDraw = false;
-/*-- Font -------------------------------------------------------------*/
+
+/*-- Font pour les texture de strings --------------------------------------*/
 #if TARGET_OS_OSX == 1
 typedef NSFont Font;
 #else
@@ -75,18 +74,8 @@ static NSMutableDictionary* _Font_currentMiniAttributes = nil;
 static double               _Font_currentSize = 24;
 static Vector2              _Font_current_spreading = { 1.3f, 1.0f };
 
-/*-- List de textures -----------------------------------------------------*/
-/// Maps des png (shared).
-static StringMap*        _textureOfPngName = NULL;
-/// Maps des constant strings (shared)
-static StringMap*        _textureOfConstantString = NULL;
-// Liste des strings quelconques...
-static const uint32_t    _nonCstStrTexCount = 64;
-static Texture*          _nonCstStrTexArray[_nonCstStrTexCount];
-static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[_nonCstStrTexCount];
-static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
-/*-- Sub-functions... -------------------------------------------*/
-static const CGFloat _Texture_y_string_rel_shift = -0.15;
+/*-- Creation de la texture Metal -------------------------------*/
+static MTKTextureLoader* _MTLtextureLoader = NULL;
 NSMutableDictionary* _FontAttributes_createWithFont(Font* font) {
 #if TARGET_OS_OSX == 1
     NSColor* color = NSColor.whiteColor;
@@ -106,10 +95,8 @@ NSMutableDictionary* _FontAttributes_createWithFont(Font* font) {
     color = nil;
     return attributes;
 }
+static const CGFloat _Texture_y_string_rel_shift = -0.15;
 void      _texture_setMTLtextureAsString(Texture* const tex, bool setMini) {
-    // Dans tout les cas, on considère que l'on a essayé...
-//    tex->flags |= setMini ? tex_flag_miniDrawn : tex_flag_fullyDrawn;
-    // check...
     if(((tex->mtlMini != nil) && setMini) || ((tex->mtlTexture) && !setMini)) {
         printwarning("Texture already set.");
         return;
@@ -218,7 +205,6 @@ void      _texture_setMTLtextureAsString(Texture* const tex, bool setMini) {
 void      _texture_setMTLtextureAsPng(Texture* const tex, bool setMini) {
     if(((tex->mtlMini != nil) && setMini) || ((tex->mtlTexture) && !setMini)) {
         printwarning("Texture already set.");
-//        tex->flags |= setMini ? tex_flag_miniDrawn : tex_flag_fullyDrawn;
         return;
     }
     NSString *NSpngName = [NSString stringWithUTF8String:tex->string];
@@ -230,10 +216,9 @@ void      _texture_setMTLtextureAsPng(Texture* const tex, bool setMini) {
     png_dir = nil;
     NSpngName = nil;
     if(pngUrl == NULL) {
-        if(!setMini) {  // Ok, si pas de mini.
+        // (Ok, si pas de mini, mais probleme si pas la texture standard)
+        if(!setMini) {
             printerror("cannot init url for non-mini %s.", tex->string);
-            // (on a tout de meme essayer, mettre le flag...)
-//            tex->flags |= tex_flag_fullyDrawn;
         }
         return;
     }
@@ -258,13 +243,15 @@ void      _texture_setMTLtextureAsPng(Texture* const tex, bool setMini) {
     tex->ptu.height = (float)[mtlTexture height];
     tex->ratio = tex->ptu.width / tex->ptu.height * tex->ptu.n / tex->ptu.m;
 }
-/*-- Inits... -------------------------------------------*/
+
+/*-- Fonctions privees sur une instance Texture -------------------------*/
 void  _texture_initAsPng(Texture* const tex, const PngInfo* const info, bool isCoqlib) {
     // Init des champs
     tex->ptu = (PerTextureUniforms) { 8, 8, (float)info->m, (float)info->n };
     tex->m =     info->m; tex->n =     info->n;
     tex->alpha = 1.f;     tex->beta =  1.f;
-    tex->flags = tex_flag_png|tex_flag_shared|(isCoqlib ? tex_flag_png_coqlib : 0);
+    tex->flags = tex_flag_png|tex_flag_shared|(isCoqlib ? tex_flag_png_coqlib : 0)
+                    |(info->nearest ? tex_flag_nearest : 0);
     tex->touchTime = _CR_elapsedMS - _TEX_UNUSED_DELTATMS;
     tex->ratio = (float)info->n / (float)info->m;  // (temporaire)
     tex->string = String_createCopy(info->name);
@@ -313,10 +300,6 @@ void  _texture_drawFully(Texture* const tex) {
     }
     _texture_setMTLtextureAsPng(tex, false);
 }
-/// Superflu ? Libere la texture standard (laisse la mini). C'est juste pour liberer la memoire.
-//void  _texture_unset(Texture* const tex) {
-//    tex->mtlTexture = nil;
-//}
 bool  _texture_isUsed(Texture* const tex) {
     return _CR_elapsedMS - tex->touchTime <= _TEX_UNUSED_DELTATMS;
 }
@@ -337,19 +320,98 @@ void  _texture_deinit(void* tex_void) {
         tex->fontNameOpt = NULL;
     }
 }
-void  _map_block_texture_unsetPartly(char* tex_data) {
-    ((Texture*)tex_data)->mtlTexture = nil;
+void  _texture_unsetPartly(Texture* tex) {
+    tex->mtlTexture = nil;
 }
-void  _map_block_texture_unsetFully(char* tex_data) {
-    ((Texture*)tex_data)->mtlTexture = nil;
-    ((Texture*)tex_data)->mtlMini = nil;
+static  void (* const _texture_unsetPartly_)(char*) = (void (*)(char*))_texture_unsetPartly;
+void  _texture_unsetFully(Texture* tex) {
+    tex->mtlTexture = nil;
+    tex->mtlMini = nil;
 }
-void  _map_block_texture_unsetUnusedPartly(char* tex_data) {
-    Texture* tex = (Texture*)tex_data;
+static  void (* const _texture_unsetFully_)(char*) = (void (*)(char*))_texture_unsetFully;
+void  _texture_unsetUnusedPartly_(char* tex_char) {
+    Texture* tex = (Texture*)tex_char;
     if(tex->mtlTexture == nil) return;
     if(!_texture_isUnused(tex)) return;
     tex->mtlTexture = nil;
 }
+
+/*-- Fonctions public sur une instance Texture -------------------------*/
+void              texture_updateString(Texture* tex, const char* newString) {
+    if(!(tex->flags & tex_flag_stringMutable) || !newString) {
+        printwarning("Not a mutable string or missing newString.");
+        return;
+    }
+    coq_free(tex->string);
+    tex->string = String_createCopy(newString);
+    tex->mtlTexture = nil;
+    tex->mtlMini = nil;
+    _texture_drawPartly(tex);
+    tex->touchTime = _CR_elapsedMS;
+}
+void              texture_destroy(Texture* tex) {
+    _texture_deinit(tex);
+    coq_free(tex);
+    _Texture_total_count --;
+}
+id<MTLTexture>    texture_MTLTexture(Texture* tex) {
+    tex->touchTime = _CR_elapsedMS;
+    if(tex->mtlTexture != nil)
+        return tex->mtlTexture;
+    // Il y a des texture en demande pas encore "fully drawn"...
+    _Texture_needToFullyDraw = true;
+    if(tex->mtlMini != nil)
+        return tex->mtlMini;
+    // Ni mini ni standard ? Essayer de dessiner
+    _texture_drawPartly(tex);
+    if(tex->mtlTexture != nil)
+        return tex->mtlTexture;
+    return tex->mtlMini;
+}
+bool              texture_isNearest(Texture* tex) {
+    return tex->flags & tex_flag_nearest;
+}
+const PerTextureUniforms* texture_ptu(Texture* tex) {
+    return &tex->ptu;
+}
+uint32_t          texture_m(Texture *tex) {
+    return tex->m;
+}
+uint32_t          texture_n(Texture *tex) {
+    return tex->n;
+}
+uint32_t          texture_mn(Texture *tex) {
+    return tex->m * tex->n;
+}
+float             texture_ratio(Texture* tex) {
+    return tex->ratio;
+}
+float             texture_alpha(Texture* tex) {
+    return tex->alpha;
+}
+float             texture_beta(Texture* tex) {
+    return tex->beta;
+}
+bool              texture_isShared(Texture* tex) {
+    return tex->flags & tex_flag_shared;
+}
+const char*       texture_string(Texture* tex) {
+    return tex->string;
+}
+
+
+
+/*-- List de textures -----------------------------------------------------*/
+/// Maps des png (shared).
+static StringMap*        _textureOfPngName = NULL;
+/// Maps des constant strings (shared)
+static StringMap*        _textureOfConstantString = NULL;
+// Liste des strings quelconques...
+static const uint32_t    _nonCstStrTexCount = 64;
+static Texture*          _nonCstStrTexArray[_nonCstStrTexCount];
+static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[_nonCstStrTexCount];
+static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
+
 
 /*-- Font ----------------------------------------------------------------*/
 void     Texture_setCurrentFont(const char* fontName) {
@@ -369,10 +431,10 @@ void     Texture_setCurrentFont(const char* fontName) {
     [_Font_currentMiniAttributes setObject:_Font_currentMini forKey:NSFontAttributeName];
     _Font_current_spreading = Font_getFontInfoOf(fontName)->spreading;
     // Redessiner les strings...
-    map_applyToAll(_textureOfConstantString, _map_block_texture_unsetFully);
+    map_applyToAll(_textureOfConstantString, _texture_unsetFully_);
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) { (*tr)->mtlMini = nil;  (*tr)->mtlTexture = nil; }
+        if(*tr) { _texture_unsetFully(*tr); }
         tr ++;
     }
 }
@@ -384,10 +446,10 @@ void     Texture_setCurrentFontSize(double newSize) {
     _Font_current = [_Font_current fontWithSize:newSize];
     [_Font_currentAttributes setObject:_Font_current forKey:NSFontAttributeName];
     // Redessiner les strings...
-    map_applyToAll(_textureOfConstantString, _map_block_texture_unsetPartly);
+    map_applyToAll(_textureOfConstantString, _texture_unsetPartly_);
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) { (*tr)->mtlTexture = nil; }
+        if(*tr) { _texture_unsetPartly(*tr); }
         tr ++;
     }
 }
@@ -397,17 +459,17 @@ double   Texture_currentFontSize(void) {
 
 /// Liste des pngs par defaut
 const PngInfo _coqlib_pngInfos[] = {
-    {"coqlib_digits_black", 12, 2},
-    {"coqlib_scroll_bar_back", 1, 1},
-    {"coqlib_scroll_bar_front", 1, 1},
-    {"coqlib_sliding_menu_back", 1, 1},
-    {"coqlib_sparkle_stars", 3, 2},
-    {"coqlib_switch_back", 1, 1},
-    {"coqlib_switch_front", 1, 1},
-    {"coqlib_test_frame", 1, 1},
-    {"coqlib_the_cat", 1, 1},
-    {"coqlib_transparent", 1, 1},
-    {"coqlib_white", 1, 1},
+    {"coqlib_digits_black", 12, 2, false},
+    {"coqlib_scroll_bar_back", 1, 1, false},
+    {"coqlib_scroll_bar_front", 1, 1, false},
+    {"coqlib_sliding_menu_back", 1, 1, false},
+    {"coqlib_sparkle_stars", 3, 2, false},
+    {"coqlib_switch_back", 1, 1, false},
+    {"coqlib_switch_front", 1, 1, false},
+    {"coqlib_test_frame", 1, 1, true},
+    {"coqlib_the_cat", 1, 1, true},
+    {"coqlib_transparent", 1, 1, true},
+    {"coqlib_white", 1, 1, true},
 };
 const uint32_t _coqlib_png_count = sizeof(_coqlib_pngInfos) / sizeof(PngInfo);
 
@@ -464,11 +526,11 @@ void     Texture_loadPngs(PngInfo const pngInfos[], const uint pngCount) {
 }
 void     _Texture_suspend(void) {
     if(!_Texture_isInit || !_Texture_isLoaded) return;
-    map_applyToAll(_textureOfPngName,        _map_block_texture_unsetPartly);
-    map_applyToAll(_textureOfConstantString, _map_block_texture_unsetPartly);
+    map_applyToAll(_textureOfPngName,        _texture_unsetPartly_);
+    map_applyToAll(_textureOfConstantString, _texture_unsetPartly_);
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) { (*tr)->mtlTexture = nil; }
+        if(*tr) { _texture_unsetPartly(*tr); }
         tr ++;
     }
     _Texture_isLoaded = false;
@@ -480,19 +542,20 @@ void     _Texture_resume(void) {
 
 static  uint32_t _Texture_checkunset_counter = 0;
 void     _Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
+    // Une fois de temps en temps, quand on a le temps, liberer les png non utilises.
     if(!_Texture_needToFullyDraw) {
-        // (checker les unused une fois de temps en temps)
         _Texture_checkunset_counter = (_Texture_checkunset_counter + 1) % 30;
         if(_Texture_checkunset_counter == 0)
-            map_applyToAll(_textureOfPngName, _map_block_texture_unsetUnusedPartly);
+            map_applyToAll(_textureOfPngName, _texture_unsetUnusedPartly_);
         return;
     }
+    // Chercher les png, `const string`, `non const string` à dessiner au complet...
     if(map_iterator_init(_textureOfPngName)) do {
         Texture* tex = (Texture*)map_iterator_valueRefOpt(_textureOfPngName);
         if(!_texture_isUsed(tex)) continue;
         if(tex->mtlTexture == nil) {
             _texture_drawFully(tex);
-            if(_chronochceker_elapsedMS(cc) > timesUp)
+            if(_chronochecker_elapsedMS(cc) > timesUp)
                 return;
         }
     } while(map_iterator_next(_textureOfPngName));
@@ -501,7 +564,7 @@ void     _Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) 
         if(!_texture_isUsed(tex)) continue;
         if(tex->mtlTexture == nil) {
             _texture_drawFully(tex);
-            if(_chronochceker_elapsedMS(cc) > timesUp)
+            if(_chronochecker_elapsedMS(cc) > timesUp)
                 return;
         }
     } while(map_iterator_next(_textureOfConstantString));
@@ -509,7 +572,7 @@ void     _Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) 
     while(tr < _nonCstStrArrEnd) {
         if(*tr) if((*tr)->mtlTexture == nil) {
             _texture_drawFully(*tr);
-            if(_chronochceker_elapsedMS(cc) > timesUp)
+            if(_chronochecker_elapsedMS(cc) > timesUp)
                 return;
         }
         tr ++;
@@ -606,64 +669,4 @@ Texture* Texture_createString(UnownedString str, bool isShared) {
     _texture_drawPartly(tex);
     return tex;
 }
-void     texture_updateString(Texture* tex, const char* newString) {
-    if(!(tex->flags & tex_flag_stringMutable) || !newString) {
-        printwarning("Not a mutable string or missing newString.");
-        return;
-    }
-    coq_free(tex->string);
-    tex->string = String_createCopy(newString);
-    tex->mtlTexture = nil;
-    tex->mtlMini = nil;
-    _texture_drawPartly(tex);
-    tex->touchTime = _CR_elapsedMS;
-}
 
-void     texture_destroy(Texture* tex) {
-    _texture_deinit(tex);
-    coq_free(tex);
-    _Texture_total_count --;
-    printf("🐰 destr tex Total texture %d.\n", _Texture_total_count);
-}
-
-
-/*-- Getters --*/
-
-id<MTLTexture>    texture_MTLTexture(Texture* tex) {
-    tex->touchTime = _CR_elapsedMS;
-    if(tex->mtlTexture != nil)
-        return tex->mtlTexture;
-    // Il y a des texture en demande pas encore "fully drawn"...
-    _Texture_needToFullyDraw = true;
-    // (s'assurer d'avoir au moins une mini)
-    if(tex->mtlMini == nil)
-        _texture_drawPartly(tex);
-    return tex->mtlMini;
-}
-const PerTextureUniforms* texture_ptu(Texture* tex) {
-    return &tex->ptu;
-}
-uint              texture_m(Texture *tex) {
-    return tex->m;
-}
-uint              texture_n(Texture *tex) {
-    return tex->n;
-}
-uint32_t          texture_mn(Texture *tex) {
-    return tex->m * tex->n;
-}
-float             texture_ratio(Texture* tex) {
-    return tex->ratio;
-}
-float             texture_alpha(Texture* tex) {
-    return tex->alpha;
-}
-float             texture_beta(Texture* tex) {
-    return tex->beta;
-}
-bool              texture_isShared(Texture* tex) {
-    return tex->flags & tex_flag_shared;
-}
-const char*       texture_string(Texture* tex) {
-    return tex->string;
-}

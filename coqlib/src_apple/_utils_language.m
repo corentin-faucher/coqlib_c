@@ -141,7 +141,7 @@ char* String_createLocalized(const char* stringKey) {
     return String_createCopy(stringKey);
 }
 /// Version par defaut de la string, e.g. localization anglaise.
-char* String_createLocalizedEnglish(const char* stringKey) {
+char* String_createLocalizedDefault(const char* stringKey) {
     NSString* key = [NSString stringWithUTF8String:stringKey];
     NSString* localized = [_englishBundle localizedStringForKey:key value:@"⁉️" table:nil];
     if(![localized  isEqual: @"⁉️"]) {

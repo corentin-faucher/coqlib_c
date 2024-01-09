@@ -175,7 +175,7 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
 //        uint32_t bestPlayerId = 0;
 //        int64_t  bestRemainingMS = 20000;
         _Player* player = NULL;
-//        Bool     foundFree = false;
+//        bool     foundFree = false;
         for(uint32_t playerId = 0; playerId < _player_count; playerId ++) {
             int64_t remaining = _players[playerId].expirationTimeMS - ChronoApp_elapsedMS();
             // Ok, trouve...

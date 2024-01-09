@@ -11,6 +11,10 @@
 
 View* View_createTest(Root* rt);
 
+void view_enter(View* v) {
+    root_changeViewActiveTo(v->root, View_createTest(v->root));
+}
+
 void button_action(Button* bt) {
     if(Language_current() != language_french)
         Language_setCurrent(language_french);
@@ -45,12 +49,13 @@ Node* _Node_createFramedLoc(Localizable loc, float widthMax) {
 View* View_createTest(Root* rt) {
     /// Par defaut les premiers enfants du screen (les "blocs") sont alignes.
     View* v = View_create(rt, flag_viewDontAlignElements);
-    node_last_tryToAddTestFrame();
+    // Action au "enter"
+    v->enterOpt = view_enter;
     
-    // Image sur un `bloc`
+    // Image sur un `bloc` fluid.
     Fluid* bloc = Fluid_create(&v->n, 0.5f, 0.f, 1.f, 1.f, 5.f,
                                flag_fluidFadeInRight, 0);
-    fl_fix(&bloc->z, 2.f); // (image en z = 2)
+    // fl_fix(&bloc->z, 2.f); // (image en z = 2)
     Drawable_createImageWithName(&bloc->n, "coqlib_the_cat", -1.f, 0.f, 0.5f, 0);
     
     // bouton test (change la langue)...
@@ -97,11 +102,9 @@ View* View_createTest(Root* rt) {
     return v;
 }
 
-Root* Root_createMyRoot(void) {
-    // (setter la police, facultatif...)
-    Texture_setCurrentFont("American Typewriter");
-    
+Root* Root_createMyRoot(void) {    
     Root* root = Root_create();
+    
     root_changeViewActiveTo(root, View_createTest(root));
     
     return root;

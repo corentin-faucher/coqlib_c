@@ -13,10 +13,12 @@
 @interface Renderer : NSObject <MTKViewDelegate> {
     id<MTLCommandQueue>        queue;
     id<MTLRenderPipelineState> pipelineState;
-    id<MTLSamplerState>        samplerState;
+    id<MTLSamplerState>        samplerStateLinear;
+    id<MTLSamplerState>        samplerStateNearest;
     id<MTLDepthStencilState>   depthStencilState;
     
     Texture*         current_tex;
+    bool             current_tex_nearest;
     Mesh*            current_mesh;
     MTLPrimitiveType current_primitive_type;
     int              current_vertex_count;

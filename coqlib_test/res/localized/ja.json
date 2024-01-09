@@ -1,0 +1,9 @@
+{
+  "app_name": "Coqlib テスト",
+  "error": "エラー",
+  "error_empty": "空のフィールド...",
+  "error_empty_directory": "エラー: ディレクトリが空です。",
+  "menu": "メインメニュー",
+  "ok": "OK",
+  "quit": "終了"
+}

@@ -15,7 +15,7 @@
 #include <OpenGL/gl3.h>
 
 /*-- Texture --*/
-void   Texture_init(GLuint program);
+void   Texture_init(GLuint program, const char* font_dir, const char* default_font_name);
 void   texture_glBind(Texture* tex);
 
 /*-- Mesh --*/

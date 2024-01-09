@@ -10,6 +10,7 @@
 
 #include "../_utils/_utils_.h"
 #include <math.h>
+#include <time.h>
 
 #define ONE_MILLION 1000000
 
@@ -89,7 +90,7 @@ typedef struct {
 } ChronoChecker;
 
 void    _chronochecker_set(ChronoChecker* cc);
-int64_t _chronochceker_elapsedMS(ChronoChecker* cc);
+int64_t _chronochecker_elapsedMS(ChronoChecker* cc);
 void    _chronochecker_toc(ChronoChecker* cc, const char* filename, uint32_t line);
 #define chronochecker_toc(cc)\
 _chronochecker_toc(cc, __FILENAME__, __LINE__);

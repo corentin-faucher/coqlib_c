@@ -23,8 +23,9 @@ StringMap* Map_create(uint32_t count, size_t size_value);
 
 void       map_destroyAndNull(StringMap** const map, void (*value_deinitOpt)(void*));
 
-/// Pour l'affichage/debuging, il faut passer une fonction qui print un char value[] (un char*).
-void  map_print(StringMap* map, void (*printValue)(const char*));
+/// Pour l'affichage/debuging, il faut passer une fonction qui print
+/// un char value[] (un char*). (Si printValueOpt == NULL, c'est juste printf.)
+void  map_print(StringMap* map, void (*printValueOpt)(const char*));
 
 /// Store une copie des données pointées par valueDataOpt.
 /// Retourne la référence de la copie crée.

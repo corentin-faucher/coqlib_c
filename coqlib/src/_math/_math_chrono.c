@@ -7,8 +7,6 @@
 
 #include "_math/_math_chrono.h"
 
-#include <time.h>
-
 /*-- ChronoRender, le chrono pour le rendering. --*/
 // variable "prives"
 static       int     _CR_isPaused = 0;
@@ -161,7 +159,7 @@ float      chronotiny_elapsedSec(ChronoTiny t) {
 void    _chronochecker_set(ChronoChecker* cc) {
     cc->_time = _CA_systemTime();
 }
-int64_t _chronochceker_elapsedMS(ChronoChecker* cc) {
+int64_t _chronochecker_elapsedMS(ChronoChecker* cc) {
     return _CA_systemTime() - cc->_time;
 }
 void _chronochecker_toc(ChronoChecker* cc, const char* filename, uint32_t line) {

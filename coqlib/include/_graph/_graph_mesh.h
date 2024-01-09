@@ -20,11 +20,19 @@ typedef struct {
 /*-- Mesh ----------------------*/
 // Type de primitives. Telles que dans Metal, voir MTLRenderCommandEncoder.h.
 enum MeshPrimitiveType {
+#ifdef WITH_OPENGL
+    mesh_primitive_point = 0,
+    mesh_primitive_line = 1,
+    mesh_primitive_lineStrip = 3,
+    mesh_primitive_triangle = 4,
+    mesh_primitive_triangleStrip = 5,
+#else // METAL
     mesh_primitive_point = 0,
     mesh_primitive_line = 1,
     mesh_primitive_lineStrip = 2,
     mesh_primitive_triangle = 3,
     mesh_primitive_triangleStrip = 4,
+#endif
 };
 // Type de cull mode. Telles que dans Metal, voir MTLRenderCommandEncoder.h.
 enum MeshCullMode {
@@ -58,6 +66,9 @@ uint32_t mesh_vertexCount(Mesh* mesh);
 size_t   mesh_verticesSize(Mesh* mesh);
 /// Référence des vertices pour mise à jour des positions.
 Vertex*  mesh_vertices(Mesh* mesh);
+/// Une fois modifiées signaler que les vertices devront être updatés
+/// (juste pour OpenGL).
+void     mesh_needToUpdateVertices(Mesh* mesh);
 enum MeshPrimitiveType  mesh_primitiveType(Mesh* mesh);
 enum MeshCullMode       mesh_cullMode(Mesh* mesh);
 bool     mesh_isShared(Mesh* mesh);

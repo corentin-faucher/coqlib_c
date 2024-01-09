@@ -6,18 +6,18 @@
 // Vertex attributes, i.e. vertex "in"
 in vec4 in_position;
 in vec2 in_uv;
-// attribute vec3 in_normal;
+// in vec3 in_normal;
 
 // Vertex "out" (pour le fragment shader)
 out vec2  out_uv;
-// varying vec4  out_color;
+out vec4  out_color;
 
 // Per instance uniforms
 uniform mat4  inst_model;
-// uniform vec4  inst_color;
+uniform vec4  inst_color;
 uniform vec2  inst_ij;  // tile de la texture
-// uniform float inst_emph;
-// uniform float inst_show;
+uniform float inst_emph;
+uniform float inst_show;
 // uniform int   inst_flags;
 
 // Per texture uniforms
@@ -32,20 +32,22 @@ uniform float frame_time;
 
 void main() {
     // out_color = vec4(inst_color.xyz, 1.) * inst_color.a * inst_show;
+    out_color = vec4(inst_color.xyz, inst_color.a * inst_show);
 
-    vec4 posTmp = in_position + vec4(0.01*frame_time, 0.01*tex_mn.x, 0.01*tex_wh.x, 0.1*inst_ij.x);
+    vec4 posTmp;
     // // Déformation d'emphase et oscillation
-    // if(inst_emph > 0.) {
-    //     posTmp = in_position * (1. + inst_emph * 0.15 * 
-    //         vec4(sin(frame_time*6.) + 2., sin(frame_time*6.+1.)+2., 0., 0.) );
-    // }
+    if(inst_emph > 0.) {
+        posTmp = in_position * (1. + inst_emph * 0.15 * 
+            vec4(sin(frame_time*6.) + 2., sin(frame_time*6.+1.)+2., 0., 0.) );
+    } else {
+        posTmp = in_position;
+    }
     // Coord. uv en fonction de la tile.
-    // out_uv = in_uv;
     out_uv = (in_uv + inst_ij) / tex_mn;  // Version simple ok ?
     // // out_uv = (in_uv * (tex_wh - tex_mn) + inst_ij * tex_wh) / (tex_mn*(tex_wh - 1.));
 
-    // gl_Position = frame_projection * inst_model * posTmp;
-    gl_Position = frame_projection * inst_model * in_position;
+    gl_Position = frame_projection * inst_model * posTmp;
+    // gl_Position = frame_projection * inst_model * in_position;
 }
 
 /*

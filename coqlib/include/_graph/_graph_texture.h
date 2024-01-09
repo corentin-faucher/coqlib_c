@@ -39,6 +39,7 @@ Texture*        Texture_sharedImageByName(const char* pngName);
 Texture*        Texture_sharedConstantString(const char* c_str);
 Texture*        Texture_createString(UnownedString str, bool isShared);
 
+/*-- Fonctions sur une texture ---------------*/
 /// A n'utiliser qu'avec les "owned" texture (pas les shared).
 void            texture_destroy(Texture* tex);
 /// Mise à jour d'une texture de type "string mutable", i.e. non constant et non localisée.
@@ -46,6 +47,8 @@ void            texture_updateString(Texture* tex, const char* newString);
 
 // Accès aux données d'une texture.
 const PerTextureUniforms* texture_ptu(Texture* tex);
+/// Style pixelise (pas linear/flou)
+bool            texture_isNearest(Texture* tex);
 /// Tiling en x, i.e. nombre de colonnes dans le png.
 uint32_t        texture_m(Texture *tex);
 /// Tiling en y, i.e. nombre de lignes dans le png.

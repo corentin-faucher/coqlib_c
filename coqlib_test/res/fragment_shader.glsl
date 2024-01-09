@@ -4,7 +4,7 @@
 
 // precision mediump float;
 in vec2  out_uv;
-// varying vec4  out_color;
+in vec4  out_color;
 
 uniform sampler2D tex;
 
@@ -12,8 +12,8 @@ out vec4 out_frag_color;
 
 void main()
 {
-    out_frag_color = texture(tex, out_uv); // * out_color;
-//    out_frag_color = vec4(out_uv.x, out_uv.y, 0.5, 0.5);
+    out_frag_color = texture(tex, out_uv) * out_color;
+//    out_frag_color = vec4(out_uv.x+0.25, out_uv.y + 0.25, 0.25, 1);
 }
 
 

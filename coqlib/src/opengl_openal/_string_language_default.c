@@ -6,6 +6,10 @@
 //
 
 #include "_utils/_utils_language.h"
+#include "_utils/_utils_string.h"
+#include "_utils/_utils_file.h"
+#include "cJSON.h"
+#include "coq_map.h"
 
 /*----- Privates variables -----------------_*/
 const Language _Language_default = language_english;
@@ -22,9 +26,39 @@ const char*    _Language_nameList[language_total_language] = {
     "greek", "russian", "swedish", "chinese trad.",
     "portuguese", "korean", "vietnamese",
 };
+static StringMap* _localizedOfStrKey = NULL;
+static StringMap* _localizedOfStrKeyDefault = NULL;
+
+void     _Language_fillMap(StringMap* map, const char* iso) {
+  if(!map) {
+    printerror("Map not init."); return;
+  }
+  const char* path = FileManager_getResourcePathOpt(iso, "json", "localized");
+  const char* content = FILE_contentOpt(path);
+  cJSON* jsonFile = cJSON_ParseWithLength(content, FILE_bufferSize());
+  FILE_freeBuffer();
+  if(!jsonFile) { printwarning("No json for language %s.", Language_currentIso()); return; }
+  for(cJSON* item = jsonFile->child; item != NULL; item = item->next) {
+     map_putAsString(map, item->string, item->valuestring);
+  }
+  cJSON_Delete(jsonFile);
+}
 
 void     Language_init(void) {
-  printwarning("TODO");
+  if(_localizedOfStrKeyDefault) {
+    printwarning("Already init."); return;
+  }
+  
+  _localizedOfStrKeyDefault = Map_create(100, 100);
+  _Language_fillMap(_localizedOfStrKeyDefault, language_iso(_Language_default));
+
+  _Language_current = Language_getSystemLanguage();
+  if(_Language_current == _Language_default) {
+    _localizedOfStrKey = _localizedOfStrKeyDefault;
+    return;
+  }
+  _localizedOfStrKey = Map_create(100, 100);
+  _Language_fillMap(_localizedOfStrKey, language_iso(_Language_current));
 }
 Language Language_current(void) {
   return _Language_current;
@@ -36,13 +70,21 @@ void     Language_setCurrent(Language newCurrentLanguage) {
         printerror("Language undefined.");
         return;
     }
+    if(_localizedOfStrKey != _localizedOfStrKeyDefault) {
+      map_destroyAndNull(&_localizedOfStrKey, NULL);
+    }
+
     _Language_current = newCurrentLanguage;
-    
+    if(_Language_current == _Language_default) {
+      _localizedOfStrKey = _localizedOfStrKeyDefault;
+      return;
+    }
+    _localizedOfStrKey = Map_create(100, 100);
+    _Language_fillMap(_localizedOfStrKey, language_iso(_Language_current));
 //    changeLanguageAction?()
 }
 /// La langue detecter sur l'OS. (English si non disponible.)
 Language Language_getSystemLanguage(void) {
-  printerror("TODO");
   return _Language_default;
 }
 /// Obtenir l'enum Language a partir du code iso, e.g. "en" -> language_english.
@@ -83,12 +125,27 @@ const char*    language_name(Language language) {
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
 char*    String_createLocalized(const char* stringKey) {
-  printerror("TODO");
-  return "error";
+  if(!_localizedOfStrKey) {
+    printerror("Language map not init."); 
+    return String_createCopy(stringKey);
+  }
+  const char * locRef = map_valueRefOptOfKey(_localizedOfStrKey, stringKey);
+  if(!locRef) {
+    return String_createLocalizedDefault(stringKey);
+  }
+  return String_createCopy(locRef);
 }
 /// Version par defaut de la string, e.g. localization anglaise.
-char*    String_createLocalizedEnglish(const char* stringKey) {
-  printerror("TODO");
-  return "error";
+char*    String_createLocalizedDefault(const char* stringKey) {
+  if(!_localizedOfStrKeyDefault) {
+    printerror("Default language map not init."); 
+    return String_createCopy(stringKey);
+  }
+  const char * locRef = map_valueRefOptOfKey(_localizedOfStrKeyDefault, stringKey);
+  if(!locRef) {
+    printerror("No default localization for %s.", stringKey); 
+    return String_createCopy(stringKey);
+  }
+  return String_createCopy(locRef);
 }
 

@@ -124,7 +124,8 @@ void  CoqEvent_processEvents(Root* root) {
             }
                 
             case event_type_resize: {
-                root_setFrame(root, _event_todo->resize_margins, _event_todo->resize_sizesPx, _event_todo->resize_inTransition);
+                root_setFrame(root, _event_todo->resize_margins, _event_todo->resize_sizesPt,
+                              _event_todo->resize_sizesPix, _event_todo->resize_inTransition);
                 break;
             }
                 

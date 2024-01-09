@@ -45,7 +45,11 @@
     MTLSamplerDescriptor *sd = [MTLSamplerDescriptor new];
     sd.magFilter = MTLSamplerMinMagFilterNearest;
     sd.minFilter = MTLSamplerMinMagFilterNearest;
-    samplerState = [device newSamplerStateWithDescriptor:sd];
+    samplerStateNearest = [device newSamplerStateWithDescriptor:sd];
+    sd.magFilter = MTLSamplerMinMagFilterLinear;
+    sd.minFilter = MTLSamplerMinMagFilterLinear;
+    samplerStateLinear = [device newSamplerStateWithDescriptor:sd];
+    current_tex_nearest = false;
     
     /*-- Depth (si besoin) --*/
     depthStencilState = nil;
@@ -62,7 +66,6 @@
     // 1. Mise a jour de la mesh ?
     if(current_mesh != d->mesh) {
         current_mesh = d->mesh;
-        
         current_primitive_type = (MTLPrimitiveType)mesh_primitiveType(d->mesh);
         current_vertex_count = mesh_vertexCount(d->mesh);
         current_indicesBuffer = mesh_MTLIndicesBuffer(d->mesh);
@@ -77,6 +80,11 @@
     // 2. Mise a jour de la texture ?
     if(current_tex != d->tex) {
         current_tex = d->tex;
+        bool newNearest = texture_isNearest(current_tex);
+        if(current_tex_nearest != newNearest) {
+            current_tex_nearest = newNearest;
+            [encoder setFragmentSamplerState:(current_tex_nearest ? samplerStateNearest : samplerStateLinear) atIndex:0];
+        }
         [encoder setFragmentTexture:texture_MTLTexture(current_tex) atIndex:0];
         [encoder setVertexBytes:texture_ptu(current_tex)
                          length:sizeof(PerTextureUniforms) atIndex:3];
@@ -117,7 +125,7 @@
     id<MTLRenderCommandEncoder> enc = [cb renderCommandEncoderWithDescriptor:descr];
     descr = nil;
     if(enc == nil) { printerror("no command encoder."); return; }
-    [enc setFragmentSamplerState:samplerState atIndex:0];
+    [enc setFragmentSamplerState:(current_tex_nearest ? samplerStateNearest : samplerStateLinear) atIndex:0];
     [enc setRenderPipelineState:pipelineState];
     if(depthStencilState != nil)
         [enc setDepthStencilState:depthStencilState];
@@ -137,7 +145,7 @@
     [view setClearColor:MTLClearColorMake(cc.r, cc.g, cc.b, cc.a)];
     
     // Drawing
-    Drawable* (*updateModel)(Node*) = metalView->node_updateModelAndGetAsDrawableOpt;
+    Drawable* (*updateModel)(Node*) = root->updateModelAndGetDrawable;
     Squirrel sq;
     sq_init(&sq, (Node*)root, sq_scale_ones);
     do {
@@ -168,7 +176,7 @@
         return;
     }
     CoqMetalView* metalView = (CoqMetalView*)view;
-    [metalView updateRootFrame];
+    [metalView updateRootFrame: size];
 }
 
 

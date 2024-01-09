@@ -129,8 +129,10 @@ void       map_destroyAndNull(StringMap** const map, void (*value_deinitOpt)(voi
     // Null
     *map = NULL;
 }
-
-void  map_print(StringMap* map, void (*printValue)(const char*)) {
+void _print_string(const char* str) {
+    printf("%s", str);
+}
+void  map_print(StringMap* map, void (*printValueOpt)(const char*)) {
     HashSlot** p = map->table;
     HashSlot** end = &map->table[map->count];
     printf("[\n");
@@ -138,7 +140,10 @@ void  map_print(StringMap* map, void (*printValue)(const char*)) {
     while(p < end) {
         if(*p != NULL) {
             printf(" hash %d : ", hash);
-            _hashslot_print(*p, printValue);
+            if(printValueOpt)
+                _hashslot_print(*p, printValueOpt);
+            else
+                _hashslot_print(*p, _print_string);
         }
         p++; hash++;
     }
@@ -253,6 +258,7 @@ void _printint(const char* intRef) {
     }
     printf("%d", *((int*)intRef));
 }
+
 void _Map_test(void) {
     StringMap* ht = Map_create(10, sizeof(int));
     int value = 5;

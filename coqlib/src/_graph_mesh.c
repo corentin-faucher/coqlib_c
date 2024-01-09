@@ -110,6 +110,7 @@ Mesh*  Mesh_createFan(void) {
         i++;
         p++;
     }
+    mesh_needToUpdateVertices(fan);
     return fan;
 }
 void   mesh_fan_update(Mesh* fan, float ratio) {
@@ -129,6 +130,7 @@ void   mesh_fan_update(Mesh* fan, float ratio) {
         i++;
         p++;
     }
+    mesh_needToUpdateVertices(fan);
 }
 
 Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
@@ -202,5 +204,6 @@ Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
         vul = vul_next;
         vdl = vdl_next;
     }
+    mesh_needToUpdateVertices(mesh);
     return mesh;
 }

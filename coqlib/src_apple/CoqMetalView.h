@@ -16,7 +16,6 @@
 @public
     Renderer*        renderer;
     Root*            root;
-    Drawable*        (*node_updateModelAndGetAsDrawableOpt)(Node*);
 #if TARGET_OS_OSX == 1
     NSTrackingArea*  trackingArea;
 #endif
@@ -29,7 +28,7 @@
 @property (nonatomic) BOOL didTransition;
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device;
-- (void)updateRootFrame;
+- (void)updateRootFrame:(CGSize)sizePx;
 
 // Méthodes à overrider. Superflu ?
 //- (NodeRoot *)getRootNode;

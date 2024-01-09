@@ -1,0 +1,9 @@
+{
+  "app_name" : "App Test de Coqlib",
+  "error" : "Erreur...",
+  "error_empty" : "Erreur : champ vide.",
+  "error_empty_directory" : "Erreur : répertoire vide.",
+  "menu" : "Menu",
+  "ok" : "OK",
+  "quit" : "Quitter"
+}

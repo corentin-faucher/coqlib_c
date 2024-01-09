@@ -98,8 +98,11 @@ enum MeshCullMode      mesh_cullMode(Mesh* mesh) {
 bool     mesh_isShared(Mesh* mesh) {
     return mesh->isShared;
 }
-Vertex*                mesh_vertices(Mesh* mesh) {
+Vertex*        mesh_vertices(Mesh* mesh) {
     return mesh->vertices;
+}
+void mesh_needToUpdateVertices(Mesh* mesh) {
+    // pass (pas besoin avec Metal, on prend directement l'array de vertices.)
 }
 
 id<MTLBuffer>  mesh_MTLIndicesBuffer(Mesh* mesh) {

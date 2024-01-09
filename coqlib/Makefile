@@ -8,7 +8,8 @@ OBJDIR := obj
 LIBDIR := lib
 LIBNAME := coqlib
 # Flags du compileur
-CFLAGS=-g -Wall -Wno-deprecated-declarations -Iinclude -DDEBUG
+CFLAGS=-g -Wall -Wno-deprecated-declarations -Iinclude \
+       -DDEBUG -DWITH_OPENGL `sdl2-config --cflags`
 #-F/Library/Frameworks -framework SDL2
 
 # Lister les fichiers c.

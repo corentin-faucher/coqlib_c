@@ -62,7 +62,7 @@ const char*    language_name(Language language);
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
 char*    String_createLocalized(const char* stringKey);
 /// Version par defaut de la string, e.g. localization anglaise.
-char*    String_createLocalizedEnglish(const char* stringKey);
+char*    String_createLocalizedDefault(const char* stringKey);
 
 
 #endif /* language_h */

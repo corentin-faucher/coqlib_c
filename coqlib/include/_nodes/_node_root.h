@@ -27,10 +27,10 @@ typedef struct _Root {
     // Zone active (dans la fenetre) de la root (marges incluses).
     float       frameWidth;
     float       frameHeight;
-    // Version pixel de frameWidth/Height.
-    float       viewWidthPx;
-    float       viewHeightPx;
-    // Marges en pixels.
+    // Version points (2x les pixels) de frameWidth/Height.
+    float       viewWidthPt;
+    float       viewHeightPt;
+    // Marges en points.
     Margins     margins;
     // Camera. que les vecteurs position/eye, centre, up, e.g. (0,0,4), (0,0,0), (0,1,0).
     // On peut s'amuser à la bouger...
@@ -58,12 +58,12 @@ typedef struct _Root {
     /// Events... ? Juste shouldTerminate pour l'instant.
     bool        shouldTerminate;    
     
-    // Méthode à overrider... (optionnel)
-    /// Mise a jour reguliere d'objet de la structure. Callé toute les 30~100 ms.
-    void        (*iterationUpdate)(Root*);
-    void        (*didResume)(Root*);
-    void        (*changeScreenAction)(Root*);
-    void        (*willTerminate)(Root*);  // Utile ?
+    /// Fonction utilisee pour mise a jour de la matrice model d'un noeud avant l'affichage.
+    Drawable*   (*updateModelAndGetDrawable)(Node*);
+//    void        (*iterationUpdate)(Root*);  // Utile ?
+    void        (*didResumeOpt)(Root*);
+    void        (*changeScreenActionOpt)(Root*);
+//    void        (*willTerminateOpt)(Root*);  // Utile ?
 } Root;
 
 /// Juste pour init de la structure de base.
@@ -76,7 +76,8 @@ void  root_init(Root* root, Node* parentOpt, Root* parentRootOpt);
 Root* node_asRootOpt(Node* n);
 
 void   root_changeViewActiveTo(Root* rt, View* newViewOpt);
-void   root_setFrame(Root *rt, Margins newMargins, Vector2 newSizesPx, bool inTransition);
+void   root_setFrame(Root *rt, Margins newMargins, Vector2 newSizesPt, Vector2 newSizesPix,
+                     bool inTransition);
 void   root_updateModelMatrix(Root *rt);
 /*-- Init d'autres struct utilisant la root. --*/
 /// Obtenir le rectangle (en pixels) associé à une position (origin)

@@ -51,6 +51,10 @@ Drawable* Drawable_createAndSetDims(Node* const refOpt,
 /// Downcasting
 Drawable* node_asDrawableOpt(Node* nd);
 
+/// Mise a jour de la matrice model d'un noeud avant l'affichage.
+/// Retourne un drawable si le noeud peut etre downcaster en drawable.
+/// (On peut choisir la fonction que l'on veut pour la mise a jour de la matrice model,
+///  voir `_node_root.h` -> `node_updateModelAndGetDrawableOpt`.)
 Drawable* node_defaultUpdateModelAndGetAsDrawableOpt(Node* node);
 
 /*-- Surface d'image (png), peut etre une tile du png... ------------------*/

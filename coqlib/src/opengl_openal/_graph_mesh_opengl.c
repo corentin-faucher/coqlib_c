@@ -19,9 +19,10 @@ typedef struct _Mesh {
     bool      isShared;
 
     // Ids OpenGL
-    GLuint    vertex_buffer_id;  // VBO
     GLuint    vertex_array_id;   // VAO
-    GLuint    indices_buffer_id;
+    GLuint    vertex_buffer_id;  // VBO
+    GLuint    indices_buffer_id; // VBO des indices
+    bool      need_to_update_vertices;
 
     Vertex    vertices[1];         // Array des vertex. A LA FIN, fait varier la taille.
 } Mesh;
@@ -36,14 +37,16 @@ Mesh*  mesh_sprite = NULL;
 
 static GLuint _Mesh_in_position_id = 0;
 static GLuint _Mesh_in_uv_id = 0;
+//static GLuint _Mesh_in_normal_id = 0;
 
 void Mesh_init(GLuint program) {
     _Mesh_in_position_id = glGetAttribLocation(program, "in_position");
     _Mesh_in_uv_id =       glGetAttribLocation(program, "in_uv");
+//    _Mesh_in_normal_id =   glGetAttribLocation(program, "in_normal");
 
     // Init de la sprite.
     mesh_sprite = Mesh_createEmpty(_mesh_sprite_vertices, 4, NULL, 0,
-          mesh_primitive_triangleStrip, mesh_cullMode_none, true);
+                            mesh_primitive_triangleStrip, mesh_cullMode_none, true);
 }
 
 Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
@@ -61,37 +64,52 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
     mesh->cull_mode = cull_mode;
     mesh->isShared = isShared;
     
-    if(indexCount && indicesOpt) {
-      printwarning("TODO");
-
-
-    } else {
-        if(indicesOpt || indexCount)
-            printwarning("Missing indices array or indexCount.");
-    }
     if(verticesOpt) {
         memcpy(mesh->vertices, verticesOpt, mesh->vertices_size);
     }
-    
     glGenVertexArrays(1, &mesh->vertex_array_id);
     glGenBuffers(1, &mesh->vertex_buffer_id);
-
+    if(indexCount && indicesOpt) {
+        glGenBuffers(1, &mesh->indices_buffer_id);
+    } else if(indicesOpt || indexCount) {
+        printwarning("Missing indices array or indexCount.");
+    }
     glBindVertexArray(mesh->vertex_array_id);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->vertex_buffer_id);
     glBufferData(GL_ARRAY_BUFFER, vertices_size, mesh->vertices, GL_STATIC_DRAW);
+    if(mesh->indices_buffer_id) {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indices_buffer_id);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * indexCount, indicesOpt, GL_STATIC_DRAW);
+    }
     glVertexAttribPointer(_Mesh_in_position_id, 3, GL_FLOAT, GL_FALSE, 
             sizeof(Vertex), 0);
     glEnableVertexAttribArray(_Mesh_in_position_id);
     glVertexAttribPointer(_Mesh_in_uv_id, 2, GL_FLOAT, GL_FALSE, 
             sizeof(Vertex), BUFFER_OFFSET(sizeof(GL_FLOAT)*3));
     glEnableVertexAttribArray(_Mesh_in_uv_id);
-
+//    glVertexAttribPointer(_Mesh_in_normal_id, 3, GL_FLOAT, GL_FALSE,
+//            sizeof(Vertex), BUFFER_OFFSET(sizeof(GL_FLOAT)*5));
+//    glEnableVertexAttribArray(_Mesh_in_normal_id);
 
     return mesh;
 }
 
 void  mesh_glBind(Mesh* mesh) {
+    if(mesh->need_to_update_vertices) {
+      glBindBuffer(GL_ARRAY_BUFFER, mesh->vertex_buffer_id);
+      Vertex* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
+      memcpy(vertices, mesh->vertices, mesh->vertices_size);
+      glUnmapBuffer(GL_ARRAY_BUFFER);
+      
+      mesh->need_to_update_vertices = false;
+    }
     glBindVertexArray(mesh->vertex_array_id);
+}
+Vertex* mesh_vertices(Mesh* mesh) {
+    return mesh->vertices;
+}
+void    mesh_needToUpdateVertices(Mesh* mesh) {
+    mesh->need_to_update_vertices = true;
 }
 
 uint32_t mesh_vertexCount(Mesh* mesh) {
@@ -108,9 +126,6 @@ enum MeshCullMode      mesh_cullMode(Mesh* mesh) {
 }
 bool     mesh_isShared(Mesh* mesh) {
     return mesh->isShared;
-}
-Vertex*                mesh_vertices(Mesh* mesh) {
-    return mesh->vertices;
 }
 
 uint32_t mesh_indexCount(Mesh* mesh) {

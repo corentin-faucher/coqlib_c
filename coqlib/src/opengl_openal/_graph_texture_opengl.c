@@ -6,10 +6,12 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
-#include "lodepng.h"
 #include "coq_map.h"
 #include "_graph/_graph__opengl.h"
 #include "_utils/_utils_file.h"
+
+#include <SDL_image.h> // <SDL2_image/SDL_image.h> ?
+#include <SDL_ttf.h>   // <SDL2_ttf/SDL_ttf.h>
 
 typedef enum _Texture_flag {
     tex_flag_string           = 0x0001,
@@ -18,10 +20,7 @@ typedef enum _Texture_flag {
     tex_flag_shared           = 0x0008,
     tex_flag_png              = 0x0010,
     tex_flag_png_coqlib       = 0x0020,
-    tex_flag_miniDrawn        = 0x0040,
-    tex_flag_fullyDrawn       = 0x0080,
-    tex_flag_nearest          = 0x0100,
-    tex_flag_miniOrFullyDrawn = tex_flag_fullyDrawn|tex_flag_miniDrawn,
+    tex_flag_nearest          = 0x0040,
 } texflag_t;
 
 #define _TEX_UNUSED_DELTATMS 1000
@@ -54,55 +53,90 @@ static Texture      _Texture_dummy = {
     "dummy", NULL, NULL, 0, 0
 };
 
+/*-- Variable globales --*/
 static int32_t           _Texture_total_count = 0;
 static bool              _Texture_isInit = false;
 static bool              _Texture_isLoaded = false;
 volatile static bool     _Texture_needToFullyDraw = false;
+
 /*-- Font -------------------------------------------------------------*/
 
-
 // TODO
+typedef TTF_Font Font;
+static Font*                _Font_current = NULL;
+static Font*                _Font_currentMini = NULL;
 
-
-// typedef NSFont Font;
-// static Font*                _Font_current = NULL;
-// static Font*                _Font_currentMini = NULL;
-
-static double               _Font_currentSize = 24;
+static double               _Font_currentSize = 48;
 // static Vector2              _Font_current_spreading = {{ 1.3f, 1.0f }};
 
-/*-- List/Map de textures -----------------------------------------------*/
-/// Maps des png (shared).
-static StringMap*        _textureOfPngName = NULL;
-/// Maps des constant strings (shared)
-static StringMap*        _textureOfConstantString = NULL;
-// Liste des strings quelconques...
-static const uint32_t    _nonCstStrTexCount = 64;
-static Texture*          _nonCstStrTexArray[_nonCstStrTexCount];
-static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[_nonCstStrTexCount];
-static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
-/*-- Sub-functions... -------------------------------------------*/
+/*-- Creation de la texture OpenGL --------------------------------------*/
 // static const float       _Texture_y_string_rel_shift = -0.15;
-void     _texture_setGlTextureAsString(Texture* tex, bool asMini) {
-    
+static const uint32_t _def_pixels[] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
+void    _texture_setGlTextureAsString(Texture* tex, bool asMini) {
+    GLuint* texture_id_ref = asMini ? &tex->texture_mini_id : &tex->texture_id;
+    if(*texture_id_ref != 0) {
+        printwarning("Texture already set.");
+        return;
+    }
+    // Texture OpenGL
+    glGenTextures(1, texture_id_ref);
+    glBindTexture(GL_TEXTURE_2D, *texture_id_ref);
+    GLint filter = (tex->flags & tex_flag_nearest) ? GL_NEAREST : GL_LINEAR;
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
+    SDL_Surface* sdl_surf = NULL;
 
-    // TODO
-
-
-
-
-    printwarning("TODO ...");
-
-    tex->flags |= asMini ? tex_flag_miniDrawn : tex_flag_fullyDrawn;
+    if(_Font_current) {
+      SDL_Color white = {255,255,255};
+      if(tex->flags & tex_flag_stringLocalized) {
+          char* localized = String_createLocalized(tex->string);
+          sdl_surf = TTF_RenderUTF8_Blended(asMini ? _Font_currentMini : _Font_current,
+                                            localized, white);
+          coq_free(localized);
+      } else {
+          sdl_surf = TTF_RenderUTF8_Blended(asMini ? _Font_currentMini : _Font_current,
+                                            tex->string, white);
+      }
+    } else {
+      printerror("No font loaded.");
+      // Place holder...
+      const char* png_path = FileManager_getResourcePathOpt("coqlib_test_frame", "png", "pngs_coqlib");
+      sdl_surf = IMG_Load(png_path);
+    }
+    const unsigned char* pixels;
+    unsigned int width, height;
+    if(sdl_surf) {
+      SDL_LockSurface(sdl_surf);
+      width =  sdl_surf->w; 
+      height = sdl_surf->h;
+      pixels = sdl_surf->pixels;
+    } else {
+      printerror("Cannot create sdl surface for string %s.", tex->string);
+      width = 2; height = 2;
+      pixels = (unsigned char*)_def_pixels;
+    }
+    // Pourquoi il faut setter ca ??
+    int row_length = sdl_surf->pitch / sdl_surf->format->BytesPerPixel;
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, row_length);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    if(sdl_surf) {
+      SDL_UnlockSurface(sdl_surf);
+      SDL_FreeSurface(sdl_surf);
+    }
+    // Mettre à jour les info de la texture.
+    tex->ptu.width = width;
+    tex->ptu.height = height;
+    tex->ratio = tex->ptu.width / tex->ptu.height;
 }
-
 void    _texture_setGlTextureAsPng(Texture* tex, bool asMini) {
     GLuint* texture_id_ref = asMini ? &tex->texture_mini_id : &tex->texture_id;
     if(*texture_id_ref != 0) {
         printwarning("Texture already set.");
-        // (mettre le flag manquant ?...)
-        tex->flags |= asMini ? tex_flag_miniDrawn : tex_flag_fullyDrawn;
         return;
     }
     const char* png_dir;
@@ -112,19 +146,18 @@ void    _texture_setGlTextureAsPng(Texture* tex, bool asMini) {
         png_dir = asMini ? "pngs/minis" : "pngs";
     }
     const char* png_path = FileManager_getResourcePathOpt(tex->string, "png", png_dir);
-    unsigned char* pixels;
-    unsigned int width, height;
-    // Chargement des pixels avec LodePNG de Lode Vandevenne
-    lodepng_decode32_file(&pixels, &width, &height, png_path);
-    if(!pixels) { 
-        if(!asMini) {
-            printerror("Cannot load png %s.", tex->string);
-            // (on a tout de meme essayer, mettre le flag...)
-            tex->flags |= tex_flag_fullyDrawn;
-        }
-        return; 
-    }
-    printdebug("Load png %s of size %d x %d. %p.", png_path, width, height, pixels);
+    
+    // Chargement avec SDL2 et SDL2_Image
+    SDL_Surface* sdl_surf = IMG_Load(png_path);
+    if(!sdl_surf) { if(!asMini) {printerror("Cannot load png %s.", tex->string); } return; }
+
+    // Ou bien avec LodePNG de Lode Vandevenne... ?
+    // unsigned char* pixels;
+    // unsigned int width, height;
+    // lodepng_decode32_file(&pixels, &width, &height, png_path);
+    // if(!pixels) { if(!asMini) {printerror("Cannot load png %s.", tex->string); } return; }
+    // free(pixels);
+
     // Texture OpenGL
     glGenTextures(1, texture_id_ref);
     glBindTexture(GL_TEXTURE_2D, *texture_id_ref);
@@ -133,18 +166,20 @@ void    _texture_setGlTextureAsPng(Texture* tex, bool asMini) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+    SDL_LockSurface(sdl_surf);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sdl_surf->w, sdl_surf->h, 
+                 0, GL_RGBA, GL_UNSIGNED_BYTE, sdl_surf->pixels);
+    SDL_UnlockSurface(sdl_surf);
 
-    free(pixels);
     // Mettre à jour les info de la texture.
-    tex->ptu.width = (float)width;
-    tex->ptu.height = (float)height;
+    tex->ptu.width = (float)sdl_surf->w;
+    tex->ptu.height = (float)sdl_surf->h;
+    SDL_FreeSurface(sdl_surf);
     tex->ratio = tex->ptu.width / tex->ptu.height * tex->ptu.n / tex->ptu.m;
-    tex->flags |= asMini ? tex_flag_miniDrawn : tex_flag_fullyDrawn;
 }
 
-/// Init partiel de la texture à sa création.
+/*-- Fonctions privees sur une instance Texture -------------------------*/
 void  _texture_initAsPng(Texture* const tex, const PngInfo* const info, bool isCoqlib) {
     // Init des champs
     tex->ptu = (PerTextureUniforms) { 8, 8, (float)info->m, (float)info->n };
@@ -173,36 +208,28 @@ void  _texture_initAsString(Texture* const tex, texflag_t flags,
 
     _Texture_total_count ++;
 }
-
 /// Pour s'assurer qu'il y a au moins une mini quand on demande la texture.
 void  _texture_drawPartly(Texture* const tex) {
-    if(tex->flags & tex_flag_miniOrFullyDrawn) // Deja dessine.
-        return;
+    if(tex->texture_id) return;
+    if(tex->texture_mini_id) return;
     if(tex->flags & tex_flag_string) {
-        bool asMini = _Font_currentSize > 40;
-        _texture_setGlTextureAsString(tex, asMini);
+        // On ne dessine que la mini si la resolution est elevee.
+        _texture_setGlTextureAsString(tex, _Font_currentSize > 40);
         return;
     }
     // Png: si pas de mini (créé dans _texture_initAsPng),
     // c'est qu'il faut créer la texture standard.
+    // (Normalement, s'il n'y a pas de mini c'est que la texture est petite...)
     _texture_setGlTextureAsPng(tex, false);
 }
 /// Pour dessiner la vrai texture quand on a le temps...
 void  _texture_drawFully(Texture* const tex) {
-    if(tex->flags & tex_flag_fullyDrawn)
-        return;
+    if(tex->texture_id) return;
     if(tex->flags & tex_flag_string) {
         _texture_setGlTextureAsString(tex, false);
         return;
     }
     _texture_setGlTextureAsPng(tex, false);
-}
-/// Libere la texture standard (laisse la mini). C'est juste pour liberer la memoire.
-void  _texture_unset(Texture* const tex) {
-    tex->flags &= ~tex_flag_fullyDrawn;
-    if(!tex->texture_id) return;
-    glDeleteTextures(1, &tex->texture_id);
-    tex->texture_id = 0;
 }
 bool  _texture_isUsed(Texture* const tex) {
     return _CR_elapsedMS - tex->touchTime <= _TEX_UNUSED_DELTATMS;
@@ -230,59 +257,158 @@ void  _texture_deinit(void* tex_void) {
         tex->texture_mini_id = 0;
     }
 }
-void  _map_block_texture_unset(char* tex_data) {
-    _texture_unset((Texture*)tex_data);
+void  _texture_unsetPartly(Texture* tex) {
+    if(!tex->texture_id) return;
+    glDeleteTextures(1, &tex->texture_id);
+    tex->texture_id = 0;
 }
-void  _map_block_texture_unsetUnused(char* tex_data) {
+static  void (* const _texture_unsetPartly_)(char*) = (void (*)(char*))_texture_unsetPartly;
+void  _texture_unsetFully(Texture* tex) {
+    if(tex->texture_id) {
+        glDeleteTextures(1, &tex->texture_id);
+        tex->texture_id = 0;
+    }
+    if(tex->texture_mini_id) {
+        glDeleteTextures(1, &tex->texture_mini_id);
+        tex->texture_mini_id = 0;
+    }
+}
+static  void (* const _texture_unsetFully_)(char*) = (void (*)(char*))_texture_unsetFully;
+void  _texture_unsetUnusedPartly_(char* tex_data) {
     Texture* tex = (Texture*)tex_data;
-    if(!(tex->flags & tex_flag_miniOrFullyDrawn)) return;
+    if(!tex->texture_id) return;
     if(!_texture_isUnused(tex)) return;
     // (n'est pas utilise)
-    _texture_unset(tex);
+    glDeleteTextures(1, &tex->texture_id);
+    tex->texture_id = 0;
 }
 
+/*-- Fonctions public sur une instance Texture -------------------------*/
+void              texture_updateString(Texture* tex, const char* newString) {
+    if(!(tex->flags & tex_flag_stringMutable) || !newString) {
+        printwarning("Not a mutable string or missing newString.");
+        return;
+    }
+    coq_free(tex->string);
+    tex->string = String_createCopy(newString);
+    tex->touchTime = _CR_elapsedMS;
+    _texture_unsetFully(tex);
+    _texture_drawPartly(tex);
+}
+void              texture_destroy(Texture* tex) {
+    _texture_deinit(tex);
+    coq_free(tex);
+    _Texture_total_count --;
+}
+// OpenGL attribute locations id
+static GLint _Texture_tex_wh_id = 0;
+static GLint _Texture_tex_mn_id = 0;
+void              texture_glBind(Texture* tex) {
+    tex->touchTime = _CR_elapsedMS;
+    GLuint texture_id;
+    if(tex->texture_id)
+        texture_id = tex->texture_id;
+    else {
+        // Il y a des texture en demande pas encore "fully drawn"...
+        _Texture_needToFullyDraw = true;
+        if(tex->texture_mini_id)
+            texture_id = tex->texture_mini_id;
+        else {
+            // Ni mini ni standard ? Essayer de dessiner
+            _texture_drawPartly(tex);
+            texture_id = tex->texture_id ? tex->texture_id : tex->texture_mini_id;
+        }
+    }
+    if(!texture_id) {
+        printwarning("Fail to bind texture %s.", tex->string);
+    }
+    
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+    glUniform2f(_Texture_tex_wh_id, tex->ptu.width, tex->ptu.height);
+    glUniform2f(_Texture_tex_mn_id, tex->ptu.m,     tex->ptu.n);
+}
+bool              texture_isNearest(Texture* tex) {
+    return tex->flags & tex_flag_nearest;
+}
+const PerTextureUniforms* texture_ptu(Texture* tex) {
+    return &tex->ptu;
+}
+uint32_t          texture_m(Texture *tex) {
+    return tex->m;
+}
+uint32_t          texture_n(Texture *tex) {
+    return tex->n;
+}
+uint32_t          texture_mn(Texture *tex) {
+    return tex->m * tex->n;
+}
+float             texture_ratio(Texture* tex) {
+    return tex->ratio;
+}
+float             texture_alpha(Texture* tex) {
+    return tex->alpha;
+}
+float             texture_beta(Texture* tex) {
+    return tex->beta;
+}
+bool              texture_isShared(Texture* tex) {
+    return tex->flags & tex_flag_shared;
+}
+const char*       texture_string(Texture* tex) {
+    return tex->string;
+}
+
+
+
+/*-- List/Map de textures -----------------------------------------------*/
+/// Maps des png (shared).
+static StringMap*        _textureOfPngName = NULL;
+/// Maps des constant strings (shared)
+static StringMap*        _textureOfConstantString = NULL;
+// Liste des strings quelconques...
+static const uint32_t    _nonCstStrTexCount = 64;
+static Texture*          _nonCstStrTexArray[_nonCstStrTexCount];
+static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[_nonCstStrTexCount];
+static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
+
 /*-- Font ----------------------------------------------------------------*/
+static char  _Font_dir[PATH_MAX];
+static char  _Font_path[PATH_MAX];
 void     Texture_setCurrentFont(const char* fontName) {
     if(fontName == NULL) {
         printerror("No fontName.");
         return;
     }
-    
-    printwarning("TODO: setCurrentFont...");
-
-    // Font* newFont = [Font fontWithName:[NSString stringWithUTF8String:fontName]
-    //                              size:_Font_currentSize];
-    // if(newFont == nil) {
-    //     printerror("Font %s not found.", fontName);
-    //     return;
-    // }
-    // _Font_current = newFont;
-    // _Font_currentMini = [_Font_current fontWithSize:12];
-    // [_Font_currentAttributes setObject:_Font_current forKey:NSFontAttributeName];
-    // [_Font_currentMiniAttributes setObject:_Font_currentMini forKey:NSFontAttributeName];
+    sprintf(_Font_path, "%s/%s.ttf",
+            _Font_dir, fontName);
+    Font* newFont = TTF_OpenFont(_Font_path, _Font_currentSize);
+    if(newFont == NULL) {
+        printerror("Font in %s not found.", _Font_path);
+        return;
+    }
+    _Font_current = newFont;
+    _Font_currentMini = TTF_OpenFont(_Font_path, 12);
     // _Font_current_spreading = Font_getFontInfoOf(fontName)->spreading;
     // Redessiner les strings...
-    map_applyToAll(_textureOfConstantString, _map_block_texture_unset);
+    map_applyToAll(_textureOfConstantString, _texture_unsetFully_);
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) _texture_unset(*tr);
+        if(*tr) { _texture_unsetFully(*tr); }
         tr ++;
     }
 }
 void     Texture_setCurrentFontSize(double newSize) {
     _Font_currentSize = newSize;
+    if(_Font_current == NULL) {
+        return;
+    }
+    TTF_SetFontSize(_Font_current, newSize);
 
-    printwarning("TODO: setCurrentFontSize...");
-    // if(_Font_current == nil) {
-    //     return;
-    // }
-    // _Font_current = [_Font_current fontWithSize:newSize];
-    // [_Font_currentAttributes setObject:_Font_current forKey:NSFontAttributeName];
     // Redessiner les strings...
-    map_applyToAll(_textureOfConstantString, _map_block_texture_unset);
+    map_applyToAll(_textureOfConstantString, _texture_unsetPartly_);
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) _texture_unset(*tr);
+        if(*tr) { _texture_unsetPartly(*tr); }
         tr ++;
     }
 }
@@ -309,31 +435,26 @@ const uint32_t _coqlib_png_count = sizeof(_coqlib_pngInfos) / sizeof(PngInfo);
 static Texture**         _textureOfPngId = NULL; // Liens vers la map.
 static uint32_t          _pngCount = 0;
 
-// OpenGL attribute locations id
-static GLint _Texture_tex_wh_id = 0;
-static GLint _Texture_tex_mn_id = 0;
-
 /*-- Init, constructors... ----------------------------------------------------------*/
-void     Texture_init(GLuint program) {
+
+void     Texture_init(GLuint program, const char* font_dir, const char* default_font_name) {
     if(_Texture_isInit) {
         printerror("Texture already init.");
         return;
     }
-
+    // Ids des uniforms de textures
     _Texture_tex_wh_id = glGetUniformLocation(program, "tex_wh");
     _Texture_tex_mn_id = glGetUniformLocation(program, "tex_mn");
 
-    printdebug("location tex %d, %d.", _Texture_tex_wh_id, _Texture_tex_mn_id);
-
-    // 1. Texture loader et font.
-    // _Font_current = [Font systemFontOfSize:_Font_currentSize];
-    // _Font_currentMini = [Font systemFontOfSize:12];
-    // _Font_currentAttributes = _FontAttributes_createWithFont(_Font_current);
-    // _Font_currentMiniAttributes = _FontAttributes_createWithFont(_Font_currentMini);
+    // Init font
+    strcpy(_Font_dir, font_dir);
+    Texture_setCurrentFont(default_font_name);
     
+    // Listes de textures
     _textureOfConstantString = Map_create(64, sizeof(Texture));
     _textureOfPngName =        Map_create(64, sizeof(Texture));
     memset(_nonCstStrTexArray, 0, sizeof(Texture*) * _nonCstStrTexCount);
+
     // Init des png de base.
     const PngInfo* info =           _coqlib_pngInfos;
     const PngInfo* const infoEnd = &_coqlib_pngInfos[_coqlib_png_count];
@@ -342,6 +463,7 @@ void     Texture_init(GLuint program) {
         _texture_initAsPng(tex, info, true);
         info ++;
     }
+    
     _Texture_isInit = true;
     _Texture_isLoaded = true;
 }
@@ -367,11 +489,11 @@ void     Texture_loadPngs(PngInfo const pngInfos[], const uint32_t pngCount) {
 }
 void     _Texture_suspend(void) {
     if(!_Texture_isInit || !_Texture_isLoaded) return;
-    map_applyToAll(_textureOfPngName,        _map_block_texture_unset);
-    map_applyToAll(_textureOfConstantString, _map_block_texture_unset);
+    map_applyToAll(_textureOfPngName,        _texture_unsetPartly_);
+    map_applyToAll(_textureOfConstantString, _texture_unsetPartly_);
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) _map_block_texture_unset((char*)*tr);
+        if(*tr) { _texture_unsetPartly(*tr); }
         tr ++;
     }
     _Texture_isLoaded = false;
@@ -383,39 +505,38 @@ void     _Texture_resume(void) {
 
 static  uint32_t _Texture_checkunset_counter = 0;
 void     _Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
+    // Une fois de temps en temps, quand on a le temps, liberer les png non utilises.
     if(!_Texture_needToFullyDraw) {
-        if(_Texture_checkunset_counter == 0)
-            map_applyToAll(_textureOfPngName, _map_block_texture_unsetUnused);
         _Texture_checkunset_counter = (_Texture_checkunset_counter + 1) % 30;
+        if(_Texture_checkunset_counter == 0)
+            map_applyToAll(_textureOfPngName, _texture_unsetUnusedPartly_);
         return;
     }
+    // Chercher les png, `const string`, `non const string` à dessiner au complet...
     if(map_iterator_init(_textureOfPngName)) do {
         Texture* tex = (Texture*)map_iterator_valueRefOpt(_textureOfPngName);
         if(!_texture_isUsed(tex)) continue;
-        if(!(tex->flags & tex_flag_fullyDrawn)) {
+        if(!tex->texture_id) {
             _texture_drawFully(tex);
-            if(_chronochceker_elapsedMS(cc) > timesUp) {
+            if(_chronochecker_elapsedMS(cc) > timesUp)
                 return;
-            }
         }
     } while(map_iterator_next(_textureOfPngName));
     if(map_iterator_init(_textureOfConstantString)) do {
         Texture* tex = (Texture*)map_iterator_valueRefOpt(_textureOfConstantString);
         if(!_texture_isUsed(tex)) continue;
-        if(!(tex->flags & tex_flag_fullyDrawn)) {
+        if(!tex->texture_id) {
             _texture_drawFully(tex);
-            if(_chronochceker_elapsedMS(cc) > timesUp) {
+            if(_chronochecker_elapsedMS(cc) > timesUp)
                 return;
-            }
         }
     } while(map_iterator_next(_textureOfConstantString));
     Texture** tr = _nonCstStrTexArray;
     while(tr < _nonCstStrArrEnd) {
-        if(*tr) if(!((*tr)->flags & tex_flag_fullyDrawn)) {
+        if(*tr) if(!(*tr)->texture_id) {
             _texture_drawFully(*tr);
-            if(_chronochceker_elapsedMS(cc) > timesUp) {
+            if(_chronochecker_elapsedMS(cc) > timesUp)
                 return;
-            }
         }
         tr ++;
     }
@@ -515,60 +636,8 @@ Texture* Texture_createString(UnownedString str, bool isShared) {
     _texture_drawPartly(tex);
     return tex;
 }
-void     texture_updateString(Texture* tex, const char* newString) {
-    if(!(tex->flags & tex_flag_stringMutable) || !newString) {
-        printwarning("Not a mutable string or missing newString.");
-        return;
-    }
-    coq_free(tex->string);
-    tex->string = String_createCopy(newString);
-    tex->touchTime = _CR_elapsedMS;
-    _texture_unset(tex);
-    _texture_drawPartly(tex);
-}
 
-void     texture_destroy(Texture* tex) {
-    _texture_deinit(tex);
-    coq_free(tex);
-    _Texture_total_count --;
-    printf("🐰 destr tex Total texture %d.\n", _Texture_total_count);
-}
-
-void   texture_glBind(Texture* tex) {
-    // Il y a des texture pas encore "fully drawn" ?
-    if(!(tex->flags & tex_flag_fullyDrawn))
-      _Texture_needToFullyDraw = true;
-    glBindTexture(GL_TEXTURE_2D, tex->texture_id ? tex->texture_id : tex->texture_mini_id);
-    glUniform2f(_Texture_tex_wh_id, tex->ptu.width, tex->ptu.height);
-    glUniform2f(_Texture_tex_mn_id, tex->ptu.m,     tex->ptu.n);
-}
 
 /*-- Getters --*/
 
-const PerTextureUniforms* texture_ptu(Texture* tex) {
-    return &tex->ptu;
-}
-uint32_t          texture_m(Texture *tex) {
-    return tex->m;
-}
-uint32_t          texture_n(Texture *tex) {
-    return tex->n;
-}
-uint32_t          texture_mn(Texture *tex) {
-    return tex->m * tex->n;
-}
-float             texture_ratio(Texture* tex) {
-    return tex->ratio;
-}
-float             texture_alpha(Texture* tex) {
-    return tex->alpha;
-}
-float             texture_beta(Texture* tex) {
-    return tex->beta;
-}
-bool              texture_isShared(Texture* tex) {
-    return tex->flags & tex_flag_shared;
-}
-const char*       texture_string(Texture* tex) {
-    return tex->string;
-}
+

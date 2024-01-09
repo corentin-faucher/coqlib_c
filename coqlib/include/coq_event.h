@@ -36,8 +36,12 @@ typedef struct _CoqEvent {
         Vector2 scroll_deltas;   // scroll/swipe
         KeyboardInput key; // keyboard events
         struct {                 // View resize
+            /// Marge "inactive" en pts.
             Margins  resize_margins;
-            Vector2  resize_sizesPx;      // (en pixels)
+            /// Taille en pts, i.e. typiquement 2x les pixels.
+            Vector2  resize_sizesPt;
+            /// Taille en pixels.
+            Vector2  resize_sizesPix;
             bool     resize_inTransition;
         };
     };

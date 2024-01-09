@@ -133,7 +133,6 @@ void   PopMessage_spawn(Node* refOpt,
         if(root) break;
     }
     if(!root) { printerror("No root."); return; }
-    printdebug("Pop right %f, left %f,  root dx %f.", sq.v.x + sq.s.x, sq.v.x - sq.s.x, 0.5f*root->n.w);
     float dx = 0.f;
     if(sq.v.x + sq.s.x > 0.5*root->n.w) {
         dx = ( 0.5*root->n.w - (sq.v.x + sq.s.x)) * (node_deltaX(n)/sq.s.x); // (négatif)

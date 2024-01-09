@@ -19,7 +19,6 @@
     [self setColorPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB];
     renderer = [[Renderer alloc] initWithView:self];
     [self setDelegate:renderer];
-    node_updateModelAndGetAsDrawableOpt = node_defaultUpdateModelAndGetAsDrawableOpt;
     
     // Init de base dans l'ordre.
     printdebug("🐞🐛🐞-- Debug Mode --🐞🐛🐞");
@@ -55,15 +54,15 @@
             // Updates prioritaires
             CoqEvent_processEvents(root);
             Timer_check();
-            if(root->iterationUpdate) root->iterationUpdate(root);
+//            if(root->iterationUpdate) root->iterationUpdate(root);
             NodeGarbage_burn();
             // Check optionnels
-            if(_chronochceker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
+            if(_chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
                 printwarning("Overwork?"); continue;
             }
             _Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
             // Sleep s'il reste du temps.
-            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochceker_elapsedMS(&cc);
+            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochecker_elapsedMS(&cc);
             if(sleepDeltaT < 1) sleepDeltaT = 1;
             struct timespec time = {0, sleepDeltaT*ONE_MILLION};
             nanosleep(&time, NULL);
@@ -102,18 +101,20 @@
     if(root->shouldTerminate || [self willTerminate]) { return false; }
     ChronoChecker cc;
     _chronochecker_set(&cc);
+    
     // Updates prioritaires
     CoqEvent_processEvents(root);
     Timer_check();
-    if(root->iterationUpdate) root->iterationUpdate(root);
     NodeGarbage_burn();
+    
     // Check optionnels
-    if(_chronochceker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
+    if(_chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
         printwarning("Overwork?"); return true;
     }
     _Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
+    
     // Sleep s'il reste du temps.
-    int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochceker_elapsedMS(&cc);
+    int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochecker_elapsedMS(&cc);
     if(sleepDeltaT < 1) sleepDeltaT = 1;
     struct timespec time = {0, sleepDeltaT*ONE_MILLION};
     nanosleep(&time, NULL);
@@ -135,11 +136,11 @@
 //    [self setPreferredFramesPerSecond:paused ? 1 : 60];
     if(paused) return;
     // Unpause
-    if(root) if(root->didResume) root->didResume(root);
+    if(root) if(root->didResumeOpt) root->didResumeOpt(root);
     [self startCheckUpDispatchQueue];
 }
 
--(void)updateRootFrame {
+-(void)updateRootFrame:(CGSize)sizePx {
     if(!root) { printerror("root not init"); return; }
     CoqEvent coq_event;
     coq_event.flags = event_type_resize;
@@ -150,20 +151,22 @@
     window = nil;
     
     coq_event.resize_margins = (Margins) { headerHeight, 0, 0, 0 };
-    coq_event.resize_sizesPx = (Vector2) { self.frame.size.width, self.frame.size.height };
+    coq_event.resize_sizesPt = (Vector2) { self.frame.size.width, self.frame.size.height };
+    coq_event.resize_sizesPix = (Vector2) { sizePx.width, sizePx.height };
     coq_event.resize_inTransition = false;
 #else
     UIEdgeInsets m =  [self safeAreaInsets];
     
-    coq_event.margins = (Margins) { m.top, m.left, m.bottom, m.right };
-    coq_event.sizesPx = (Vector2) { self.frame.size.width, self.frame.size.height };
-    coq_event.inTransition = false;
+    coq_event.resize_margins = (Margins) { m.top, m.left, m.bottom, m.right };
+    coq_event.resize_sizesPt = (Vector2) { self.frame.size.width, self.frame.size.height };
+    coq_event.resize_sizesPix = (Vector2) { sizePx.width, sizePx.height };
+    coq_event.resize_inTransition = false;
 #endif
     CoqEvent_addEvent(coq_event);
 }
 
 -(void)safeAreaInsetsDidChange {
-    [self updateRootFrame];
+    [self updateRootFrame: self.drawableSize];
 }
 
 -(void)toggleFullScreen {
