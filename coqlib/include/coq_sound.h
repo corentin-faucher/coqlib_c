@@ -9,8 +9,9 @@
 #define _coq_sound_h
 #include "_utils/_utils_.h"
 
-extern const  uint32_t Sound_volume_count; // = 5
-extern bool            Sound_isMute; // = false
+#define Sound_volume_count 5
+
+extern bool Sound_isMute; // = false
 
 void  Sound_initWithWavNames(const char* wav_names[], uint32_t wav_count);
 void  Sound_play(uint32_t soundId, float volume, int pitch, uint32_t volumeId);

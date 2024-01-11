@@ -4,11 +4,17 @@
 #include "_math/_math_chrono.h"
 #include "_utils/_utils_file.h"
 
+#ifdef __APPLE__
 #define AL_SILENCE_DEPRECATION
-// #include <AL/al.h>
-// #include <AL/alc.h>
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
+#endif
+#ifdef __linux__
+#include <AL/al.h>
+#include <AL/alc.h>
+#endif
+
+
 
 static ALCdevice*   _AL_device = NULL;
 static ALCcontext*  _AL_context = NULL;
@@ -16,7 +22,6 @@ static ALuint*      _AL_buffer_ids = NULL;
 static ALuint*      _AL_source_ids = NULL;
 
 bool             Sound_isMute = false;
-const  uint32_t  Sound_volume_count = 5;
 static float     _volumes[Sound_volume_count] = {
     1, 1, 1, 1, 1
 };

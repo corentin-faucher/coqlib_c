@@ -1,7 +1,5 @@
 #include "renderer.h"
-#include "_math/_math_camera.h"
-#include "_nodes/_node_drawable.h"
-#include "_nodes/_node_squirrel.h"
+#include "coq_nodes.h"
 
 /*-- Dims de la view ---------*/
 int           Renderer_width = 800;
@@ -48,7 +46,7 @@ void   _Renderer_drawDrawable(Drawable* d) {
         texture_glBind(_current_texture);
     }
     // 3. Per instance uniforms (piu)
-    glUniformMatrix4fv(_inst_model, 1, GL_FALSE, d->n.piu.model.m);
+    glUniformMatrix4fv(_inst_model, 1, GL_FALSE, d->n.piu.model.f_arr);
     glUniform4fv(_inst_color, 1, d->n.piu.color.f_arr);
     glUniform2fv(_inst_ij, 1, d->n.piu.tile);
     glUniform1f(_inst_emph, d->n.piu.emph);
@@ -137,7 +135,7 @@ void   Renderer_drawView(GLFWwindow* window, Root* root) {
     // 2. Per frame uniform (pfu)
     pfu_default.time = ChronoRender_elapsedAngleSec();
     matrix4_initProjectionWithRoot(&pfu_default.projection, root);
-    glUniformMatrix4fv(_frame_projection, 1, GL_FALSE, pfu_default.projection.m);
+    glUniformMatrix4fv(_frame_projection, 1, GL_FALSE, pfu_default.projection.f_arr);
     glUniform1f(_frame_time, pfu_default.time);
 
     // 3. Set viewport, et clear color (cc) red, green, blue, alpha.

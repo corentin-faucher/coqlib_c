@@ -366,28 +366,31 @@ static StringMap*        _textureOfPngName = NULL;
 /// Maps des constant strings (shared)
 static StringMap*        _textureOfConstantString = NULL;
 // Liste des strings quelconques...
-static const uint32_t    _nonCstStrTexCount = 64;
+#define _nonCstStrTexCount 64
 static Texture*          _nonCstStrTexArray[_nonCstStrTexCount];
 static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[_nonCstStrTexCount];
 static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
 
 /*-- Font ----------------------------------------------------------------*/
-static char  _Font_dir[PATH_MAX];
+static char  _Font_dir[PATH_MAX-64];
 static char  _Font_path[PATH_MAX];
-void     Texture_setCurrentFont(const char* fontName) {
-    if(fontName == NULL) {
-        printerror("No fontName.");
-        return;
-    }
-    sprintf(_Font_path, "%s/%s.ttf",
-            _Font_dir, fontName);
+void     _Texture_resetCurrentFont(bool andMini) {
     Font* newFont = TTF_OpenFont(_Font_path, _Font_currentSize);
     if(newFont == NULL) {
         printerror("Font in %s not found.", _Font_path);
         return;
     }
+    if(_Font_current) {
+        TTF_CloseFont(_Font_current);
+        _Font_current = NULL;
+    }
+    if(_Font_currentMini && andMini) {
+        TTF_CloseFont(_Font_currentMini);
+        _Font_currentMini = NULL;
+    }
     _Font_current = newFont;
-    _Font_currentMini = TTF_OpenFont(_Font_path, 12);
+    if(andMini)
+        _Font_currentMini = TTF_OpenFont(_Font_path, 12);
     // _Font_current_spreading = Font_getFontInfoOf(fontName)->spreading;
     // Redessiner les strings...
     map_applyToAll(_textureOfConstantString, _texture_unsetFully_);
@@ -397,20 +400,23 @@ void     Texture_setCurrentFont(const char* fontName) {
         tr ++;
     }
 }
+void     Texture_setCurrentFont(const char* fontName) {
+    if(fontName == NULL) {
+        printerror("No fontName.");
+        return;
+    }
+    // Mettre a jour la path du font
+    sprintf(_Font_path, "%s/%s.ttf",
+            _Font_dir, fontName);
+
+    _Texture_resetCurrentFont(true);
+}
 void     Texture_setCurrentFontSize(double newSize) {
     _Font_currentSize = newSize;
     if(_Font_current == NULL) {
         return;
     }
-    TTF_SetFontSize(_Font_current, newSize);
-
-    // Redessiner les strings...
-    map_applyToAll(_textureOfConstantString, _texture_unsetPartly_);
-    Texture** tr = _nonCstStrTexArray;
-    while(tr < _nonCstStrArrEnd) {
-        if(*tr) { _texture_unsetPartly(*tr); }
-        tr ++;
-    }
+    _Texture_resetCurrentFont(false);
 }
 double   Texture_currentFontSize(void) {
     return _Font_currentSize;

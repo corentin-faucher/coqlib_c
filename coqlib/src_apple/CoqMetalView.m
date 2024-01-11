@@ -6,10 +6,7 @@
 //
 
 #import "CoqMetalView.h"
-#include "_utils_apple.h"
 #include "coq_timer.h"
-#include "_graph__apple.h"
-#include "_graph_font_manager.h"
 #include "coq_event.h"
 
 @implementation CoqMetalView

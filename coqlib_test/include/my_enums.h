@@ -9,8 +9,6 @@
 
 #include "_graph/_graph_texture.h"
 
-void test(void);
-
 typedef enum _Localizable {
     loc_app_name,
     loc_error,

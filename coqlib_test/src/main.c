@@ -14,8 +14,7 @@
 static Root* root = NULL;
 
 /*-- Callbacks d'events  -------------*/
-static void error_callback(int error, const char* description)
-{
+static void error_callback(int error, const char* description) {
     printerror("%s", description);
 }
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -121,7 +120,8 @@ static bool main_checkUp(Root* root, ChronoChecker* cc) {
     // (en fait c'est juste de dessiner les textures en pleine grandeur)
     if(_chronochecker_elapsedMS(cc) > Chrono_UpdateDeltaTMS) {
         // Pas le temps pour les autres checks ??
-        printwarning("Overwork?"); return true;
+        // printwarning("Overwork?"); 
+        return true;
     }
     _Texture_checkToFullyDrawAndUnused(cc, Chrono_UpdateDeltaTMS - 5);
 
@@ -132,14 +132,10 @@ static bool main_checkUp(Root* root, ChronoChecker* cc) {
 
 
 int main(int argc, char** argv) {
-    // Mettre a 60 fps.
-    Chrono_UpdateDeltaTMS = 16;
-
+    // Init SDL et GLFW
     SDL_Init(SDL_INIT_VIDEO);
     TTF_Init();
     IMG_Init(IMG_INIT_PNG);
-
-    // Init GLFW
     glfwSetErrorCallback(error_callback);
     if(!glfwInit()) { return -1; }
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -172,8 +168,10 @@ int main(int argc, char** argv) {
 
     // Init root (voir my_root.c)
     root = Root_createMyRoot();
-    // Unpause, et set view size
+    
+    // Unpause, refresh rate, set view size...
     ChronoApp_setPaused(false);
+    Chrono_UpdateDeltaTMS = 16;
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
     resize_callback(window, width, height);

@@ -11,5 +11,8 @@
 #include "_utils/_utils_file.h"
 #include "_utils/_utils_language.h"
 #include "_utils/_utils_string.h"
+#ifndef WITH_OPENGL
+#include "_utils_apple.h"
+#endif
 
 #endif

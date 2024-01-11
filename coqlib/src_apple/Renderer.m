@@ -6,9 +6,10 @@
 //
 
 #import "Renderer.h"
+
 #import "CoqMetalView.h"
-#include "_graph__apple.h"
 #include "_node_squirrel.h"
+
 
 @implementation Renderer
 

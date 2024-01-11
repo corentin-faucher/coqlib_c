@@ -10,7 +10,6 @@
 #include "_math/_math_chrono.h"
 
 bool             Sound_isMute = false;
-const  uint32_t  Sound_volume_count = 5;
 static float     _volumes[Sound_volume_count] = {
     1, 1, 1, 1, 1
 };

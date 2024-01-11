@@ -6,8 +6,8 @@
 //
 
 #import <MetalKit/MetalKit.h>
-#include "_graph_texture.h"
-#include "_graph_mesh.h"
+#include "coq_graph.h"
+#include "_node_root.h"
 #include "_math_flpos.h"
 
 @interface Renderer : NSObject <MTKViewDelegate> {

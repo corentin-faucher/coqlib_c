@@ -6,7 +6,6 @@
 //
 
 #include "_utils/_utils_file.h"
-#include <sys/syslimits.h>
 #import <Foundation/Foundation.h>
 
 // Espace où est stocker le dernier path demandé.

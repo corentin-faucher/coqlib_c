@@ -235,7 +235,6 @@ void      _texture_setMTLtextureAsPng(Texture* const tex, bool setMini) {
     // Mettre à jour les variables de la texture.
     if(setMini) {
         tex->mtlMini = mtlTexture;
-        printdebug("Loading mini of %s", tex->string);
     } else {
         tex->mtlTexture = mtlTexture;
     }

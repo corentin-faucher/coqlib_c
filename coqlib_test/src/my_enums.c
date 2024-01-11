@@ -5,6 +5,7 @@
 //  Created by Corentin Faucher on 2024-01-04.
 //
 #include "my_enums.h"
+#include <stdbool.h>
 
 static const char* _Localizable_stringKeys[] = {
     "app_name",

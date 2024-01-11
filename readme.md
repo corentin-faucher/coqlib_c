@@ -2,6 +2,11 @@
 
 ## Tester avec Makefile
 
+0. Installer les dependences
+```bash
+    coqlib_c $ sudo apt-get install libglew-dev libglfw-dev libsdl2-dev libsdl2-image-dev libsdl2-ttf-dev libglm-dev libunwind-dev
+```
+
 1. Aller dans le repertoire coqlib. Compiler la librarie.
 ```bash
     coqlib_c $ cd coqlib

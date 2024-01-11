@@ -177,15 +177,19 @@ void  _slidingmenu_open(Node* nd) {
     }
     _slidingmenu_checkItemsVisibility(sm, false);
     // 5. Signaler sa présence (pour iOS)
+#ifdef __APPLE__
 #if TARGET_OS_OSX != 1
 #warning todo ios
+#endif
 #endif
     // 6. Open "node" : fadeIn, relativePos...
     // ?
 }
 void _slidingmenu_close(Node* nd) {
+#ifdef __APPLE__
 #if TARGET_OS_OSX != 1
 #warning todo ios
+#endif
 #endif
 }
 void _slidingmenu_deinit(Node* n) {

@@ -7,15 +7,12 @@
 #ifndef _coq_utils_h
 #define _coq_utils_h
 
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <libunwind.h>
+#include <string.h>   // strcat, strcmp, etc.
+#include <stdlib.h>   // malloc, free, etc.
+#include <stdio.h>    // printf, sprintf, file, etc.
 #include <stdbool.h>
-
-// #define true 1
-// #define false 0
-// typedef int32_t bool;
+#include <stdint.h>   // Type standard uint32_t, etc.
+#include <libunwind.h> // Info de la stack pour debugging.
 
 #if __APPLE__
 // Pour les `TARGET_OS_OSX`, etc.

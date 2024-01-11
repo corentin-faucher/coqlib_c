@@ -9,7 +9,12 @@
 #define _coq_utils_file_h
 
 #include "_utils_.h"
+#if __APPLE__
 #include <sys/syslimits.h>
+#endif
+#ifdef __linux__
+#include <limits.h>
+#endif
 
 /// Optenir le contenu d'un fichier texte.
 /// Il ne faut pas `free` le buffer retourné. Pour ce faire utiliser `FILE_freeBuffer`.

@@ -8,12 +8,12 @@
 #include "_math/_math_flpos.h"
 #include "_math/_math_chrono.h"
 
-const static uint32_t _sm_type_static =     0x0000;
-const static uint32_t _sm_type_oscAmorti  = 0x0001;
-const static uint32_t _sm_type_amortiCrit = 0x0002;
-const static uint32_t _sm_type_surAmorti  = 0x0003;
-const static uint32_t _sm_types =           0x0003;
-const static uint32_t _sm_flag_angle =      0x0004;
+#define _sm_type_static     0x0000
+#define _sm_type_oscAmorti  0x0001
+#define _sm_type_amortiCrit 0x0002
+#define _sm_type_surAmorti  0x0003
+#define _sm_types           0x0003
+#define _sm_flag_angle      0x0004
 
 float   _sp_getElapsedSec(FluidPos* sp) {
     return (float)((uint32_t)ChronoRender_elapsedMS() - sp->_time) * 0.001f;

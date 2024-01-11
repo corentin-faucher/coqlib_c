@@ -8,7 +8,6 @@
 #define _coq_math_h
 
 #include <math.h>
-#include <simd/simd.h>
 #include "_utils/_utils_.h"
 
 // Si on veut l'allignement, utiliser
@@ -22,7 +21,8 @@ typedef union {
     float         f_arr[2];
     struct {float x, y;};
     struct {float w, h;};
-//    simd_float2    v;  // Superflu ? (alignerait...)
+//    float __attribute__((vector_size(8))) v; // Superflu ? (alignerait...)
+//    simd_float2    v;
 } Vector2;
 extern const Vector2 vector2_ones;
 extern const Vector2 vector2_zeros;
@@ -75,28 +75,35 @@ typedef struct {
 /*-- Vector3 -------------------------------------------------*/
 typedef union {
     float          f_arr[3];
-    simd_float3    v;
     struct { float x, y, z; };
     struct { float r, g, b; };
 } Vector3;
-//typedef simd_float3 Vector3;
 extern const Vector3 vector3_ones;
 extern const Vector3 vector3_zeros;
 
-void vector3_print(Vector3* v);
+// Operations usuelles (similaire à celles de simd...)
+Vector3 vector3_normalize(Vector3 v);
+Vector3 vector3_minus(Vector3 v, Vector3 toSubtract);
+Vector3 vector3_add(Vector3 v, Vector3 toAdd);
+Vector3 vector3_cross(Vector3 v1, Vector3 v2);
+float   vector3_dot(Vector3 v1, Vector3 v2);
+
+void    vector3_print(Vector3* v);
 
 
 /*-- Vecteur de 4 floats. -------------------------------*/
 // ici, aligned semble superflu. simd_float3 avec __attribute__((__ext_vector_type__(4)))
 // fait la job.
-typedef // __attribute__((__aligned__(16)))
-union {
+//typedef __attribute__((__aligned__(16)))
+typedef union {
     /// En tant qu'array ordinaire de float, i.e. f_arr est un float*.
     float          f_arr[4];
-    /// En tant qu'objet __attribute__((__ext_vector_type__(4))) float,
+    /// En tant qu'objet `__attribute__((vector_size(16)))` float,
     /// i.e. sorte de "super" float où on peut faire les operation arithmetiques,
     /// e.g. v1 + v2, sur les 4 floats en même temps.
-    simd_float4    v;
+    /// (Superflu ? se fait automatiquement ?)
+    float __attribute__((vector_size(16))) v;
+//    simd_float4    v;
     struct { float x, y, z, w; };
     struct { float r, g, b, a; };
 } Vector4;
@@ -107,7 +114,7 @@ union {
 
 /*-- Matrices 4x4 --------------------------------------*/
 typedef __attribute__((aligned(16)))union {
-    float            m[16];  // En premier pour init des valeurs.
+    float        f_arr[16];  // En premier pour init des valeurs.
     struct { Vector4 v0, v1, v2, v3; };
 } Matrix4;
 //simd_float4x4 n'est pas pratique pour les init...

@@ -6,8 +6,6 @@
 //
 
 #include "_math/_math_.h"
-#include <simd/vector.h>
-#include <arm/arch.h>
 
 const Vector2 vector2_ones =  {{1, 1}};
 const Vector2 vector2_zeros = {{0, 0}};
@@ -39,6 +37,27 @@ Vector2 vector2_cross(Vector2 v) {
     return (Vector2) {{ v.y, -v.x }};
 }
 
+Vector3 vector3_normalize(Vector3 v) {
+    float n = sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
+    return (Vector3) {{ v.x / n, v.y / n, v.z / n }};
+}
+Vector3 vector3_minus(Vector3 v, Vector3 toSubtract) {
+    return (Vector3) {{ v.x - toSubtract.x, v.y - toSubtract.y, v.z - toSubtract.z }};
+}
+Vector3 vector3_add(Vector3 v, Vector3 toAdd) {
+    return (Vector3) {{ v.x + toAdd.x, v.y + toAdd.y, v.z + toAdd.z }};
+}
+Vector3 vector3_cross(Vector3 v1, Vector3 v2) {
+    return (Vector3) {{
+        v1.y*v2.z - v1.z*v2.y,
+        v1.z*v2.x - v1.x*v2.z,
+        v1.x*v2.y - v1.y*v2.x,
+    }};
+}
+float    vector3_dot(Vector3 v1, Vector3 v2) {
+    return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
+}
+
 
 const Vector3 vector3_ones =  {{1, 1, 1}};
 const Vector3 vector3_zeros = {{0, 0, 0}};
@@ -58,7 +77,7 @@ void matrix4_print(Matrix4 *m) {
     for(int j = 0; j < 4; j++) {
         if(j == 0) printf("[ "); else printf("  ");
         for(int i = 0; i< 4; i++)
-            printf("%5.2f, ", m->m[i + j*4]);
+            printf("%5.2f, ", m->f_arr[i + j*4]);
         if(j == 3) printf("\b ]\n"); else printf("\n");
     }
 }
@@ -88,15 +107,19 @@ void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, Matrix4 *ref,
         ref->v3.w,
     }};
 }
+
+
+
 void matrix4_initAsLookAt(Matrix4 *m, Vector3 eye, Vector3 center, Vector3 up) {
-    Vector3 n = { .v = simd_normalize(eye.v - center.v) };
-    Vector3 u = { .v = simd_normalize(simd_cross(up.v, n.v)) };
-    Vector3 v = { .v = simd_cross(n.v, u.v) };
+    
+    Vector3 n = vector3_normalize(vector3_minus(eye, center));
+    Vector3 u = vector3_normalize(vector3_cross(up, n));
+    Vector3 v = vector3_cross(n, u);
     *m = (Matrix4) {{
         u.x, v.x, n.x, 0.f,
         u.y, v.y, n.y, 0.f,
         u.z, v.z, n.z, 0.f,
-        -simd_dot(u.v, eye.v), -simd_dot(v.v, eye.v), -simd_dot(n.v, eye.v), 1.f,
+        -vector3_dot(u, eye), -vector3_dot(v, eye), -vector3_dot(n, eye), 1.f,
     }};
 }
 void matrix4_initAsPerspective(Matrix4 *m, float theta, float ratio,
