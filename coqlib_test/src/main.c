@@ -3,20 +3,24 @@
 #include "my_enums.h"
 #include "coq_sound.h"
 #include "coq_event.h"
-#include <SDL2/SDL.h>
-#include <SDL_image.h> // <SDL2_image/SDL_image.h> ?
-#include <SDL_ttf.h>   // <SDL2_ttf/SDL_ttf.h>
-
+#ifdef __APPLE__
 #define FONT_PATH "/Library/Fonts"
 #define FONT_NAME "FiraCode-Medium"
+#endif
+#ifdef __linux__
+#define FONT_PATH "/usr/share/fonts/truetype/freefont"
+#define FONT_NAME "FreeSans"
+#endif
+
+#define GL_MAJOR_VERSION_ 3
+#define GL_MINOR_VERSION_ 0
 
 /// Structure de l'app.
 static Root* root = NULL;
 
 /*-- Callbacks d'events  -------------*/
-static void error_callback(int error, const char* description) {
-    printerror("%s", description);
-}
+
+/*
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if( action != GLFW_PRESS) return;
@@ -43,64 +47,56 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
     coqEvent.key.isVirtual = false;
     CoqEvent_addEvent(coqEvent);
 }
-static void cursor_position_callback(GLFWwindow* window, double x, double y) {
-  if(!glfwGetWindowAttrib(window, GLFW_HOVERED))
-    return;
-  if(!root) { printwarning("No root"); return; }
-  // !! Ici y est inversé !!
-  glfwGetCursorPos(window, &x, &y);
-  Vector2 viewPos = {{ x, y }};
-
-  CoqEvent coq_event;
-  coq_event.flags = event_type_hovering;
-  coq_event.touch_pos = root_absposFromViewPos(root, viewPos, true);
-  CoqEvent_addEvent(coq_event);
-}
-static void srcoll_callback(GLFWwindow* window, double delta_x, double delta_y) {
+*/
+static void srcoll_callback(double delta_x, double delta_y) {
     CoqEvent coq_event;
     coq_event.flags = event_type_scroll;
     coq_event.scroll_deltas = (Vector2) {{ delta_x, delta_y }};
     CoqEvent_addEvent(coq_event);
 }
-static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-  if(!root) { printwarning("No root"); return; }
-  if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-    double x, y;
-    // !! Ici y est inversé !!
-    glfwGetCursorPos(window, &x, &y);
-    Vector2 viewPos = {{ x, y }};
 
-    CoqEvent coq_event;
-    coq_event.flags = event_type_down;
-    coq_event.touch_pos = root_absposFromViewPos(root, viewPos, true);
-    CoqEvent_addEvent(coq_event);
-    return;
-  }
-  if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-    CoqEvent coq_event;
-    coq_event.flags = event_type_up;
-    CoqEvent_addEvent(coq_event);
-    return;
-  }
-}
-static void resize_callback(GLFWwindow* window, int widthPx, int heightPx) {
+static void resize_callback(SDL_Window* window, int widthPx, int heightPx) {
   Renderer_width = widthPx;
   Renderer_height = heightPx;
   if(!root) { printwarning("No root"); return; }
-  int widthPt, heightPt;
-  glfwGetWindowSize(window, &widthPt, &heightPt);
-  CoqEvent coq_event;
-  coq_event.flags = event_type_resize;
-  coq_event.resize_margins = (Margins) { 0, 0, 0, 0 };
-  coq_event.resize_sizesPt = (Vector2) {{ widthPt, heightPt }};
-  coq_event.resize_sizesPix = (Vector2) {{ widthPx, heightPx }};
-  coq_event.resize_inTransition = false;
-  CoqEvent_addEvent(coq_event);
+  // int widthPt, heightPt;
+  // glfwGetWindowSize(window, &widthPt, &heightPt);
+  CoqEvent_addEvent((CoqEvent){
+        event_type_resize, .resize_info = {
+            { 0, 0, 0, 0 },
+            {{ 0, 0, widthPx, heightPx }}, {{ widthPx, heightPx }}, 
+            false, false, false
+    }});
 
   // GLFW semble bloquer la boucle principale durant un resize ???
   // Il faut donc checker les event et dessiner ici... ??
   CoqEvent_processEvents(root);
   Renderer_drawView(window, root);
+}
+static void cursor_position_callback(double x, double y) {
+  if(!root) { printwarning("No root"); return; }
+  // !! Ici y est inversé !!
+  Vector2 viewPos = {{ x, y }};
+
+  CoqEvent coq_event;
+  coq_event.flags = event_type_touch_hovering;
+  coq_event.touch_pos = root_absposFromViewPos(root, viewPos, true);
+  CoqEvent_addEvent(coq_event);
+}
+static void mouse_button_callback(int x, int y) {
+  if(!root) { printwarning("No root"); return; }
+  // !! Ici y est inversé !!
+  Vector2 viewPos = {{ x, y }};
+  CoqEvent coq_event;
+  coq_event.flags = event_type_touch_down;
+  coq_event.touch_pos = root_absposFromViewPos(root, viewPos, true);
+  CoqEvent_addEvent(coq_event);
+}
+static void mouse_button_up_callback(int x, int y) {
+  if(!root) { printwarning("No root"); return; }
+  CoqEvent coq_event;
+  coq_event.flags = event_type_touch_up;
+  CoqEvent_addEvent(coq_event);
 }
 
 /// La fonction `update` de la boucle principale.
@@ -118,44 +114,47 @@ static bool main_checkUp(Root* root, ChronoChecker* cc) {
 
     // Check optionnels 
     // (en fait c'est juste de dessiner les textures en pleine grandeur)
-    if(_chronochecker_elapsedMS(cc) > Chrono_UpdateDeltaTMS) {
+    if(chronochecker_elapsedMS(cc) > Chrono_UpdateDeltaTMS) {
         // Pas le temps pour les autres checks ??
         // printwarning("Overwork?"); 
         return true;
     }
-    _Texture_checkToFullyDrawAndUnused(cc, Chrono_UpdateDeltaTMS - 5);
+    Texture_checkToFullyDrawAndUnused(cc, Chrono_UpdateDeltaTMS - 5);
 
     return true;
 }
 
-
-
-
 int main(int argc, char** argv) {
-    // Init SDL et GLFW
-    SDL_Init(SDL_INIT_VIDEO);
+    // Init SDL
+    if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+        printerror("SDL_Init error");
+        return -1;
+    }
     TTF_Init();
     IMG_Init(IMG_INIT_PNG);
-    glfwSetErrorCallback(error_callback);
-    if(!glfwInit()) { return -1; }
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-
-    // Init Window et event callbacks
-    GLFWwindow* window = glfwCreateWindow(800, 600, "Testing GLFW", NULL, NULL);
-    if(window == NULL) { 
-        glfwTerminate();
-        printf("failed to create window.\n");
-        return -1; 
+    // Init Window
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GL_MAJOR_VERSION_);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GL_MINOR_VERSION_);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_Window* window = SDL_CreateWindow("Testing SDL...",
+                                          100, 100,
+                                          600, 480,
+                                          SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
+    if(!window) {
+        printerror("No window init.");
+        return -1;
     }
-    glfwMakeContextCurrent(window);
-    glfwSetKeyCallback(window, key_callback);
-    glfwSetCursorPosCallback(window, cursor_position_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glfwSetScrollCallback(window, srcoll_callback);
-    glfwSetFramebufferSizeCallback(window, resize_callback);
+    SDL_GLContext context = SDL_GL_CreateContext(window);
+    if(!context) {
+        printerror("No context opengl.");
+        return -1;
+    }
+#ifdef __linux__
+    // Une fois le context init...
+    glewInit();
+#endif
+    printdebug("GL version %s.", glGetString(GL_VERSION));
+    printdebug("GLSL version %s.", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     // Init renderer/OpenGL
     Renderer_initWithWindow(window, FONT_PATH, FONT_NAME);
@@ -172,29 +171,64 @@ int main(int argc, char** argv) {
     // Unpause, refresh rate, set view size...
     ChronoApp_setPaused(false);
     Chrono_UpdateDeltaTMS = 16;
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    resize_callback(window, width, height);
+    resize_callback(window, 600, 480);
 
     // Boucle principale...
     bool run = true;
     ChronoChecker cc;
     while (run) {
-        _chronochecker_set(&cc);
-        glfwPollEvents();
-        run = main_checkUp(root, &cc) && !glfwWindowShouldClose(window);
+        chronochecker_set(&cc);
+        SDL_Event event;
+        while(SDL_PollEvent(&event)) {
+          switch(event.type) {
+          case SDL_QUIT:
+            run = false; break;
+          case SDL_KEYDOWN: {
+              if(event.key.keysym.sym == SDLK_ESCAPE)
+                run = false;
+              break;
+            }
+          case SDL_WINDOWEVENT: {
+            if(event.window.event == SDL_WINDOWEVENT_RESIZED) {
+              resize_callback(window, event.window.data1, event.window.data2);
+            }
+            break;
+          }
+          case SDL_MOUSEMOTION: {
+              cursor_position_callback(event.motion.x, event.motion.y);
+            break;
+          }
+          case SDL_MOUSEBUTTONDOWN: {
+          mouse_button_callback(event.button.x, event.button.y);
+            break;
+          }
+          case SDL_MOUSEBUTTONUP: {
+          mouse_button_up_callback(event.button.x, event.button.y);
+            break;
+          }
+          case SDL_MOUSEWHEEL: {
+          srcoll_callback(event.wheel.x, event.wheel.y);
+            break;
+          }
+          }
+        }
+
+        if(!main_checkUp(root, &cc))
+          run = false;
+
+        // Draw
         Renderer_drawView(window, root);
 
         // Sleep s'il reste du temps.
-        int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochecker_elapsedMS(&cc);
+        int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - chronochecker_elapsedMS(&cc);
         if(sleepDeltaT < 1) sleepDeltaT = 1;
         struct timespec time = {0, sleepDeltaT*ONE_MILLION};
         nanosleep(&time, NULL);
     }
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
-    
+    // Deinits...
+    SDL_GL_DeleteContext(context);
+    SDL_DestroyWindow(window);
     IMG_Quit();
     TTF_Quit();
     SDL_Quit();

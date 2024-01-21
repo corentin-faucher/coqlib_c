@@ -7,7 +7,10 @@
 #ifndef my_enums_h
 #define my_enums_h
 
-#include "_graph/_graph_texture.h"
+#include "graphs/graph_texture.h"
+
+extern const uint32_t node_type_flag_particule;
+extern const uint32_t node_type_nf_particule;
 
 typedef enum _Localizable {
     loc_app_name,

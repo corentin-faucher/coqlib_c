@@ -16,30 +16,40 @@
     [self setColorPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB];
     renderer = [[Renderer alloc] initWithView:self];
     [self setDelegate:renderer];
-    
-    // Init de base dans l'ordre.
-    printdebug("🐞🐛🐞-- Debug Mode --🐞🐛🐞");
     [self setPaused:YES];
-    Language_init();
-    Font_init();
-    Mesh_init(device);
-    _Texture_init(device);
-    
-    ChronoApp_setPaused(false);
-    srand((uint32_t)time(NULL));
-#if TARGET_OS_OSX == 1
-    _MacOS_updateCurrentLayout();
-#endif
     
     return self;
 }
 -(BOOL)acceptsFirstResponder {
     return YES;
 }
+
+-(void)checkWindowEvents {
+    CoqEvent* event = CoqEvent_getWindowEventOpt();
+    while(event) {
+        bool isFullScreen = [self.window styleMask] & NSWindowStyleMaskFullScreen;
+        switch(event->flags & event_types_win_) {
+            case event_type_win_windowed: {
+                if(isFullScreen) [self.window toggleFullScreen:nil];
+                break;
+            }
+            case event_type_win_full_screen: {
+                if(!isFullScreen) [self.window toggleFullScreen:nil];
+                break;
+            }
+            default: {
+                printerror("Undefined win event %#010x.", event->flags);
+            }
+        }
+        
+        event = CoqEvent_getWindowEventOpt();
+    }
+}
+
 -(void)startCheckUpDispatchQueue {
-    if(_my_queue == NULL)
-        _my_queue = dispatch_queue_create("coqviewcheckup.queue", NULL);
-    dispatch_async(_my_queue, ^{
+    if(checkup_queue == NULL)
+        checkup_queue = dispatch_queue_create("coqviewcheckup.queue", NULL);
+    dispatch_async(checkup_queue, ^{
         ChronoChecker cc;
         while(true) {
             // Checks
@@ -47,37 +57,26 @@
             Root* root = self->root;
             if(root == NULL) { break; }
             if(root->shouldTerminate || [self willTerminate]) { break; }
-            _chronochecker_set(&cc);
+            chronochecker_set(&cc);
             // Updates prioritaires
             CoqEvent_processEvents(root);
             Timer_check();
 //            if(root->iterationUpdate) root->iterationUpdate(root);
             NodeGarbage_burn();
             // Check optionnels
-            if(_chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
+            if(chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
                 printwarning("Overwork?"); continue;
             }
-            _Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
+            Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
             // Sleep s'il reste du temps.
-            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochecker_elapsedMS(&cc);
+            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - chronochecker_elapsedMS(&cc);
             if(sleepDeltaT < 1) sleepDeltaT = 1;
             struct timespec time = {0, sleepDeltaT*ONE_MILLION};
             nanosleep(&time, NULL);
-            // Event sur la MetalView / NSWindow
-#if TARGET_OS_OSX == 1
-#warning TODO: Ajouter des event Root -> Window (on a deja les event ordinaire Window -> root)
-//            if(prefs_shouldToggleFullScreen(root->prefs)) {
-//                dispatch_async(dispatch_get_main_queue(), ^{
-//                    [self toggleFullScreen];
-//                });
-//            }
-#endif
         }
         // Terminate ?
         bool shouldTerminate = true;
         if(self->root) shouldTerminate = self->root->shouldTerminate;
-        printdebug("loop ended should terminate %d, will terminate %d.",
-                   shouldTerminate, [self willTerminate]);
         if(shouldTerminate && ![self willTerminate]) {
 #if TARGET_OS_OSX == 1
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -97,7 +96,7 @@
     if(root == NULL) { return false; }
     if(root->shouldTerminate || [self willTerminate]) { return false; }
     ChronoChecker cc;
-    _chronochecker_set(&cc);
+    chronochecker_set(&cc);
     
     // Updates prioritaires
     CoqEvent_processEvents(root);
@@ -105,13 +104,13 @@
     NodeGarbage_burn();
     
     // Check optionnels
-    if(_chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
+    if(chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
         printwarning("Overwork?"); return true;
     }
-    _Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
+    Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
     
     // Sleep s'il reste du temps.
-    int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - _chronochecker_elapsedMS(&cc);
+    int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - chronochecker_elapsedMS(&cc);
     if(sleepDeltaT < 1) sleepDeltaT = 1;
     struct timespec time = {0, sleepDeltaT*ONE_MILLION};
     nanosleep(&time, NULL);
@@ -131,48 +130,46 @@
     ChronoApp_setPaused(paused);
     [super setPaused:paused];
 //    [self setPreferredFramesPerSecond:paused ? 1 : 60];
-    if(paused) return;
+    if(win_event_timer) [win_event_timer invalidate];
+    win_event_timer = nil;
+    if(paused) {
+        return;
+    }
     // Unpause
-    if(root) if(root->didResumeOpt) root->didResumeOpt(root);
+    if(root) if(root->didResumeActionOpt) root->didResumeActionOpt(root);
     [self startCheckUpDispatchQueue];
+    win_event_timer = [NSTimer scheduledTimerWithTimeInterval:0.05 repeats:true block:^(NSTimer * _Nonnull timer) {
+        [self checkWindowEvents];
+    }];
 }
 
 -(void)updateRootFrame:(CGSize)sizePx {
     if(!root) { printerror("root not init"); return; }
-    CoqEvent coq_event;
-    coq_event.flags = event_type_resize;
 #if TARGET_OS_OSX == 1
     NSWindow* window = [self window];
-    CGFloat headerHeight = (window.styleMask & NSWindowStyleMaskFullScreen) ?
+    bool isFullScreen = [window styleMask] & NSWindowStyleMaskFullScreen;
+    CGFloat headerHeight = isFullScreen ?
         22 : window.frame.size.height - window.contentLayoutRect.size.height;
+    // Ok, le self.frame est déjà à jour quand on call drawableSizeWillChange du renderer...
+    CoqEvent_addEvent((CoqEvent){
+        event_type_resize, .resize_info = {
+            { headerHeight, 0, 0, 0 },
+            CGRect_toRectangle(window.frame),
+            CGSize_toVector2(sizePx), false, isFullScreen, false
+    }});
     window = nil;
-    
-    coq_event.resize_margins = (Margins) { headerHeight, 0, 0, 0 };
-    coq_event.resize_sizesPt = (Vector2) { self.frame.size.width, self.frame.size.height };
-    coq_event.resize_sizesPix = (Vector2) { sizePx.width, sizePx.height };
-    coq_event.resize_inTransition = false;
 #else
-    UIEdgeInsets m =  [self safeAreaInsets];
-    
-    coq_event.resize_margins = (Margins) { m.top, m.left, m.bottom, m.right };
-    coq_event.resize_sizesPt = (Vector2) { self.frame.size.width, self.frame.size.height };
-    coq_event.resize_sizesPix = (Vector2) { sizePx.width, sizePx.height };
-    coq_event.resize_inTransition = false;
+    CoqEvent_addEvent((CoqEvent){
+        event_type_resize, .resize_info = {
+            UIEdgeInsets_toMargins([self safeAreaInsets]),
+            CGRect_toRectangle(self.frame),
+            CGSize_toVector2(sizePx), false, true, false
+    }});
 #endif
-    CoqEvent_addEvent(coq_event);
 }
 
 -(void)safeAreaInsetsDidChange {
     [self updateRootFrame: self.drawableSize];
-}
-
--(void)toggleFullScreen {
-#if TARGET_OS_OSX == 1
-    NSWindow* window = [self window];
-//    if(window.styleMask & NSWindowStyleMaskFullScreen) {
-        [window toggleFullScreen:nil];
-//    }
-#endif
 }
 
 /*-- Input Events --------------------------------------*/
@@ -201,7 +198,7 @@
     Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
     
     CoqEvent coq_event;
-    coq_event.flags = event_type_hovering;
+    coq_event.flags = event_type_touch_hovering;
     coq_event.touch_pos = root_absposFromViewPos(root, viewPos, false);
     CoqEvent_addEvent(coq_event);
 }
@@ -213,7 +210,7 @@
     Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
     
     CoqEvent coq_event;
-    coq_event.flags = event_type_down;
+    coq_event.flags = event_type_touch_down;
     coq_event.touch_pos = root_absposFromViewPos(root, viewPos, false);
     CoqEvent_addEvent(coq_event);
 }
@@ -224,7 +221,7 @@
     Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
     
     CoqEvent coq_event;
-    coq_event.flags = event_type_drag;
+    coq_event.flags = event_type_touch_drag;
     coq_event.touch_pos = root_absposFromViewPos(root, viewPos, false);
     CoqEvent_addEvent(coq_event);
 }
@@ -233,7 +230,7 @@
     [self setPaused:NO];
     
     CoqEvent coq_event;
-    coq_event.flags = event_type_up;
+    coq_event.flags = event_type_touch_up;
     CoqEvent_addEvent(coq_event);
 }
 -(void)scrollWheel:(NSEvent *)event {
@@ -316,15 +313,12 @@
     if(root == NULL) return;
     [self setPaused:NO];
     if(event.isARepeat && CoqEvent_ignoreRepeatKeyDown) return;
-    
-    const char* c_str = [event.characters UTF8String];
-    CoqEvent coqEvent;
-    coqEvent.flags = event_type_keyDown;
-    coqEvent.key.keycode = event.keyCode;
+    CoqEvent coqEvent = { 0 };
+    coqEvent.flags = event_type_key_down;
     coqEvent.key.modifiers = (uint32_t)event.modifierFlags;
-    coqEvent.key.isVirtual = false;
-    for(uint32_t i = 0; i < uminu(8, (uint32_t)strlen(c_str)); i++)
-        coqEvent.key.typedChar[i] = c_str[i];
+    coqEvent.key.keycode =   event.keyCode;
+    coqEvent.key.mkc =       MKC_of_keycode[event.keyCode];
+    strncpy(coqEvent.key.typed.c_str, [event.characters UTF8String], 7);
     CoqEvent_addEvent(coqEvent);
 }
 -(void)keyUp:(NSEvent *)event {
@@ -332,19 +326,19 @@
     [self setPaused:NO];
     if(event.isARepeat && CoqEvent_ignoreRepeatKeyDown) return;
     
-    CoqEvent coqEvent;
-    coqEvent.flags = event_type_keyUp;
-    coqEvent.key.keycode = event.keyCode;
+    CoqEvent coqEvent = { 0 };
+    coqEvent.flags = event_type_key_up;
     coqEvent.key.modifiers = (uint32_t)event.modifierFlags;
-    coqEvent.key.isVirtual = false;
+    coqEvent.key.keycode =   event.keyCode;
+    coqEvent.key.mkc =       MKC_of_keycode[event.keyCode];
     CoqEvent_addEvent(coqEvent);
 }
 -(void)flagsChanged:(NSEvent *)event {
     if(root == NULL) return;
     [self setPaused:NO];
     
-    CoqEvent coqEvent;
-    coqEvent.flags = event_type_keyMod;
+    CoqEvent coqEvent = { 0 };
+    coqEvent.flags = event_type_key_mod;
     coqEvent.key.modifiers = (uint32_t)event.modifierFlags;
     CoqEvent_addEvent(coqEvent);
 }

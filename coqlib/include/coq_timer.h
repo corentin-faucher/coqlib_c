@@ -5,10 +5,10 @@
 //  Created by Corentin Faucher on 2023-10-23.
 //
 
-#ifndef _coq_timer_h
-#define _coq_timer_h
+#ifndef COQ_TIMER_H
+#define COQ_TIMER_H
 
-#include "_utils/_utils_.h"
+#include "nodes/node_base.h"
 
 typedef struct _Timer Timer;
 
@@ -19,9 +19,17 @@ void Timer_check(void);
 
 /// Création d'un timer qui call `callBack` sur `target_object` après `deltaTimeMS`.
 /// A priori, il est preferable de garder la reference au timer (passer à `timerRefOpt`).
-/// Si le taget objet doit etre `free` il faut caller `timer_cancel` dans sont deinit.
+/// Si le `target_node` est `_flag_toDelete`, le timer sera automatiquement cancelé.
 void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
-                     void* target_object, void (*callBack)(void*));
+                     Node* target_node, void (*callBack)(Node*));
+
 void timer_cancel(Timer** timerRef);
+
+/// Création d'un timer qui call `callBack` sur `target_node` après `deltaTimeMS`.
+/// A priori, il est preferable de garder la reference au timer (passer à `timerRefOpt`).
+/// Si le `target_node` est `_flag_toDelete`, le timer sera automatiquement cancelé.
+//void timer_scheduledNode(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
+//                         Node* target_node, void (*callBack)(Node*));
+
 
 #endif /* timer_h */

@@ -1,6 +1,9 @@
 /*-- Vertex shader -----------------*/
 /*-- Corentin Faucher, 2 fev 2019 --*/
+//#version 300 es
 #version 410
+precision mediump float;
+
 
 
 // Vertex attributes, i.e. vertex "in"
@@ -47,7 +50,7 @@ void main() {
     // // out_uv = (in_uv * (tex_wh - tex_mn) + inst_ij * tex_wh) / (tex_mn*(tex_wh - 1.));
 
     gl_Position = frame_projection * inst_model * posTmp;
-    // gl_Position = frame_projection * inst_model * in_position;
+//     gl_Position = frame_projection * inst_model * in_position;
 }
 
 /*

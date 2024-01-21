@@ -1,4 +1,4 @@
-# Makefile pour la démo coqlib avec glfw.
+# Makefile pour la démo coqlib.
 # Compileur
 CC := cc
 # Repertoires des fichiers sources, objets...
@@ -14,11 +14,13 @@ CFLAGS=-g -DDEBUG -DWITH_OPENGL -Wall -Iinclude \
 
 ifeq ($(OS_NAME), Darwin)
 	LFLAGS=-L../coqlib/lib -framework OpenGL -framework OpenAL \
-	       -lcoqlib -lglfw `sdl2-config --libs` -lSDL2_ttf -lSDL2_image
+		   `sdl2-config --libs` -lSDL2_ttf -lSDL2_image
+	LFLAGS2=-lcoqlib
 # -F/Library/Frameworks -framework SDL2 -framework SDL2_ttf -framework SDL2_image
 else
-	LFLAGS=-L../coqlib/lib -lcoqlib -lglfw `sdl2-config --libs` \
-	       -lSDL2_ttf -lSDL2_image -lGL -lopenal
+	LFLAGS=-L../coqlib/lib -lunwind -lm -lGLEW -lGL \
+	       -lSDL2 -lSDL2_ttf -lSDL2_image -lopenal
+	LFLAGS2=-lcoqlib
 endif
 
 # Lister les fichiers c.
@@ -27,14 +29,13 @@ SRCS := $(shell find $(SRCDIR) -name "*.c")
 OBJS := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 
 all: $(BIN)
-	@echo Running app $@
-	@echo $(MAKE)
+	@echo Running app $(BIN)
 	@./$(BIN)
 
 $(BIN): $(OBJS)
 	@echo Linking $@
 	@test -d $(@D) || mkdir -p $(@D)
-	@$(CC) $(CFLAGS) $(LFLAGS) $(OBJS) -o $@
+	@$(CC) $(LFLAGS) $(OBJS) -o $@ $(LFLAGS2)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling object $@...

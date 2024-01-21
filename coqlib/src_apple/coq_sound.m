@@ -7,7 +7,7 @@
 
 #import <AVFoundation/AVFoundation.h>
 #include "coq_sound.h"
-#include "_math/_math_chrono.h"
+#include "maths/math_chrono.h"
 
 bool             Sound_isMute = false;
 static float     _volumes[Sound_volume_count] = {
@@ -74,7 +74,7 @@ AVAudioPCMBuffer* _Sound_createBuffer(NSString* wavName, AVAudioFormat* expected
     return buffer;
 }
 
-void  _Sound_resume(void) {
+void  Sound_resume(void) {
     if(_engine != nil) { return; }
     if(_wav_names == NULL || _wav_count == 0) {
         printerror("No wav sound to load."); return;
@@ -116,7 +116,7 @@ void  _Sound_resume(void) {
     _engine = engine;
 }
 
-void  _Sound_suspend(void) {
+void  Sound_suspend(void) {
     if(_engine == nil) {
         printwarning("Sound already deinit."); return;
     }
@@ -142,7 +142,7 @@ void  _Sound_suspend(void) {
 void  Sound_initWithWavNames(const char* wav_names[], uint32_t wav_count) {
     _wav_names = wav_names;
     _wav_count = wav_count;
-    _Sound_resume();
+    Sound_resume();
 }
 
 void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volumeId) {

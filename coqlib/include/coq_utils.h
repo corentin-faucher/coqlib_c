@@ -4,15 +4,15 @@
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
-#ifndef _coq_utils_all_h
-#define _coq_utils_all_h
+#ifndef COQ_UTILS_ALL_H
+#define COQ_UTILS_ALL_H
 
-#include "_utils/_utils_char_and_keycode.h"
-#include "_utils/_utils_file.h"
-#include "_utils/_utils_language.h"
-#include "_utils/_utils_string.h"
+#include "utils/utils_char_and_keycode.h"
+#include "utils/utils_file.h"
+#include "utils/utils_language.h"
+#include "utils/utils_string.h"
 #ifndef WITH_OPENGL
-#include "_utils_apple.h"
+#include "utils_apple.h"
 #endif
 
 #endif

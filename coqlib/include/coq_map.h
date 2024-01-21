@@ -5,10 +5,10 @@
 //  Created by Corentin Faucher on 2023-10-24.
 //
 
-#ifndef _coq_map_h
-#define _coq_map_h
+#ifndef COQ_MAP_H
+#define COQ_MAP_H
 
-#include "_utils/_utils_.h"
+#include "utils/utils_base.h"
 
 /// Struct pour un dictionnaire / map.
 typedef struct StringMap StringMap;
@@ -28,7 +28,7 @@ void       map_destroyAndNull(StringMap** const map, void (*value_deinitOpt)(voi
 void  map_print(StringMap* map, void (*printValueOpt)(const char*));
 
 /// Store une copie des données pointées par valueDataOpt.
-/// Retourne la référence de la copie crée.
+/// Retourne la référence de la copie crée (ou la valeur existante)
 /// Si on passe null à valueDataOpt, on crée une nouvelle entrée (si absent) avec les données à zero.
 /// Si le couple (key, value) existe, la donnee existante n'est pas remplacée.
 /// Ici on specifie la taille des donnees stockes.

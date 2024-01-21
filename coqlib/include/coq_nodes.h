@@ -8,12 +8,12 @@
 #ifndef _coq_nodes_all_h
 #define _coq_nodes_all_h
 
-#include "_nodes/_node_squirrel.h"
-#include "_nodes/_node_structs.h"
-#include "_nodes/_node_tree.h"
-#include "_nodes/_node_number.h"
-#include "_nodes/_node_root.h"
-#include "_nodes/_node_sparkles.h"
+#include "nodes/node_squirrel.h"
+#include "nodes/node_structs.h"
+#include "nodes/node_tree.h"
+#include "nodes/node_number.h"
+#include "nodes/node_root.h"
+#include "nodes/node_sparkles.h"
 // (les autres sont déjà inclus dans ces derniers...)
 
 #endif /* Header_h */

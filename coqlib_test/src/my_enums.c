@@ -6,6 +6,10 @@
 //
 #include "my_enums.h"
 #include <stdbool.h>
+#include "nodes/node__types.h"
+
+const uint32_t node_type_flag_particule =    node_type_firstCustomFlag;
+const uint32_t node_type_nf_particule =     node_type_n_fluid|node_type_flag_particule|node_type_flag_notCopyable;
 
 static const char* _Localizable_stringKeys[] = {
     "app_name",

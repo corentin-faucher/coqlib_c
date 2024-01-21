@@ -7,6 +7,7 @@
 #import "AppDelegate.h"
 
 #include "coq_sound.h"
+#include "graph__apple.h"
 
 #include "my_enums.h"
 #include "my_root.h"
@@ -36,6 +37,21 @@
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+    printdebug("🐞🐛🐞-- Debug Mode --🐞🐛🐞");
+    // 1. Init des variables `system` et independantes des prefs (fonts manager)
+    srand((uint32_t)time(NULL));
+    Language_init();
+    CoqSystem_updateCurrentLayout();
+    CoqSystem_updateCurrentTheme();
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    Font_init();
+    Mesh_init(device);
+    Texture_init(device);
+    
+    // 3. Chargement des resources
+    Texture_loadPngs(MyProject_pngInfos, png_total_pngs);
+    Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds);
+    
     // Creation d'une fenetre
     NSUInteger uistlyle =  NSWindowStyleMaskClosable|NSWindowStyleMaskTitled|
          NSWindowStyleMaskResizable|NSWindowStyleMaskMiniaturizable|NSWindowStyleMaskFullSizeContentView;
@@ -52,14 +68,9 @@
     [window center];
     [window setContentAspectRatio:NSMakeSize(16, 10)];
     [window setContentMinSize:NSMakeSize(400, 250)];
+    
     // Vue Metal
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     view = [[CoqMetalView alloc] initWithFrame:[window frame] device: device];
-    
-    
-    /*-- Chargement des resources du projet. --*/
-    Texture_loadPngs(MyProject_pngInfos, png_total_pngs);
-    Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds);
     
     /*-- Tout est init, on peut créer la structure... --*/
     view->root = Root_createMyRoot();
@@ -67,6 +78,10 @@
     // Fini
     [window setContentView:view];
     [view updateRootFrame:view.drawableSize];
+    
+    // Chronos, unpause.
+    view->renderer->noSleep = YES;
+    ChronoApp_setPaused(false);
 }
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
@@ -84,12 +99,12 @@
 
 -(void)applicationWillResignActive:(NSNotification *)notification {
     [view setSuspended:YES];
-    _Texture_suspend();
-    _Sound_suspend();
+    Texture_suspend();
+    Sound_suspend();
 }
 -(void)applicationDidBecomeActive:(NSNotification *)notification {
-    _Texture_resume();
-    _Sound_resume();
+    Texture_resume();
+    Sound_resume();
     [view setSuspended:NO];
 }
 

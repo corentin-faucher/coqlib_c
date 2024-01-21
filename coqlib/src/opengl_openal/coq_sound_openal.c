@@ -1,8 +1,8 @@
 // Version OpenAL pour les sons.
 
 #include "coq_sound.h"
-#include "_math/_math_chrono.h"
-#include "_utils/_utils_file.h"
+#include "maths/math_chrono.h"
+#include "utils/utils_file.h"
 
 #ifdef __APPLE__
 #define AL_SILENCE_DEPRECATION
@@ -16,18 +16,18 @@
 
 
 
-static ALCdevice*   _AL_device = NULL;
-static ALCcontext*  _AL_context = NULL;
-static ALuint*      _AL_buffer_ids = NULL;
-static ALuint*      _AL_source_ids = NULL;
+static ALCdevice*   AL_device_ = NULL;
+static ALCcontext*  AL_context_ = NULL;
+static ALuint*      AL_buffer_ids_ = NULL;
+static ALuint*      AL_source_ids_ = NULL;
 
 bool             Sound_isMute = false;
-static float     _volumes[Sound_volume_count] = {
+static float     volumes_[Sound_volume_count] = {
     1, 1, 1, 1, 1
 };
 
-static const char**   _wav_names = NULL;
-static uint32_t       _wav_count = 0;
+static const char**   wav_names_ = NULL;
+static uint32_t       wav_count_ = 0;
 
 /// Header d'un fichier .wav. 36 bytes.
 typedef struct {
@@ -44,7 +44,7 @@ typedef struct {
     uint16_t bitsPerSample;
 } WavHeader;
 
-void _Sound_alSetAudioBuffer(ALuint buffer_id, const char* wavName) {
+void Sound_alSetAudioBuffer_(ALuint buffer_id, const char* wavName) {
     // Ouverture du fichier wav
     const char* wav_path = FileManager_getResourcePathOpt(wavName, "wav", "wavs");
     FILE* f = fopen(wav_path, "rb");
@@ -83,52 +83,52 @@ void _Sound_alSetAudioBuffer(ALuint buffer_id, const char* wavName) {
     free(wav_buffer);
 }
 
-void  _Sound_resume(void) {
-    if(_AL_device) return;
-    if(!_wav_count) {
+void  Sound_resume(void) {
+    if(AL_device_) return;
+    if(!wav_count_) {
         printdebug("Sound: nothing to resume.");
         return;
     }
     // Device et context OpenAL
-    _AL_device =  alcOpenDevice(NULL);
-    _AL_context = alcCreateContext(_AL_device, NULL);
-    alcMakeContextCurrent(_AL_context);
+    AL_device_ =  alcOpenDevice(NULL);
+    AL_context_ = alcCreateContext(AL_device_, NULL);
+    alcMakeContextCurrent(AL_context_);
     // Buffers des sons
-    _AL_buffer_ids = calloc(_wav_count, sizeof(ALuint));
-    _AL_source_ids = calloc(_wav_count, sizeof(ALuint));
-    alGenBuffers(_wav_count, _AL_buffer_ids);
-    alGenSources(_wav_count, _AL_source_ids);
-    for(int i = 0; i < _wav_count; i ++) {
-        _Sound_alSetAudioBuffer(_AL_buffer_ids[i], _wav_names[i]);
-        alSourcei(_AL_source_ids[i], AL_BUFFER, _AL_buffer_ids[i]);
+    AL_buffer_ids_ = calloc(wav_count_, sizeof(ALuint));
+    AL_source_ids_ = calloc(wav_count_, sizeof(ALuint));
+    alGenBuffers(wav_count_, AL_buffer_ids_);
+    alGenSources(wav_count_, AL_source_ids_);
+    for(int i = 0; i < wav_count_; i ++) {
+        Sound_alSetAudioBuffer_(AL_buffer_ids_[i], wav_names_[i]);
+        alSourcei(AL_source_ids_[i], AL_BUFFER, AL_buffer_ids_[i]);
     }
 }
 
-void  _Sound_suspend(void) {
-    if(!_AL_device) return;
+void  Sound_suspend(void) {
+    if(!AL_device_) return;
     // 1. Delier sources et buffer (utile ?)
-    for(int i = 0; i < _wav_count; i ++) {
-        alSourcei(_AL_source_ids[i], AL_BUFFER, 0);
+    for(int i = 0; i < wav_count_; i ++) {
+        alSourcei(AL_source_ids_[i], AL_BUFFER, 0);
     }
     // 2. Effacer les sources et les buffers.
-    alDeleteBuffers(_wav_count, _AL_buffer_ids);
-    alDeleteSources(_wav_count, _AL_source_ids);
-    free(_AL_buffer_ids);
-    free(_AL_source_ids);
-    _AL_buffer_ids = NULL;
-    _AL_source_ids = NULL;
+    alDeleteBuffers(wav_count_, AL_buffer_ids_);
+    alDeleteSources(wav_count_, AL_source_ids_);
+    free(AL_buffer_ids_);
+    free(AL_source_ids_);
+    AL_buffer_ids_ = NULL;
+    AL_source_ids_ = NULL;
     // 3. Defaire context et device
     alcMakeContextCurrent(NULL);
-    alcDestroyContext(_AL_context);
-    _AL_context = NULL;
-    alcCloseDevice(_AL_device);
-    _AL_device = NULL;
+    alcDestroyContext(AL_context_);
+    AL_context_ = NULL;
+    alcCloseDevice(AL_device_);
+    AL_device_ = NULL;
 }
 
 void  Sound_initWithWavNames(const char* wav_names[], uint32_t wav_count) {
-    _wav_names = wav_names;
-    _wav_count = wav_count;
-    _Sound_resume();
+    wav_names_ = wav_names;
+    wav_count_ = wav_count;
+    Sound_resume();
 }
 
 void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volumeId) {
@@ -136,13 +136,13 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
         printerror("Volume id overflow %d.", volumeId);
         return;
     }
-    if(soundId >= _wav_count) {
-        printerror("SoundId overflow %d, wav_count %d.", soundId, _wav_count);
+    if(soundId >= wav_count_) {
+        printerror("SoundId overflow %d, wav_count %d.", soundId, wav_count_);
         return;
     }
-    if(Sound_isMute || _volumes[volumeId] < 0.01)
+    if(Sound_isMute || volumes_[volumeId] < 0.01)
         return;
-    alSourcef(_AL_source_ids[soundId], AL_GAIN, volume * _volumes[volumeId]);
-    alSourcef(_AL_source_ids[soundId], AL_PITCH, powf(2.f,(float)pitch/12.f));
-    alSourcePlay(_AL_source_ids[soundId]);
+    alSourcef(AL_source_ids_[soundId], AL_GAIN, volume * volumes_[volumeId]);
+    alSourcef(AL_source_ids_[soundId], AL_PITCH, powf(2.f,(float)pitch/12.f));
+    alSourcePlay(AL_source_ids_[soundId]);
 }

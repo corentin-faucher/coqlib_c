@@ -1,5 +1,5 @@
 #include "renderer.h"
-#include "coq_nodes.h"
+
 
 /*-- Dims de la view ---------*/
 int           Renderer_width = 800;
@@ -51,6 +51,7 @@ void   _Renderer_drawDrawable(Drawable* d) {
     glUniform2fv(_inst_ij, 1, d->n.piu.tile);
     glUniform1f(_inst_emph, d->n.piu.emph);
     glUniform1f(_inst_show, d->n.piu.show);
+    // printdebug("drawing...");
 
     // 4. Dessiner
     if(_current_mesh_index_count) {
@@ -60,7 +61,7 @@ void   _Renderer_drawDrawable(Drawable* d) {
     }
 }
 
-void   Renderer_initWithWindow(GLFWwindow* window, const char* font_path, 
+void   Renderer_initWithWindow(SDL_Window* window, const char* font_path, 
                                const char* font_name)
  {
     // Shaders
@@ -119,8 +120,7 @@ void   Renderer_initWithWindow(GLFWwindow* window, const char* font_path,
     Mesh_init(_Renderer_program);
     Texture_init(_Renderer_program, font_path, font_name);
 }
-
-void   Renderer_drawView(GLFWwindow* window, Root* root) {
+void   Renderer_drawView(SDL_Window* window, Root* root) {
     if(!mesh_sprite) { printerror("Mesh not init."); return; }
     if(!root) { printerror("No root."); return; }
     // 1. Check le chrono/sleep.
@@ -137,6 +137,7 @@ void   Renderer_drawView(GLFWwindow* window, Root* root) {
     matrix4_initProjectionWithRoot(&pfu_default.projection, root);
     glUniformMatrix4fv(_frame_projection, 1, GL_FALSE, pfu_default.projection.f_arr);
     glUniform1f(_frame_time, pfu_default.time);
+    // matrix4_print(&pfu_default.projection);
 
     // 3. Set viewport, et clear color (cc) red, green, blue, alpha.
     glViewport(0, 0, Renderer_width, Renderer_height);
@@ -160,6 +161,6 @@ void   Renderer_drawView(GLFWwindow* window, Root* root) {
     glBindVertexArray(0);
 
     // 5. Fini, présenter...
-    glfwSwapBuffers(window);
+    SDL_GL_SwapWindow(window);
 }
 

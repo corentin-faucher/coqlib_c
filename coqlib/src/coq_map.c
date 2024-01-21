@@ -174,6 +174,7 @@ char* map_putWithSize(StringMap* map, const char* key, const void* const valueDa
 //        else
 //            memset(hs->valueData, 0, size_value);
 //    }
+    // Retourner la valeur existante.
     return hs->valueData;
 }
 char* map_putAsString(StringMap* map, const char* key, const char* const string) {

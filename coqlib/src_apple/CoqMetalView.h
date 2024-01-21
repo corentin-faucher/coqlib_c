@@ -6,7 +6,7 @@
 //
 
 #import <MetalKit/MetalKit.h>
-#import "Renderer.h"
+#import "metal_renderer.h"
 
 
 //@protocol CoqViewDelegate;
@@ -19,7 +19,8 @@
 #if TARGET_OS_OSX == 1
     NSTrackingArea*  trackingArea;
 #endif
-    dispatch_queue_t _my_queue;
+    dispatch_queue_t checkup_queue;
+    NSTimer*         win_event_timer;
 }
 
 @property (nonatomic, getter=isSuspended) BOOL suspended;
