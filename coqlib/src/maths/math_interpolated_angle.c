@@ -7,6 +7,9 @@
 
 #include "maths/math_interpolated_angle.h"
 
+#include <string.h>
+#include "utils/utils_base.h"
+
 void intangle_init(InterpolatedAngle* ia, float pos) {
     memset(ia->vT, 0, sizeof(ia->vT));
     for(int i = 0; i < INT_ANGLE_SIZE; i++) {
@@ -15,7 +18,7 @@ void intangle_init(InterpolatedAngle* ia, float pos) {
 }
 
 void intangle_push(InterpolatedAngle* ia, float newPos) {
-    int64_t time = _CR_elapsedMS;
+    int64_t time = CR_elapsedMS_;
     if(time == ia->vT[ia->indexLast]) return;
     newPos = float_toNormalizedAngle(newPos);
     ia->vX[ia->indexCurrent] = newPos;

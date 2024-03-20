@@ -9,11 +9,11 @@
 
 #include "math_chrono.h"
 
-typedef struct _SmTrans {
+typedef struct SmTrans {
     ChronoTiny _t;
     ChronoTiny _D;
-    uint8_t _state;  // On est dans un etat a la fois.
-    uint8_t _flags;  // On peut avoir plusieurs flags a la fois.
+    uint16_t _flags;
+    uint16_t _sub;
 } SmTrans;
 
 void  SmTrans_setPopFactor(float popFactor);
@@ -21,12 +21,14 @@ void  SmTrans_setSemiFactor(float semiFactor);
 void  SmTrans_setTransTime(ChronoTiny transTime);
 
 void  smtrans_init(SmTrans *st);
-int   smtrans_isActive(SmTrans st);
-float smtrans_isOnSmooth(SmTrans *st);
-float smtrans_setAndGetIsOnSmooth(SmTrans *st, int isOn);
+bool  smtrans_isActive(SmTrans st);
+float smtrans_value(SmTrans *st);
+float smtrans_setAndGetIsOnSmooth(SmTrans *st, bool isOn);
 
-void  smtrans_setIsOn(SmTrans *st, int isOn);
-void  smtrans_setIsOnHard(SmTrans *st, int isOn);
-void  smtrans_setOptions(SmTrans *st, int isHard, int isPoping);
+void  smtrans_setIsOn(SmTrans *st, bool isOn);
+void  smtrans_fixIsOn(SmTrans *st, bool isOn);
+/// Modifie la valeur "ON", par défaut 1. Doit être entre 0 et 1.
+void  smtrans_setMaxValue(SmTrans *st, float newMax);
+void  smtrans_setOptions(SmTrans *st, bool isHard, bool isPoping);
 
 #endif /* smtrans_h */

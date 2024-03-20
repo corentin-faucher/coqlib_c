@@ -8,7 +8,6 @@
 #ifndef _coq_node_drawable_h
 #define _coq_node_drawable_h
 
-#include <stdio.h>
 #include "node_base.h"
 #include "maths/math_smtrans.h"
 #include "graphs/graph_texture.h"
@@ -25,9 +24,13 @@ typedef struct _Drawable {
     /// Upcasting as Node.
     Node     n;
     /// La texture attaché. Peut être owned ou shared.
-    Texture* tex;
+    /// C'est plus ou moins `privé`... On ne devrait pas avoir besoin d'y toucher.
+    /// (Les texture doivent être `release` quand on en a plus besoin...
+    ///  Drawable s'occupe de release sa texture lors du deinit.) 
+    Texture* _tex;
     /// La mesh attaché. Peut être owned ou shared.
-    Mesh*    mesh;
+    /// Ici aussi c'est plus ou moins privé, et le deinit de Drawable libère la mesh si besoin.
+    Mesh*    _mesh;
     /// Smooth transition pour affichage ON/OFF.
     SmTrans  trShow;
     /// Transition en extra ! e.g. emphasis, flip, etc.
@@ -35,21 +38,28 @@ typedef struct _Drawable {
     /// Marge en x. -> Ratio de deltaY.
     ///  (peut être négatif, voir `_drawable_updateScaleXAndWidth`)
     float    x_margin;
+    /// Mémoire des dimensions `target`. Utile pour l'edition de strings.
+    /// twoDxTarget == 0 => On prend le ratio de la texture...
+    float    twoDxTarget, twoDyTarget;  // twoDy superflu ?
 } Drawable;
 
-// Init de base, set le deinit.
-void      drawable_init(Drawable* d, Texture* tex, Mesh* mesh);
-/// Constructeur de base. Utilisez a priori les constructeurs spécifiques
+/// Constructeur Général. Utilisez a priori les constructeurs spécifiques...
 /// (image, string, frame...).
-Drawable* Drawable_create(Node* const refOpt,
+Drawable* Drawable_createImageGeneral(Node* const refOpt,
                           Texture* const tex, Mesh* const mesh,
+                          float x, float y, float twoDxOpt, float twoDy, float x_margin,
                           flag_t flags, uint8_t node_place);
-Drawable* Drawable_createAndSetDims(Node* const refOpt,
-                                    float x, float y, float twoDxOpt, float twoDy,
-                                    Texture* const tex, Mesh* const mesh,
-                                    flag_t flags, uint8_t node_place);
-/// Downcasting
-Drawable* node_asDrawableOpt(Node* nd);
+Drawable*  node_asDrawableOpt(Node* nd);
+/// Voir `noderef_fastDestroyAndNull`.
+void       drawableref_fastDestroyAndNull(Drawable** const drawableOptRef);
+/// Vérifie si c'est un noeud drawable actif ou parant de drawable actif.
+int        node_isDisplayActive(Node* const node);
+/// Init (pour sous struct). Ne fait que setter les variables et méthodes.
+/// N'ajuste pas les dimensions (utilisez `drawable_updateDims_`).
+void      drawable_init_(Drawable* d, Texture* tex, Mesh* mesh, float twoDxOpt, float twoDy);
+/// Mise à jours des dimensions du drawable en fonction de la texture et des deltas targets.
+/// Si twoDx (width) == 0 -> la larger se base sur le ratio w/h du png/string d'origine.
+void      drawable_updateDims_(Drawable* d);
 
 /// Mise a jour de la matrice model d'un noeud avant l'affichage.
 /// Retourne un drawable si le noeud peut etre downcaster en drawable.
@@ -57,37 +67,42 @@ Drawable* node_asDrawableOpt(Node* nd);
 ///  voir `_node_root.h` -> `node_updateModelAndGetDrawableOpt`.)
 Drawable* node_defaultUpdateModelAndGetAsDrawableOpt(Node* node);
 
-/*-- Surface d'image (png), peut etre une tile du png... ------------------*/
-/// Création d'une image (sprite avec png). Le ratio w/h est le même que le png d'origine.
+/*-- Surface d'image (png) : tile d'un png... ------------------*/
+/// Convenience constructor : création d'une image (sprite avec png). Le ratio w/h est le même que le png d'origine.
+/// Ici, on passe l'id du png.
 Drawable* Drawable_createImage(Node* refOpt, uint32_t pngId,
                                float x, float y, float twoDy, flag_t flags);
-/// Création d'une image (sprite avec png). Le ratio w/h est le même que le png d'origine.
+Drawable* Drawable_createImageWithFixedWidth(Node* const refOpt, uint32_t pngId,
+                               float x, float y, float twoDx, float twoDy, flag_t flags);
+/// Convenience constructor : création d'une image (sprite avec png). Le ratio w/h est le même que le png d'origine.
+/// Ici, on passe le nom du png.
 Drawable* Drawable_createImageWithName(Node* refOpt, const char* pngName,
                           float x, float y, float twoDy, flag_t flags);
-/// Cas particulier de Drawable_createImage.
-/// Création d'une image où la tile est setter à la langue actuelle a l'ouverture.
+/// Cas particulier de `Drawable_createImage`. Ici, la tile est setter à la langue actuelle a l'ouverture.
 Drawable* Drawable_createImageLanguage(Node* refOpt, uint32_t pngId,
                                        float x, float y, float twoDy, flag_t flags);
-/*-- Surface de String constante. ---------------------------------------------------*/
-Drawable* Drawable_createConstantString(Node* refOpt, const char* c_str,
-                              float x, float y, float maxTwoDxOpt, float twoDy,
-                              flag_t flags);
+/// Convenience constructor : création d'une image (sprite) de couleur uni.
+Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
+                               float x, float y, float twoDx, float twoDy);
 /*-- Surface de String (localise ou mutable). ----------------------------------------*/
-Drawable* Drawable_createString(Node* const refOpt, UnownedString str,
+Drawable* Drawable_createString(Node* const refOpt, StringDrawable str,
                    float x, float y, float maxTwoDxOpt, float twoDy,
-                   flag_t flags);
-
-/// Mise à jours des dimensions du drawable.
-/// Si twoDx (width) == 0 -> la larger se base sur le ratio w/h du png/string d'origine.
-void      drawable_updateDimsWithDeltas(Drawable* d, float twoDxOpt, float twoDy);
-
+                   flag_t flags, uint8_t node_place);
+/// Mise à jour d'une string `mutable`.
+void      drawable_updateAsMutableString(Drawable* d, const char* new_c_str, bool forceRedraw);
+/// Mise à jour d'une string `shared`/constante.
+void     drawable_updateAsSharedString(Drawable* d, StringDrawable const str);
+void      drawable_updatePngId(Drawable* d, uint32_t newPngId);
 // Convenience setters...
 void      drawable_setTile(Drawable* d, uint32_t i, uint32_t j);
 void      drawable_setTileI(Drawable* d, uint32_t i);
 void      drawable_setTileJ(Drawable* d, uint32_t j);
+// Modifis supplémentaires sur le dernier drawable créé.
+//extern Drawable* drawable_last_;
 void      drawable_last_setTile(uint32_t i, uint32_t j);
 void      drawable_last_setEmph(float emph);
 void      drawable_last_setShowOptions(bool isHard, bool isPoping);
+void      drawable_last_setColor(Vector4 color);
 
 /*-- Frames, drawable particulier pour "entourer" un autre drawable/node. ------------------*/
 typedef enum {
@@ -109,9 +124,8 @@ typedef struct _Frame {
 } Frame;
 
 /*-- Surface de "Frame". Un cadre ajustable. Typiquement autour d'un autre noeud. -----------*/
-Frame* Frame_createWithTex(Node* refOpt, float inside,
-                           float delta, float twoDxOpt, float twoDyOpt,
-                           Texture* tex, uint16_t options);
+Frame* Frame_createWithName(Node* const refOpt, float inside, float delta, 
+                    float twoDxOpt, float twoDyOpt, const char* pngName, uint16_t options);
 Frame* Frame_create(Node* refOpt, float inside, float delta,
                     float twoDxOpt, float twoDyOpt, uint32_t pngId, uint16_t options);
 
@@ -122,12 +136,8 @@ void   node_tryToAddTestFrame(Node* ref);
 void   node_last_tryToAddTestFrame(void);
 
 // Deinit de drawable (free mesh ou texture si owner).
-void _drawable_deinit_freeMesh(Node* nd);
-void _drawable_deinit_freeTexture(Node* nd);
-void _drawable_deinit_freeTextureAndMesh(Node* nd);
-
-/// Le dernier drawable créé.
-//extern Drawable* drawable_last_;
+void drawable_deinit_freeTexture_(Node* nd);
+void drawable_deinit_freeTextureAndMesh_(Node* nd);
 
 
 #endif /* node_surface_h */

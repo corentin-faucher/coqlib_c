@@ -21,7 +21,7 @@
     Mesh*            current_mesh;
     MTLPrimitiveType current_primitive_type;
     int              current_vertex_count;
-    id<MTLBuffer>    current_indicesBuffer;
+    id<MTLBuffer>    current_indicesBufferOpt;
     uint32_t         current_indexCount;
     MTLCullMode      current_cullMode;
     FluidPos         smDeltaT;

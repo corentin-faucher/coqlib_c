@@ -8,37 +8,47 @@
 #define COQ_MATH_BASE_H
 
 #include <math.h>
-#include "utils/utils_base.h"
+#include <stdbool.h>
+#include <stdint.h>
 
 // Si on veut l'allignement, utiliser
 // struct __attribute__((aligned(16))) Vector { union {...};};
 // Simd ou just __attribute__((aligned(16))) ??
 
-/*-- Vector2 -------------------------------------------------*/
-/// Struct de 2 float. (Non aligned)
+#pragma mark -- Vector2 -------------------------------------------------*/
+/// Paire de 2 float. (Non aligned)
+/// Pour une paire de unsigned, vour UintPair.
 /// On met le float array en premier pour une init plus simple. e.g. Vector2 v = {1,2}.
 typedef union {
     float         f_arr[2];
     struct {float x, y;};
     struct {float w, h;};
-//    float __attribute__((vector_size(8))) v; // Superflu ? (alignerait...)
+    // Version alignée superflu ?
+//    float __attribute__((vector_size(8))) v;
 //    simd_float2    v;
 } Vector2;
 extern const Vector2 vector2_ones;
 extern const Vector2 vector2_zeros;
 // Operations usuelles (similaire à celles de simd...)
 float   vector2_norm(Vector2 v);
+float   vector2_norm2(Vector2 v);
 float   vector2_dot(Vector2 v1, Vector2 v2);
+Vector2 vector2_projOn(Vector2 v, Vector2 target);
 float   vector2_distance(Vector2 v1, Vector2 v2);
 Vector2 vector2_normalize(Vector2 v);
 Vector2 vector2_minus(Vector2 v, Vector2 toSubtract);
 Vector2 vector2_add(Vector2 v, Vector2 toAdd);
+Vector2 vector2_mean(Vector2 a, Vector2 b);
 Vector2 vector2_times(Vector2 v, float f);
+Vector2 vector2_opposite(Vector2 v);
 /// Produit vectoriel avec vec k (i.e. Rotation de 90deg dans le sens horaire).
 Vector2 vector2_cross(Vector2 v);
 
+/// Paire de unsigned.
+typedef struct UintPair {uint32_t uint0, uint1; } UintPair;
 
-/*-- Rectangle -------------------------------------------------*/
+
+#pragma mark -- Rectangle -------------------------------------------------*/
 /// Structure "Rectangle" pour les zone de NSView, view SDL, etc.
 /// L'origine peut être le coin *supérieur* gauche (y inversé)
 /// OU le coin *inférieur* gauche  (y normal) dépendant de l'OS/environnement...
@@ -51,7 +61,7 @@ typedef union {
     };
 } Rectangle;
 
-/*-- Box (hitbox) -------------------------------------------------*/
+#pragma mark -- Box (hitbox) -------------------------------------------------*/
 /// Similaire à "Rectangle", mais avec le centre du rectangle et les *demis* largeurs/hauteurs.
 /// (plus pratique pour savoir si à l'intérieur...
 /// Box peut etre caster comme Rectangle et vice-versa, ça reste des arrays de 4 floats...)
@@ -64,7 +74,7 @@ typedef union {
     };
 } Box;
 
-/*-- Marges (autour d'une view) -------------------------------------*/
+#pragma mark -- Marges (autour d'une view) -------------------------------------*/
 /// Marges en pixels.
 typedef struct {
     double top;
@@ -73,7 +83,7 @@ typedef struct {
     double right;
 } Margins;
 
-/*-- Vector3 -------------------------------------------------*/
+#pragma mark -- Vector3 -------------------------------------------------*/
 typedef union {
     float          f_arr[3];
     struct { float x, y, z; };
@@ -92,28 +102,24 @@ float   vector3_dot(Vector3 v1, Vector3 v2);
 void    vector3_print(Vector3* v);
 
 
-/*-- Vecteur de 4 floats. -------------------------------*/
-// ici, aligned semble superflu. simd_float3 avec __attribute__((__ext_vector_type__(4)))
-// fait la job.
-//typedef __attribute__((__aligned__(16)))
+#pragma mark -- Vecteur de 4 floats. -------------------------------*/
 typedef union {
     /// En tant qu'array ordinaire de float, i.e. f_arr est un float*.
     float          f_arr[4];
     /// En tant qu'objet `__attribute__((vector_size(16)))` float,
     /// i.e. sorte de "super" float où on peut faire les operation arithmetiques,
     /// e.g. v1 + v2, sur les 4 floats en même temps.
-    /// (Superflu ? se fait automatiquement ?)
     float __attribute__((vector_size(16))) v;
 //    simd_float4    v;
-    struct { float x, y, z, w; };
-    struct { float r, g, b, a; };
+    struct { float x, y, z, w; };  // Position + w.
+    struct { float r, g, b, a; };  // En tant que couleur.
 } Vector4;
 // Pour afficher (besoin ?) ça serait genre
 // #pragma clang diagnostic ignored "-Wformat-invalid-specifier"
 // printf("My vector4 is %v4f.\n", myvec.v);
 
 
-/*-- Matrices 4x4 --------------------------------------*/
+#pragma mark -- Matrices 4x4 --------------------------------------*/
 typedef __attribute__((aligned(16)))union {
     float        f_arr[16];  // En premier pour init des valeurs.
     struct { Vector4 v0, v1, v2, v3; };
@@ -148,7 +154,7 @@ void matrix4_rotateYandTranslateYZ(Matrix4 *m, float thetaY, float ty, float tz)
 void matrix4_print(Matrix4 *m);
 
 
-/*-- Extensions de rand. -------------------------------*/
+#pragma mark -- Extensions de rand. -------------------------------*/
 
 /// Nombre aléatoire (distr. lin.) dans l'interval [min, max] inclusivement.
 float rand_floatIn(float min, float max);
@@ -169,11 +175,10 @@ bool  rand_bool(float p);
 int64_t rand_float_toInt(float f);
 /// Retourne un vecteur quelconque de rayon norm (de direction random).
 Vector2 rand_vector2_ofNorm(float norm);
-///// Position random dans la "box" (region rectangulaire voir plus haut).
+/// Position random dans la "box" (region rectangulaire voir plus haut).
 Vector2 rand_vector2_inBox(Box box);
 
-
-/*-- Extensions de uint. -------------------------------*/
+#pragma mark -- Extensions de uint. -------------------------------*/
 
 uint32_t  uint_highestDecimal(uint32_t u);
 uint32_t  uint_digitAt(uint32_t u, uint32_t decimal);
@@ -184,7 +189,7 @@ void   uintarr_linspace(uint32_t* u_arr, uint32_t u_arr_count,
 void   uintarr_print(uint32_t* u_arr, uint32_t u_arr_count);
 
 
-/*-- Extensions de float. -------------------------------*/
+#pragma mark -- Extensions de float. -------------------------------*/
 
 /// Retourne une angle dans l'interval [-pi, pi].
 float float_toNormalizedAngle(float f);

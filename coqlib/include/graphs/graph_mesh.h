@@ -51,12 +51,16 @@ Mesh*  Mesh_createEmpty(const Vertex* verticesOpt,  uint32_t vertexCount,
                         const uint16_t* indicesOpt, uint32_t indexCount,
                         enum MeshPrimitiveType primitive_type,
                         enum MeshCullMode cull_mode, bool isShared);
-void   mesh_destroy(Mesh* meshToDelete);
+void   mesh_destroyAndNull(Mesh** const meshToDelete);
 Mesh*  Mesh_createHorizontalBar(void);
 Mesh*  Mesh_createVerticalBar(void);
 Mesh*  Mesh_createFrame(void);
 Mesh*  Mesh_createFan(void);
 void   mesh_fan_update(Mesh* fan, float ratio);
+Mesh*  Mesh_createPlot(float* xs, float* ys, uint32_t count, float delta, float ratio);
+Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
+                           float ymin, float ymax, float yR, float deltaY,
+                           float lineWidthRatio);
 
 
 

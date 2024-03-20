@@ -24,7 +24,7 @@
     coqlib_test $ subl src/my_root.c
 ```
 
-## Tester dans Xcode
+## Tester dans Xcode (macOS)
 
 1. Créer un projet macOS -> App ; mom "coqlib_test_xcode", interface "XIB" (pas important, on va effacer le .xib) ; language Objective-C.
 
@@ -45,6 +45,11 @@
 8. Au groupe `coqlib_test_xcode`, ajouter les fichiers `AppDelegate.h`, `AppDelegate.m`, `main.m` et `Shaders.metal` de `coqlib_test/src_apple`. Ajouter aussi les fichiers `my_enums.c`, `my_root.c`, `my_particules.c` de `coqlib_test/src` et `my_enums.h`, `my_root.h`, `my_particules.h` de `coqlib_test/include`.
 
 9. C'est tout. Run cmd-r.
+
+10. On peut aussi ajouter le script pour trier automatiquement les fichiers en ordre alphabétique...  Cliquer le target `coqlib_test_xcode` -> `Edit Scheme...` -> `Build` -> `Post action` -> `New run script action` :
+```bash
+perl "${PROJECT_DIR}/../coqlib_test/script/sort_xcode_project" "${PROJECT_FILE_PATH}/project.pbxproj"
+```
 
 
 ## Notations sur les fonctions
@@ -83,3 +88,8 @@ e.g. `A myArray[myArray_count]; myArray_size = myArray_count * sizeof(A);`
 
 - Pour afficher en hexadecimal (dans une formated string), on utilise,
   e.g. "%#010x". # pour 0x, x pour hexadec, 10 pour 10 chars (en comptant 0x).
+
+-Pour identifier une fonction comme étant obsolete:
+```
+__attribute__((deprecated("utiliser `coq_calloc` + `node_init_` + `drawable_init_`.")))
+```

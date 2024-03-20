@@ -9,11 +9,11 @@
 #define _coq_nodes_all_h
 
 #include "nodes/node_squirrel.h"
-#include "nodes/node_structs.h"
 #include "nodes/node_tree.h"
 #include "nodes/node_number.h"
 #include "nodes/node_root.h"
-#include "nodes/node_sparkles.h"
+#include "nodes/node_poping.h"
+#include "nodes/node_sliding_menu.h"
 // (les autres sont déjà inclus dans ces derniers...)
 
 #endif /* Header_h */

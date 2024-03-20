@@ -7,6 +7,9 @@
 
 #include "utils/utils_base.h"
 
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>  // Info de la stack pour debugging.
+
 static int32_t alloc_count_ = 0;
 
 void print_trace_(uint32_t depth) {
@@ -67,9 +70,10 @@ void     coq_free_(void* ptr, const char* filename, uint32_t line) {
     printf("🦖❌ Free: %p, count %d -> %s line %d\n", ptr, alloc_count_, filename, line);
     free(ptr);
 }
-void    *coq_realloc_(void *ptr, size_t __size, const char* filename, uint32_t line) {
+void    *coq_realloc_(void * const ptr, size_t __size, const char* filename, uint32_t line) {
+    printf("🦖  Realloc: %p", ptr);
     void* new = realloc(ptr, __size);
     size_t chunks = (__size + 15) / 16;
-    printf("🦖  Realloc: %p -> %p, size %zu chk (count %d) -> %s line %d\n", ptr, new, chunks, alloc_count_, filename, line);
+    printf(" size %zu chk (count %d) -> %s line %d\n", chunks, alloc_count_, filename, line);
     return new;
 }

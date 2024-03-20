@@ -10,7 +10,7 @@
 
 #include "node_base.h"
 
-typedef struct _Squirrel {
+typedef struct Squirrel {
     Node *pos;
     Vector2 v;
     Vector2 s;
@@ -32,8 +32,7 @@ bool sq_isIn(Squirrel *sq);
 bool sq_goRight(Squirrel *sq);
 /// Aller au littleBro, si absent, aller à l'ainé.
 bool sq_goRightLoop(Squirrel *sq);
-/// S'il n'y a pas de littleBro, on le crée en clonant ref.
-/// Si copyNodeOpt est absent (NULL) on utilise la method par defaut Node_default_createCopy.
+/// Utile ?
 void sq_goRightForced(Squirrel *sq, Node* (*createNew)(void*), void* parOpt);
 /// Aller au premier littleBro sans de flag "flag".
 bool sq_goRightWithout(Squirrel *sq, flag_t flag);

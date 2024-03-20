@@ -6,7 +6,7 @@
 //
 
 #import <Cocoa/Cocoa.h>
-#import "CoqMetalView.h"
+#import "metal_view.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate> {
     // Il faut garder une (strong) reference

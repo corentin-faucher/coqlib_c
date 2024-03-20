@@ -14,130 +14,139 @@
 //    uint8_t _flags;  // On peut avoir plusieurs flags a la fois.
 //} SmTrans;
 
-const static uint8_t _sm_flag_poping = 1;
-const static uint8_t _sm_flag_hard = 2;
-const static uint8_t _sm_flag_semi = 4;
+enum {
+    sm_state_isDown_ =       0,
+    sm_state_goingUp_ =      1,
+    sm_state_goingDown_ =    2,
+    sm_state_goingUpOrDown_ = 3,
+    sm_state_isUp_ =         4,
+    sm_state_flags_ =        7,
+    sm_flag_poping_ =        8,
+    sm_flag_hard_ =         16,
+};
 
-const static uint8_t _sm_state_isDown = 0;
-const static uint8_t _sm_state_goingUp = 1;
-const static uint8_t _sm_state_goingDown = 2;
-const static uint8_t _sm_state_isUp = 4;
-
-static float        _sm_semiFactor =   0.4f;
-static ChronoTiny   _sm_defTransTime = 500;
-static float        _sm_a =     0.75 + (0.2) * 0.2;  // (pop factor est de 0.2 par défaut)
-static float        _sm_b =    -0.43 + (0.2) * 0.43;
+static float        sm_semiFactor_ =   0.4f;
+static ChronoTiny   sm_defTransTime_ = 500;
+static float        sm_a_ =     0.75 + (0.2) * 0.2;  // (pop factor est de 0.2 par défaut)
+static float        sm_b_ =    -0.43 + (0.2) * 0.43;
 
 // Valeur "smooth" isOn, entre 0.f et 1.f.
-float _sm_isOnSmooth(const SmTrans st) {
-    if(st._state == _sm_state_isDown)
+float sm_value_(const SmTrans st) {
+    if((st._flags & sm_state_flags_) == sm_state_isDown_)
         return 0.f;
-    float max = (st._flags & _sm_flag_semi) ? _sm_semiFactor : 1.f;
-    if(st._state == _sm_state_isUp)
+    float max = 1.f - (float)st._sub/(float)UINT16_MAX;
+    if(st._flags & sm_state_isUp_)
         return max;
     float ratio = (float)chronotiny_elapsedMS(st._t) / (float)st._D;
-    if(st._state == _sm_state_goingDown)
+    if(st._flags & sm_state_goingDown_)
         return  max * (1.f + cosf(M_PI * ratio)) / 2.f; // (smoothDown)
-    // _sm_state_goingUp
-    if(st._flags & _sm_flag_poping)
-        return max * (_sm_a + _sm_b * cosf(M_PI * ratio)
-                  + ( 0.5f - _sm_a) * cosf(2.f * M_PI * ratio)
-                  + (-0.5f - _sm_b) * cosf(3.f * M_PI * ratio)); // pippop
+    // Sinon, il reste going up.
+    if(st._flags & sm_flag_poping_)
+        return max * (sm_a_ + sm_b_ * cosf(M_PI * ratio)
+                  + ( 0.5f - sm_a_) * cosf(2.f * M_PI * ratio)
+                  + (-0.5f - sm_b_) * cosf(3.f * M_PI * ratio)); // pippop
     return max * (1.f - cosf(M_PI * ratio)) / 2.f; // smooth
 }
 
 void    SmTrans_setPopFactor(float popFactor) {
-    _sm_a =  0.75f + popFactor * 0.20f;
-    _sm_b = -0.43f + popFactor * 0.43f;
+    sm_a_ =  0.75f + popFactor * 0.20f;
+    sm_b_ = -0.43f + popFactor * 0.43f;
 }
 void    SmTrans_setSemiFactor(float semiFactor) {
-    _sm_semiFactor = semiFactor;
+    sm_semiFactor_ = semiFactor;
 }
 void    SmTrans_setTransTime(ChronoTiny transTime) {
-    _sm_defTransTime = transTime;
+    sm_defTransTime_ = transTime;
 }
 
 void  smtrans_init(SmTrans *st) {
-    *st = (SmTrans){ 0, _sm_defTransTime, 0, 0 };
+    *st = (SmTrans){ 0, sm_defTransTime_, 0, 0 };
 }
-int   smtrans_isActive(SmTrans st) {
-    return st._state;  // Car _sm_state_isDown == 0.
+bool  smtrans_isActive(SmTrans const st) {
+    return st._flags & sm_state_flags_;  // Car sm_state_isDown == 0.
 }
-float smtrans_isOnSmooth(SmTrans *st) {
-    if(st->_state & (_sm_state_goingUp|_sm_state_goingDown)) {
-        if(chronotiny_elapsedMS(st->_t) > st->_D)
-            st->_state = (st->_state == _sm_state_goingUp) ?
-            _sm_state_isUp : _sm_state_isDown;
+float smtrans_value(SmTrans *st) {
+    if(st->_flags & sm_state_goingUpOrDown_) if(chronotiny_elapsedMS(st->_t) > st->_D) {
+        if(st->_flags & sm_state_goingUp_)
+            st->_flags |= sm_state_isUp_;
+        st->_flags &= ~sm_state_goingUpOrDown_;
     }
-    return _sm_isOnSmooth(*st);
+    return sm_value_(*st);
 }
-float smtrans_setAndGetIsOnSmooth(SmTrans *st, int isOn) {
+float smtrans_setAndGetIsOnSmooth(SmTrans *st, bool isOn) {
     smtrans_setIsOn(st, isOn);
-    return _sm_isOnSmooth(*st);
+    return sm_value_(*st);
 }
-void  smtrans_setIsOn(SmTrans *st, int isOn) {
+void  smtrans_setIsOn(SmTrans *st, bool isOn) {
     if(isOn) {
         // On verifie les cas du plus probable au moins probable.
-        if(st->_state == _sm_state_isUp)
+        if(st->_flags & sm_state_isUp_)
             return;
         int16_t elapsed = chronotiny_elapsedMS(st->_t);
-        if(st->_state == _sm_state_goingUp) {
-            if(elapsed > st->_D)
-                st->_state = _sm_state_isUp;
+        if(st->_flags & sm_state_goingUp_) {
+            if(elapsed > st->_D) {
+                st->_flags &= ~sm_state_goingUp_;
+                st->_flags |= sm_state_isUp_;
+            }
             return;
         }
-        if(st->_state == _sm_state_isDown) {
-            if(st->_flags & _sm_flag_hard)
-                st->_state = _sm_state_isUp;
+        if((st->_flags & sm_state_flags_) == sm_state_isDown_) {
+            if(st->_flags & sm_flag_hard_)
+                st->_flags |= sm_state_isUp_;
             else {
-                st->_state = _sm_state_goingUp;
+                st->_flags |= sm_state_goingUp_;
                 st->_t = chronotiny_startedChrono();
             }
             return;
         }
-        // _sm_state_goingDown
-        st->_state = _sm_state_goingUp;
+        // sm_state_goingDown
+        st->_flags &= ~sm_state_goingDown_;
+        st->_flags |= sm_state_goingUp_;
         if(elapsed < st->_D)
             st->_t = chronotiny_elapsedChrono(st->_D - elapsed);
         else
             st->_t = chronotiny_startedChrono();
         return;
     }
-    // isOn == false
-    if(st->_state == _sm_state_isDown)
+    // Cas isOn == false
+    if((st->_flags & sm_state_flags_) == sm_state_isDown_)
         return;
     ChronoTiny elapsed = chronotiny_elapsedMS(st->_t);
-    if(st->_state == _sm_state_goingDown) {
+    if(st->_flags & sm_state_goingDown_) {
         if(elapsed > st->_D)
-            st->_state = _sm_state_isDown;
+            st->_flags &= ~sm_state_flags_; // (down)
         return;
     }
-    if(st->_state == _sm_state_isUp) {
-        if(st->_flags & _sm_flag_hard)
-            st->_state = _sm_state_isDown;
-        else {
-            st->_state = _sm_state_goingDown;
+    if(st->_flags & sm_state_isUp_) {
+        st->_flags &= ~sm_state_flags_; // (down)
+        if(!(st->_flags & sm_flag_hard_)) {
+            st->_flags |= sm_state_goingDown_;
             st->_t = chronotiny_startedChrono();
         }
         return;
     }
-    // _sm_state_goingUp
-    st->_state = _sm_state_goingDown;
+    // sm_state_goingUp
+    st->_flags &= ~sm_state_goingUp_;
+    st->_flags |= sm_state_goingDown_;
     if(elapsed < st->_D)
         st->_t = chronotiny_elapsedChrono(st->_D - elapsed);
     else
         st->_t = chronotiny_startedChrono();
 }
-void  smtrans_setIsOnHard(SmTrans *st, int isOn) {
-    st->_state = isOn ? _sm_state_isUp : _sm_state_isDown;
+void  smtrans_fixIsOn(SmTrans *st, bool isOn) {
+    st->_flags &= ~sm_state_flags_;
+    if(isOn) st->_flags |= sm_state_isUp_;
 }
-void  smtrans_setOptions(SmTrans *st, int isHard, int isPoping) {
+void  smtrans_setMaxValue(SmTrans *st, float newMax) {
+    st->_sub = UINT16_MAX - (uint16_t)roundf(fminf(1.f, fmaxf(0.f, newMax))*(float)UINT16_MAX);
+}
+void  smtrans_setOptions(SmTrans *st, bool isHard, bool isPoping) {
     if(isHard)
-        st->_flags |= _sm_flag_hard;
+        st->_flags |= sm_flag_hard_;
     else
-        st->_flags &= ~_sm_flag_hard;
+        st->_flags &= ~sm_flag_hard_;
     if(isPoping)
-        st->_flags |=  _sm_flag_poping;
+        st->_flags |=  sm_flag_poping_;
     else
-        st->_flags &= ~_sm_flag_poping;
+        st->_flags &= ~sm_flag_poping_;
 }

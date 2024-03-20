@@ -8,35 +8,41 @@
 #ifndef COQ_NODE_BUTTON_H
 #define COQ_NODE_BUTTON_H
 
-#include "graphs/graph_texture.h"
-#include "node_fluid.h"
-#include "node_pop_disk.h"
-#include "coq_timer.h"
+#include "node_poping.h"
+#include "utils/utils_string.h"
+
+#pragma mark - Base de Bouton
+
+/// Donnée par defaut pour un bouton : 16 bytes/4 float a utiliser comme on veut.
+/// (évite de faire des sous-struct pour de simple boutons.)
+typedef union ButtonData {
+    char     char_arr[16];
+    uint32_t uint_arr[4];
+    struct {
+        uint32_t uint0, uint1, uint2, uint3;
+    };
+    float    float_arr[4];
+    struct {
+        float    float0, float1, float2, float3;
+    };
+    struct {
+        Node* node0;
+        Node* node1;
+    };
+} ButtonData;
 
 // Boutons, slider, objet deplacable...
-typedef struct _Button {
+typedef struct coq_Button Button;
+typedef struct coq_Button {
     union {  // Upcasting...
         Node   n;
         Fluid  f;  // A priori, un bouton est "fluide", peut bouger de façon smooth.
     };
-    /// Référence à la racine de la structure de l'app.
-    /// (Où s'applique généralement l'action d'un bouton...)
-    Root*       root;
-    Prefs**     prefsRef;
     /*-- Activation! --*/
     void (*action)(Button*);         // Doit etre definie/override.
-    // <- Jusqu'ici la structure est +/- commune à View...
-    //    i.e. Un button peut être caster comme une view pour root, prefs, action.
-    
-    // Donnée par defaut pour un bouton
-    // (évite de faire des sous-struct pour de simple boutons).
-    union {
-        uint32_t uint32Data;
-        int32_t  int32Data;
-        float    floatData;
-        char     char4Data[4];
-    };
-//    Button**   referer;  // Utile ?
+    /// Donnée par defaut pour un bouton : 16 bytes/4 float a utiliser comme on veut.
+    /// (évite de faire des sous-struct pour de simple boutons.)
+    union ButtonData data;
     
     /*-- Deplacement --*/
     // Le vecteur est la position relative au button, i.e. dans le ref du bouton.
@@ -49,69 +55,79 @@ typedef struct _Button {
 //    void (*showPop)
 } Button;
 
-Button* Button_create(Node* refOpt, Root* root, void (*action)(Button*),
+Button* Button_create(Node* refOpt, void (*action)(Button*),
                       float x, float y, float height, float lambda, flag_t flags);
 /// Sub-struct init.
-void    _button_init(Button* b, Root* root, void (*action)(Button*),
-                     float x, float y, float height, float lambda);
+void    button_init_(Button* b, void (*action)(Button*));
+
+/// Reprendre le dernier bouton créé.
+Button* const Button_getLastOpt(void);
+
 /// Downcasting
 Button* node_asActiveButtonOpt(Node* n);
+Button* node_asButtonOpt(Node* n);
 
+// Convenience setters
+void    button_last_setData(union ButtonData data);
+void    button_last_setDataUint0(uint32_t data_uint0);
 
+#pragma mark - Switch ON/OFF et Slider
+/// Bouton ON/OFF. La valeur ON/OFF est le premier bit de `uint3`.
+Button* Button_createSwitch(Node* refOpt, void (*action)(Button*), bool isOn,
+                            float x, float y, float height, float lambda, flag_t flags);
+void    button_switch_fix(Button* b, bool isOn);
+Button* Button_createDummySwitch(Node* refOpt, void (*action)(Button*), uint32_t data,
+                                 float x, float y, float height, float lambda, flag_t flags);
+/// Bouton de "fine-tuning". la valeur du slider est dans `float3` et varie de
+/// 0 (gauche) à 1 (droite).
+Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
+                            float value, float x, float y, float width, float height,
+                            float lambda, flag_t flags);
+/// Pour les sous-struct qui veulent overrider le drag du slider.
+void    button_slider_drag_(Button* b, Vector2 pos_rel);
 
-/*-- Exemple de Hoverable button ----------------------------------------------*/
-#define BUTTONHOV_MESSAGE_COUNT 32
-//typedef struct {
-//    uint32_t      popFramePngId;
-//    char          popMessage[BUTTONHOV_MESSAGE_COUNT];
-//    bool          popMessageLocalized;
-//} HoverablePopInfo;
-typedef struct _ButtonHov {
-    union {  // Upcasting...
-        Node      n;
-        Fluid     f;
-        Button    b;
-    };
-    uint32_t      popFramePngId;
-    UnownedString popMessage;
-    Timer*        timer;
-} ButtonHov;
-/// Modele de bouton avec survole (avec une string qui pop)
-ButtonHov* ButtonHoverable_create(Node* refOpt, Root* root, void (*action)(Button*),
-                                  uint32_t popFramePngId, UnownedString popMessage,
-                                  float x, float y, float height,
-                                  float lambda, flag_t flags);
-void       _buttonhoverable_init(ButtonHov* h, Root* root, void (*action)(Button*),
-                                 uint32_t popFramePngId, UnownedString popMessage,
-                                 float x, float y, float height,
-                                 float lambda);
+#pragma mark - Secure button with pop over.
 
-/*-- Exemple de Secure button -------------------------------------------------*/
 typedef struct  {
     float    holdTimeSec;
     uint32_t popPngId;
     uint32_t popTile;
     uint32_t failPopFramePngId;
-    UnownedString failMessage;
+    StringDrawable failMessage;
 } SecurePopInfo;
-typedef struct _ButtonSecure {
+
+Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
+                SecurePopInfo spi, uint32_t popFramePngId, StringDrawable popMessage,
+                float x, float y, float height, float lambda, flag_t flags);
+
+/// Juste secure pas de pop-over lors du survol.
+Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
+                SecurePopInfo spi, float x, float y, float height, float lambda, flag_t flags);
+/// Juste hoverable (pop-over) pas de secure (hold to activate).
+Button* ButtonHoverable_create(Node* refOpt, void (*action)(Button*),
+                uint32_t popFramePngId, StringDrawable popMessage,
+                float x, float y, float height, float lambda, flag_t flags);
+
+// La structure, pour si on veut faire une sous-struct.
+typedef struct ButtonSecureHov {
     union {  // Upcasting...
         Node      n;
         Fluid     f;
         Button    b;
     };
-    SecurePopInfo spi; // Info supplementaire pour un bouton secure. (plus commode en un packet)
     Timer*        timer;
+    // Hoverable
+    uint32_t      popFramePngId;
+    StringDrawable popMessage;
+    // Secure
+    SecurePopInfo spi; // Info supplementaire pour un bouton secure. (plus commode en un packet)
     PopDisk*      pop;
-} ButtonSecure;
+    bool          didActivate;
+} ButtonSecureHov;
 
+void buttonsecurehov_initJustSecure_(ButtonSecureHov* bsh, SecurePopInfo spi);
+void buttonsecurehov_initJustHoverable_(ButtonSecureHov* bsh, uint32_t popFramePngId, StringDrawable popMessage);
 
-ButtonSecure* ButtonSecure_create(Node* refOpt,
-                  Root* root, void (*action)(Button*), SecurePopInfo spi,
-                  float x, float y, float height, float lambda, flag_t flags);
-
-
-
-
+//extern Button* button_last_;
 
 #endif /* button_icon_h */

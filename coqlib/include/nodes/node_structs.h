@@ -20,14 +20,11 @@ typedef struct {
     float   frame_ratio;
     /// inside == 0 -> le cadre est à l'extérieur des lettres.
     float   frame_inside;
-    /// Pas de spiling -> Le frame est dans les dimension a priori.
+    /// Pas de spilling -> Le frame est dans les dimension a priori.
+    /// Si spilling -> le frame fait grossing les dimension a priori.
     bool    frame_isSpilling;
     /// On met à jours les dimension du parent.
     bool    updateParentSizes;
-    /// Marge en x (0.5*h).
-    float   x_margin;
-    /// Text noir par défaut.
-    Vector4 text_color;
 } FramedStringParams;
 
 /// Paramètres par défaut pour une string avec cadre :
@@ -40,12 +37,12 @@ extern const FramedStringParams framedString_defPars;
 /// Ajoute un frame et string (string encadrée) au noeud.
 /// Voir `FramedStringParams` pour les options.
 /// Retourne le drawable string créé.
-Drawable* node_addFramedString(Node* n, uint32_t framePngId, Texture* strTex,
+Drawable* node_addFramedString(Node* n, uint32_t framePngId, StringDrawable str,
                           FramedStringParams params);
 
 /// Ajoute au dernier noeud créé une frame et string.
 /// On a donc last->{..., frame, string}. Voir `node_addFramedString`.
-void node_last_addFramedString(uint32_t framePngId, Texture* strTex,
+void node_last_addFramedString(uint32_t framePngId, StringDrawable str,
                                FramedStringParams params);
 
 

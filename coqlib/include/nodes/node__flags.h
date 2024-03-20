@@ -23,7 +23,7 @@ typedef enum {
     flag_notToAlign =                   1ULL<<4,
     flag_poping =                       1ULL<<5,
     /// Heu, le noeud est dans la poubelle... Quittez le navire !
-    _flag_toDelete =                    1ULL<<6,
+    flag_toDelete_ =                    1ULL<<6,
     
     // Flags pour savoir quelle branches où chercher.
     flag_parentOfToDisplay =            1ULL<<7,
@@ -45,10 +45,11 @@ typedef enum {
     /// Pas automatiquement jetté à la poubelle (par defaut, quand on quitte une view, elle est détruite)
     flag_viewPersistent =                1ULL<<18,
     /// Defaut pour l'avant-plan et l'arrière-plan, i.e. toujours présent et pas d'alignemment des blocs.
-    flag_viewBackAndFrontDefaultFlags = flag_viewPersistent|flag_viewDontAlignElements|flag_exposed|flag_show,
+    flags_viewBackAndFrontDefault =      flag_viewPersistent|flag_viewDontAlignElements|flag_exposed|flag_show,
     
     // Pour les fluids
     /*-- Les flags de positionnement du noeud. Doivent être fournis à la création du noeud smooth. --*/
+    // `Relative` au parent, e.g. si flag_fluidRelativeToTop -> se place en haut du cadre du parent.
     flag_fluidRelativeToRight =        1ULL<<20,
     flag_fluidRelativeToLeft =         1ULL<<21,
     flag_fluidRelativeToTop =          1ULL<<22,
@@ -57,25 +58,25 @@ typedef enum {
     flag_fluidJustifiedLeft =          1ULL<<25,
     flag_fluidJustifiedTop =           1ULL<<26,
     flag_fluidJustifiedBottom =        1ULL<<27,
+    
     flag_fluidFadeInRight =            1ULL<<28,
     
-    flag_fluidRelativeFlags =
-        flag_fluidRelativeToTop|flag_fluidRelativeToBottom|
-        flag_fluidRelativeToLeft|flag_fluidRelativeToRight|
-        flag_fluidJustifiedTop|flag_fluidJustifiedBottom|
-        flag_fluidJustifiedLeft|flag_fluidJustifiedRight,
-    /// Besoin de la methode fluid_open_default
-    flag_fluidOpenFlags = flag_fluidRelativeFlags|flag_fluidFadeInRight,
-    /// Besoin de la methode fluid_close_default
-    flag_fluidCloseFlags = flag_fluidFadeInRight,
-    /// Besoin de la methode fluid_reshape_relatively
-    flag_fluidReshapeFlags = flag_fluidRelativeFlags,
+    flags_fluidRelatives = flag_fluidRelativeToTop|flag_fluidRelativeToBottom|
+                           flag_fluidRelativeToLeft|flag_fluidRelativeToRight,
+    flags_fluidJustifieds = flag_fluidJustifiedTop|flag_fluidJustifiedBottom|
+                            flag_fluidJustifiedLeft|flag_fluidJustifiedRight,
+    /// Flags ayaant besoin de  `fluid_reshape_` au reshape.
+    flags_fluidReshape = flags_fluidRelatives|flags_fluidJustifieds,
+    /// Flags ayant besoin de `fluid_open_` à l'open.
+    flags_fluidOpen = flags_fluidReshape|flag_fluidFadeInRight,
+    /// Flags ayant besoin de `fluid_close_` au close.
+    flags_fluidClose = flag_fluidFadeInRight,
     
     // Pour les boutons.
     flag_buttonInactive =                1ULL<<30,
     
     // Pour les root
-    flag_rootDefaultFlags = flag_exposed|flag_show|flag_parentOfToDisplay|flag_parentOfButton|
+    flags_rootDefault = flag_exposed|flag_show|flag_parentOfToDisplay|flag_parentOfButton|
         flag_parentOfScrollable|flag_parentOfReshapable,
 
     

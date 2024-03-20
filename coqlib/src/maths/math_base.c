@@ -7,14 +7,27 @@
 
 #include "maths/math_base.h"
 
+#include "utils/utils_base.h"
+
 const Vector2 vector2_ones =  {{1, 1}};
 const Vector2 vector2_zeros = {{0, 0}};
 
 float   vector2_norm(Vector2 v) {
     return sqrtf(v.x*v.x + v.y*v.y);
 }
+float   vector2_norm2(Vector2 v) {
+    return v.x*v.x + v.y*v.y;
+}
 float   vector2_dot(Vector2 v1, Vector2 v2) {
     return v1.x*v2.x + v1.y*v2.y;
+}
+Vector2 vector2_projOn(Vector2 v, Vector2 target) {
+    float dot = v.x*target.x + v.y*target.y;
+    float t2 = target.x*target.x + target.y*target.y;
+    return (Vector2) {{
+        dot * target.x / t2,
+        dot * target.y / t2
+    }};
 }
 float   vector2_distance(Vector2 v1, Vector2 v2) {
     return sqrtf((v1.x - v2.x)*(v1.x - v2.x) + (v1.y - v2.y)*(v1.y - v2.y));
@@ -29,8 +42,14 @@ Vector2 vector2_minus(Vector2 v, Vector2 toSubtract) {
 Vector2 vector2_add(Vector2 v, Vector2 toAdd) {
     return (Vector2) {{ v.x + toAdd.x, v.y + toAdd.y }};
 }
+Vector2 vector2_mean(Vector2 a, Vector2 b) {
+    return (Vector2) {{ 0.5*(a.x + b.x), 0.5*(a.y + b.y) }};
+}
 Vector2 vector2_times(Vector2 v, float f) {
     return (Vector2) {{ v.x*f, v.y*f }};
+}
+Vector2 vector2_opposite(Vector2 v) {
+    return (Vector2) {{ -v.x, -v.y }};
 }
 /// Produit vectoriel avec vec k (i.e. Rotation de 90deg dans le sens horaire).
 Vector2 vector2_cross(Vector2 v) {

@@ -6,9 +6,10 @@
 //
 
 #import "metal_renderer.h"
+#import "metal_view.h"
 
-#import "CoqMetalView.h"
 #include "graph__apple.h"
+#include "utils_apple.h"
 
 
 @implementation Renderer
@@ -20,7 +21,8 @@
         printerror("no device.");
         return self;
     }
-    view.colorPixelFormat = MTLPixelFormatRGBA8Unorm_sRGB;
+//    printdebug("Pixel format %d.", view.colorPixelFormat);
+//    view.colorPixelFormat = MTLPixelFormatRGBA8Unorm_sRGB;
     /*-- Command queue --*/
     queue = [device newCommandQueue];
     
@@ -28,7 +30,16 @@
     id<MTLLibrary> library = [device newDefaultLibrary];
     if(library == nil) { printerror("no library."); return self; }
     MTLRenderPipelineDescriptor *rpd = [MTLRenderPipelineDescriptor new];
+#if TARGET_OS_OSX == 1
     rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
+#else
+#warning Tester si il faut une vertex_function_ios13... ? (transition ok ?)
+    if(@available(iOS 14.0, *)) {
+        rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
+    } else {
+        rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
+    }
+#endif
     rpd.fragmentFunction = [library newFunctionWithName:@"fragment_function"];
     if(rpd.vertexFunction == nil || rpd.fragmentFunction == nil) {
         printerror("no vertex or fragment function."); return self;
@@ -65,22 +76,24 @@
 
 - (void)drawDrawable:(Drawable*)d withEncoder:(id<MTLRenderCommandEncoder>)encoder {
     // 1. Mise a jour de la mesh ?
-    if(current_mesh != d->mesh) {
-        current_mesh = d->mesh;
-        current_primitive_type = (MTLPrimitiveType)mesh_primitiveType(d->mesh);
-        current_vertex_count = mesh_vertexCount(d->mesh);
-        current_indicesBuffer = mesh_MTLIndicesBuffer(d->mesh);
-        current_indexCount = mesh_indexCount(d->mesh);
-        if(current_cullMode != (MTLCullMode)mesh_cullMode(d->mesh)) {
+    if(current_mesh != d->_mesh) {
+        current_mesh = d->_mesh;
+        current_primitive_type = (MTLPrimitiveType)mesh_primitiveType(d->_mesh);
+        current_vertex_count = mesh_vertexCount(d->_mesh);
+        current_indicesBufferOpt = mesh_MTLIndicesBufferOpt(d->_mesh);
+        current_indexCount = mesh_indexCount(d->_mesh);
+        if(current_cullMode != (MTLCullMode)mesh_cullMode(d->_mesh)) {
             [encoder setCullMode:(MTLCullMode)mesh_cullMode(current_mesh)];
             current_cullMode = (MTLCullMode)mesh_cullMode(current_mesh);
         }
-        [encoder setVertexBytes:mesh_vertices(current_mesh)
-                         length:mesh_verticesSize(current_mesh) atIndex:0];
+        id<MTLBuffer> buffer = mesh_MTLVerticesBuffer(current_mesh);
+        [encoder setVertexBuffer:buffer offset:0 atIndex:0];
+//        [encoder setVertexBytes:mesh_vertices(current_mesh)
+//                         length:mesh_verticesSize(current_mesh) atIndex:0];
     }
     // 2. Mise a jour de la texture ?
-    if(current_tex != d->tex) {
-        current_tex = d->tex;
+    if(current_tex != d->_tex) {
+        current_tex = d->_tex;
         bool newNearest = texture_isNearest(current_tex);
         if(current_tex_nearest != newNearest) {
             current_tex_nearest = newNearest;
@@ -91,13 +104,13 @@
                          length:sizeof(PerTextureUniforms) atIndex:3];
     }
     // 3. Per instance uniforms
-    [encoder setVertexBytes:&d->n.piu length:sizeof(PerInstanceUniforms) atIndex:1];
+    [encoder setVertexBytes:&d->n._piu length:sizeof(PerInstanceUniforms) atIndex:1];
     // 4. Dessiner
-    if(current_indicesBuffer != nil) {
+    if(current_indicesBufferOpt != nil) {
         [encoder drawIndexedPrimitives:current_primitive_type
                             indexCount:current_indexCount
                              indexType:MTLIndexTypeUInt16
-                           indexBuffer:current_indicesBuffer
+                           indexBuffer:current_indicesBufferOpt
                      indexBufferOffset:0];
     } else {
         [encoder drawPrimitives:current_primitive_type
@@ -116,7 +129,21 @@
         printerror("Root not init.");
         return;
     }
-    if(metalView.isSuspended) { return; }
+    if(metalView.isPaused) { return; }
+#if TARGET_OS_OSX != 1
+    if(metalView.transitioning) {
+        CALayer* presentation = [[metalView layer] presentationLayer];
+        if(!metalView.didTransition && (presentation != nil)) {
+            Vector2 frameSizePt = CGSize_toVector2([presentation bounds].size);
+#warning Fix frame size plutôt ?
+            root_justSetFrameSize_(root, frameSizePt);
+        } else {
+            metalView.transitioning = NO;
+            metalView.didTransition = NO;
+            [metalView updateRootFrame: [view frame].size dontFix:NO];
+        }
+    }
+#endif
     // Command buffer, command encoder... (a chaque frame)
     if(queue == nil || pipelineState == nil) return;
     id<MTLCommandBuffer> cb = [queue commandBuffer];
@@ -147,6 +174,7 @@
     
     // Drawing
     Drawable* (*updateModel)(Node*) = root->updateModelAndGetDrawable;
+    if(!updateModel) { printerror("No updateModel function."); return; }
     Squirrel sq;
     sq_init(&sq, (Node*)root, sq_scale_ones);
     do {
@@ -162,7 +190,7 @@
     cb = nil;
     current_tex = NULL;
     current_mesh = NULL;
-    current_indicesBuffer = nil;
+    current_indicesBufferOpt = nil;
     current_vertex_count = 0;
     current_indexCount = 0;
     
@@ -177,7 +205,7 @@
         return;
     }
     CoqMetalView* metalView = (CoqMetalView*)view;
-    [metalView updateRootFrame: size];
+    if(!metalView.transitioning) [metalView updateRootFrame:size dontFix:NO];
 }
 
 

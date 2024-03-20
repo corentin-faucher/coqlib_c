@@ -5,7 +5,9 @@
 //  Created by Corentin Faucher on 2023-10-23.
 //
 #include "coq_timer.h"
+
 #include "maths/math_chrono.h"
+#include "utils/utils_base.h"
 
 typedef struct _Timer {
     void    (*callBack)(Node*);
@@ -48,7 +50,7 @@ void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
     _Timer_active_count ++;
     if(timerRefOpt) {
         if(*timerRefOpt) {
-            printwarning("New timer before cancelinng the previous one.");
+            printwarning("Timer should be canceled before scheduling a new job.");
             timer_cancel(timerRefOpt);
         }
         *timerRefOpt = newTimer;
@@ -123,7 +125,7 @@ void Timer_check(void) {
     for(; t < end; t++) {
         if(t->callBack == NULL)
             continue;
-        if(t->target->flags & _flag_toDelete) {
+        if(t->target->flags & flag_toDelete_) {
             timer_deinit_(t);
             continue;
         }

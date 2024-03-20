@@ -27,6 +27,7 @@ typedef struct _FluidPos {
 } FluidPos;
 
 void  fl_init(FluidPos *fl, float pos, float lambda, bool asAngle);
+void  fl_initGammaK(FluidPos *fl, float pos, float gamma, float k, bool asAngle);
 /// Mettre a jour avec nouveaux gamma et k.
 /// gamma -> amortissement.
 /// k -> constance du ressort.
@@ -39,6 +40,10 @@ void  fl_updateToLambda(FluidPos *fl, float lambda);
 void  fl_set(FluidPos *fl, float pos);
 /// Setter "hard" de FluidPos. La position est fixée directement à `pos`.
 void  fl_fix(FluidPos* sp, float pos);
+/// Changement de référentiel quelconques (avec positions et scales absolues).
+void  fl_newReferential(FluidPos* fp, float pos, float destPos, float scale, float destScale);
+void  fl_newReferentialAsDelta(FluidPos* fp, float scale, float destScale);
+
 // Les convenience du set...
 void  fl_setRelToDef(FluidPos *fl, float shift);
 void  fl_move(FluidPos *fl, float shift);

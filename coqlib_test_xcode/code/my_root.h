@@ -9,6 +9,6 @@
 
 #include "coq_nodes.h"
 
-Root* Root_createMyRoot(void);
+Root* Root_initAndGetProjectRoot(void);
 
 #endif /* my_root_h */

@@ -19,11 +19,16 @@
 // frameWidth/frameHeihgt est le cadre complet (avec marges), e.g. 3.7 x 2.2.
 // viewWidthPx/viewHeihgtPx est la version en pixel (de la view de l'OS) des frameWidth/frameHeihgt,
 // e.g. 1080 x 640.
-typedef struct _Root {
-    // Upcasting.
-    Node        n;            // Peut être casté comme un noeud.
+typedef struct coq_Root {
+    Node        n;            // Peut être up-casté comme un noeud.
+    
     /// Zone active (dans la fenetre) de la root (marges incluses), e.g. 3.7 x 2.2 quand w x h = 3.5 x 2.
-    Vector2     fullSize;
+    FluidPos    fullSizeWidth;
+    FluidPos    fullSizeHeight;
+    /// Decalage en y pour la difference de marges haut/bas.
+    FluidPos    yShift;
+//    float       _yShift;
+//    Vector2     fullSize;
     /// Version points (typiquement 2x les pixels) de fullSize.
     Vector2     viewSizePt;
     /// Marges en points.
@@ -31,8 +36,6 @@ typedef struct _Root {
     /// Camera. que les vecteurs eye, centre, up. Typiquement (0,0,4), (0,0,0), (0,1,0).
     /// On peut s'amuser à la bouger...
     Camera      camera;
-    /// Decalage en y pour la difference de marges haut/bas.
-    float       _yShift;
     /// Couleur du fond (clearColor)
     FluidPos    back_RGBA[4];
     /// La derniére position clické/touché.
@@ -47,9 +50,6 @@ typedef struct _Root {
     /// Le fond d'écran.
     View*       viewBackOpt;
     Root*       rootParentOpt;
-    /// Préférences
-    /// à définir si besoin, il n'y qu'une prédéclaration.
-    Prefs**     prefsRef;
     
     /// Events... ? Juste shouldTerminate pour l'instant.
     bool        shouldTerminate;    
@@ -61,30 +61,40 @@ typedef struct _Root {
     void        (*changeScreenActionOpt)(Root*);
     void        (*resizeActionOpt)(Root*, ResizeInfo);
     void        (*didResumeActionOpt)(Root*);
-    void        (*systemDidChangedActionOpt)(Root*, SystemChange);
+//    void        (*systemDidChangedActionOpt)(Root*, SystemChange);
 
 //    void        (*willTerminateOpt)(Root*);  // Utile ?
 } Root;
 
-/// Juste pour init de la structure de base.
-/// Il faut creer son propre init de root.
-/// (On peut laisser size = 0, sera init avec sizeof(NodeRoot).)
-Root* Root_create(void);
-/// Init pour sub-struct
-void  root_init(Root* root, Node* parentOpt, Root* parentRootOpt);
+
+/// A priori une root est à `parent = NULL`, pas de parents.
+/// Mais on peut faire une sous-root (i.e. avec nouvelle matrice de projection),
+/// dans ce cas il faut fournir la root absolue `parentRoot`.
+void  root_init(Root* root, Root* parentRootOpt);
 /// Downcasting.
 Root* node_asRootOpt(Node* n);
 
-void   root_changeViewActiveTo(Root* rt, View* newViewOpt);
+void    root_changeViewActiveTo(Root* rt, View* newViewOpt);
 /// Resize de la window.view.
-void   root_viewResized(Root *rt, ResizeInfo info);
-void   root_updateModelMatrix(Root *rt);
-/*-- Init d'autres struct utilisant la root. --*/
+void    root_viewResized(Root *rt, ResizeInfo info);
+void    root_justSetFrameSize_(Root* r, Vector2 frameSizePt);
+void    root_updateModelMatrix(Root *rt);
+
+Button* root_searchActiveButtonOptWithPos(Root* const root, Vector2 const absPos,
+                                 Node* const nodeToAvoidOpt);
+Button* root_searchFirstButtonOptWithData(Root* root, uint32_t typeOpt, uint32_t data0);
+SlidingMenu* root_searchFirstSlidingMenuOpt(Root* root);
+
+bool    root_isLandscape(Root* r);
+
 /// Obtenir le rectangle (en pixels) associé à une position (origin)
 ///  et dimensions dans le frame de la root.
 /// e.g. (0.5, 0.5), (1, 1) -> (540, 320), (290, 290).
-Rectangle root_viewRectangleFromPosAndDim(Root *rt, Vector2 pos, Vector2 deltas,
-                                          bool invertedY);
+Rectangle root_windowRectangleFromBox(Root *rt, Box box, bool invertedY);
+/// Semblable à `node_hitBoxInParentReferential`, mais
+/// retourne l'espace occupé en pts dans la view de l'OS.
+/// invertedY == true pour iOS (y vont vers les bas).
+Rectangle node_windowRectangle(Node* n, bool invertedY);
 /// Obtenir la position dans le frame de la root à partir de la position de la vue (en pixels).
 /// e.g. (540, 320) -> (0.0, 0.0), (centre d'une vue 1080 x 640).
 Vector2   root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY);

@@ -5,19 +5,33 @@
 //
 //  Created by Corentin Faucher on 2023-12-08.
 //
-
 #ifndef COQ_UTILS_CHAR_AND_KEYCODES_H
 #define COQ_UTILS_CHAR_AND_KEYCODES_H
 
-#include "utils_base.h"
+#include <stdint.h>
 
+#define CHARACTER_MAX_SIZE 7
 /// Structure (union) pour mini-string, i.e. typiquement un char utf8.
 typedef union {
-    char     c_str[8]; // A priori un 'Character' est une mini string de 8 bytes
-                       // (au moins 5 pour avoir le null terminal dans le cas des emojis.)
-    uint64_t c_data;
+    char     c_str[CHARACTER_MAX_SIZE + 1]; // A priori un 'Character' est une mini string de 8 bytes
+                       // (entre 4 et 6 dans le cas des emojis et +1 pour le null terminal.)
+    uint64_t c_data;   // Sous la forme d'un data de 64 bits.
     char     first;    // Dans la plupart des cas c'est juste un ascii...
 } Character;
+
+// Les grandes familles de characters `ordinaires`
+enum {
+    character_type_latin,
+    character_type_greek,     // 1
+    character_type_cyrillic,  // 2
+    character_type_armenian,  // 3
+    
+    character_type_arabic,    // 4
+    character_type_korean,    // 5
+    character_type_kana,      // 6
+    
+    character_type__last_capitalizable_ = character_type_armenian,
+};
 
 /** Les char spéciaux et "importans" */
 extern const Character spchar_delete; // = "\u{8}"
@@ -39,11 +53,16 @@ extern const Character spchar_dot; // = "•"
 extern const Character spchar_butterfly; // = "🦋"
 extern const Character spchar_dodo; // = "🦤"
 
-
+// Pour le upper/lower, on ne fait que scanner la liste pour l'instant. (Besoin de hash map ?)
+Character const character_upperCased(Character c, unsigned character_type);
+Character const character_lowerCased(Character c, unsigned character_type);
 
 /*-- Keycodes ---------------------------------------------------*/
 // Voir Carbon / HiToolbox / event.h...
 //#include <Carbon/Carbon.h> // -> e.g. `kVK_Command`...
+#if __APPLE__
+// Pour les `TARGET_OS_OSX`, etc.
+#include <TargetConditionals.h>
 enum {
 #if TARGET_OS_OSX == 1  // pour macOS
 // Voir hitoolbox events.h...
@@ -112,37 +131,34 @@ enum {
     keycode_JIS_kana = 0x90,
     keycode_JIS_Eisu = 0x91, // 英数
 #endif
-// Dummy "empty" (touche "vide" ne faisant rien)
+    // Input (virtual) de text (pour iOS < 13)
+    keycode__text = 0xFD,
+    // Dummy "empty" (touche "vide" ne faisant rien)
     keycode_empty = 0xFE,
     keycode_total_keycodes = 0xFF,
 };
+#endif
 
 /*-- Modifiers --------------------------------------------------*/
 // Voir AppKit / NSEvent.h
 //#include <AppKit/AppKit.h> // -> e.g. `NSEventModifierFlagCapsLock`...
 enum {
-#if TARGET_OS_OSX == 1
-    modifier_command =  1 << 20,
-    modifier_shift =    1 << 17,
-    modifier_capslock = 1 << 16,
-    modifier_option =   1 << 19,
-    modifier_control =  1 << 18,
-#else
-    modifier_command =   0x100000,
-    modifier_shift =     0x020000,
+    // Apple (iOS / macOS), todo pour autres systèmes.
     modifier_capslock =  0x010000,
-    modifier_option =    0x080000,
+    modifier_shift =     0x020000,
     modifier_control =   0x040000,
-#endif
-    modifier_optionShift = modifier_shift|modifier_option,
+    modifier_option =    0x080000,
+    modifier_command =   0x100000,
+    
+    modifiers_optionShift = modifier_shift|modifier_option,
 };
 
 /*-- "MyKeyCode" : Des "keycodes" indépendant du système. ----------*/
 enum {
-    // 0...11 -> ligne de 1.
-    // 12...23 -> ligne de Q.
-    // 24...34 -> ligne de A.
-    // 35...44 -> ligne de Z.
+    // 0 ...11 -> ligne de 1 à +
+    // 12...23 -> ligne de Q à ]
+    // 24...34 -> ligne de A à '
+    // 35...44 -> ligne de Z à /
     // 45...51 -> ANSI_Grave, ISO_Section, JIS_Underscore, JIS_Yen, ANSI_Backslash, ISO_Backslash, Space.
     mkc_space = 51,  // Dernier keycode "standard".
     
@@ -163,6 +179,7 @@ enum {
     mkc_rightOption = 67,
     mkc_rightCommand = 68,
     mkc_modifier_last = 68,
+    
     // Autre Keycodes Spéciaux
     mkc_escape = 70,
     mkc_jis_eisu = 71,
@@ -173,9 +190,19 @@ enum {
     // 80~89  -> 0 à 9
     mkc_numpad_first_dot = 74,
     mkc_numpad_enter = 75,
-    mkc_numpad_0 = 80,
+    mkc_numpad_0 = 80, // 1, 2, 3,...
     mkc_numpad_9 = 89,
     
+    // Touches de directions
+    mkc_arrowLeft =  90,
+    mkc_arrowRight = 91,
+    mkc_arrowDown =  92,
+    mkc_arrowUp =    93,
+    // Ajouter ? genre 94 à 97
+//    mkc_pageUp, mkc_pageDown, mkc_home, mkc_end,
+    
+    // Text input (virtual)
+    mkc__text = 98,
     // Pour les "autres" non définie (e.g. fn, quelconque...)
     mkc_empty = 99,
     mkc_total_mkcs = 100,

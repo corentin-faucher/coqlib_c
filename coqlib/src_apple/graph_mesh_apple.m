@@ -8,19 +8,18 @@
 #import <Foundation/Foundation.h>
 
 #include "graph__apple.h"
+#include "utils/utils_base.h"
 
 typedef struct Mesh_ {
-    size_t    vertices_size;      // La taille en bytes de l'array vertices.
-    uint32_t  vertex_count;       // Le nombre de vertex.
-    uint32_t  index_count;        // 0 si triangle strip (pas besoin d'indices de vertex).
-    uint16_t  primitive_type;
-    uint16_t  cull_mode;
-    bool      isShared;
-    id<MTLBuffer> indicesBuffer;   // Buffer Metal (optionel). Suffisant, pas besoin du indicesOpt.
-    //    id<MTLBuffer>    verticesBuffer; // Besoin ?
-    //    uint16_t* indicesOpt;    //  Pas besoin...
-//    Vertex*    vertices;
-    Vertex    vertices[1];         // Array des vertex. A LA FIN, fait varier la taille.
+    size_t        vertices_size;      // La taille en bytes de l'array vertices.
+    uint32_t      vertex_count;       // Le nombre de vertex.
+    uint32_t      index_count;        // 0 si triangle strip (pas besoin d'indices de vertex).
+    uint16_t      primitive_type;
+    uint16_t      cull_mode;
+    bool          isShared;
+    id<MTLBuffer> indicesBufferOpt;   // Buffer Metal des indices (optionel).
+    id<MTLBuffer> verticesBuffer;
+//    Vertex        vertices[1];         // Array des vertex. A LA FIN, fait varier la taille.
 } Mesh;
 
 static id<MTLDevice> _mesh_device = nil;
@@ -44,15 +43,15 @@ void Mesh_init(id<MTLDevice> const device) {
 Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
                         const uint16_t* const indicesOpt, uint32_t indexCount,
                         enum MeshPrimitiveType primitive_type,
-                        enum MeshCullMode cull_mode, bool isShared) {
+                        enum MeshCullMode cull_mode, 
+                        bool isShared) {
     if(_mesh_device == nil) {
         printerror("Mesh not init.");
         return NULL;
     }
-    size_t mesh_size = sizeof(Mesh) + sizeof(Vertex) * (vertexCount - 1);
+    size_t mesh_size = sizeof(Mesh); // + sizeof(Vertex) * (vertexCount - 1);
     size_t vertices_size = vertexCount * sizeof(Vertex);
     Mesh* mesh = coq_calloc(1, mesh_size);
-    
     
     mesh->vertex_count =  vertexCount;
     mesh->vertices_size = vertices_size;
@@ -63,23 +62,20 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
     
     if(indexCount && indicesOpt) {
         size_t indicesSize = indexCount * sizeof(uint16_t);
-        mesh->indicesBuffer = [_mesh_device
+        mesh->indicesBufferOpt = [_mesh_device
                                newBufferWithBytes:indicesOpt
                                length:indicesSize options:0];
     } else {
         if(indicesOpt || indexCount)
             printwarning("Missing indices array or indexCount.");
-        mesh->indicesBuffer = nil;
+        mesh->indicesBufferOpt = nil;
     }
     if(verticesOpt) {
-        memcpy(mesh->vertices, verticesOpt, mesh->vertices_size);
+        mesh->verticesBuffer = [_mesh_device newBufferWithBytes:verticesOpt 
+                                        length:mesh->vertices_size options:0];
+    } else {
+        mesh->verticesBuffer = [_mesh_device newBufferWithLength:mesh->vertices_size options:0];
     }
-    // Besoin de buffer pour les vertices ? Non a priori...
-//    if(bufferedVertices) {
-//        mesh->verticesBuffer = [_mesh_device
-//                                 newBufferWithBytes:mesh->bm.vertices
-//                                 length:mesh->bm.vertices_size options:0];
-//    }
     return mesh;
 }
 
@@ -99,21 +95,27 @@ bool     mesh_isShared(Mesh* mesh) {
     return mesh->isShared;
 }
 Vertex*        mesh_vertices(Mesh* mesh) {
-    return mesh->vertices;
+    return [mesh->verticesBuffer contents];
+    
 }
 void mesh_needToUpdateVertices(Mesh* mesh) {
     // pass (pas besoin avec Metal, on prend directement l'array de vertices.)
 }
 
-id<MTLBuffer>  mesh_MTLIndicesBuffer(Mesh* mesh) {
-    return mesh->indicesBuffer;
+id<MTLBuffer>  mesh_MTLIndicesBufferOpt(Mesh* mesh) {
+    return mesh->indicesBufferOpt;
+}
+id<MTLBuffer>  mesh_MTLVerticesBuffer(Mesh* mesh) {
+    return mesh->verticesBuffer;
 }
 uint32_t mesh_indexCount(Mesh* mesh) {
     return mesh->index_count;
 }
 
-void   mesh_destroy(Mesh* meshToDelete) {
-    meshToDelete->indicesBuffer = NULL;
-//    meshToDelete->verticesBuffer = nil;
-    coq_free(meshToDelete);  // (free aussi les vertices)
+void   mesh_destroyAndNull(Mesh** const meshToDeleteRef) {
+    if(*meshToDeleteRef == NULL) return;
+    (*meshToDeleteRef)->indicesBufferOpt = nil;
+    (*meshToDeleteRef)->verticesBuffer = nil;
+    coq_free(*meshToDeleteRef);  // (free aussi les vertices)
+    *meshToDeleteRef = NULL;
 }

@@ -5,9 +5,11 @@
 //  Created by Corentin Faucher on 2023-10-18.
 //
 
+#include "nodes/node_view.h"
+
+#include "utils/utils_base.h"
 #include "nodes/node_root.h"
 #include "nodes/node_tree.h"
-#include <math.h>
 
 void    view_open(Node* const node) {
     View* v = node_asViewOpt(node);
@@ -24,18 +26,13 @@ View* View_create(Root* const root, flag_t flags, size_t sizeOpt) {
     * add 3 : root->{back,3,front},  add 4 : root->{back,4,3,front}, ...
     * i.e. les deux premiers écrans sont le back et le front respectivement,
     * les autres sont au milieu. */
-    Node* bigBro = root->n.firstChild;
-    View* v = Node_createEmptyOfType_(node_type_nf_view, sizeOpt ? sizeOpt : sizeof(View),
-                    flags, bigBro ? bigBro : &root->n, bigBro ? node_place_asBro : 0);
-    // Init as Node.
-    v->n.w = 4;
-    v->n.h = 4;
-    v->n.flags |= flag_parentOfReshapable;
+    Node* bigBro = root->n._firstChild;
+    View* v = coq_calloc(1, sizeOpt > sizeof(View) ? sizeOpt : sizeof(View));
+    node_init_(&v->n, bigBro ? bigBro : &root->n, 0, 0, 4, 4, node_type_nf_view, 
+               flags|flag_parentOfReshapable, bigBro ? node_place_asBro : 0);
     // Init as Smooth.
     fluid_init_(&v->f, 10.f);
     // Init as View -> Open and reshape for screen.
-    v->root = root;
-    v->prefsRef = root->prefsRef;
     v->n.openOpt =    view_open;
     v->n.reshapeOpt = view_reshape;
     // (Les autres methodes sont laissee a NULL par defaut.)
@@ -46,33 +43,42 @@ View* node_asViewOpt(Node* n) {
         return (View*)n;
     return NULL;
 }
-float view_ratio(View* screen) {
-    Node* parent = screen->n.parent;
-    if(parent == NULL) {
-        printerror("No parent"); return 1.f;
-    }
-    return parent->w / parent->h;
-}
-void  view_alignElements(View* screen, bool isOpening) {
-    Node* parent = screen->n.parent;
+//float view_ratio(View* screen) {
+//    Node* parent = screen->n.parent;
+//    if(parent == NULL) {
+//        printerror("No parent"); return 1.f;
+//    }
+//    return parent->w / parent->h;
+//}
+void  view_alignElements(View* v, bool isOpening) {
+    Node* parent = v->n._parent;
     if(parent == NULL) {
         printerror("No parent"); return;
     }
-    if((screen->n.flags & flag_viewDontAlignElements) == 0) {
-        float screenRatio = view_ratio(screen);
-        uint8_t alignOpt = node_align_setSecondaryToDefPos|node_align_respectRatio;
-        if(screenRatio < 1.f)
+    if((v->n.flags & flag_viewDontAlignElements) == 0) {
+        float frame_ratio = parent->w / parent->h;
+        uint8_t alignOpt = node_align_setSecondaryToDefPos
+            |node_align_dontSetPrimaryDefPos|node_align_respectRatio;
+        if(frame_ratio < 1.f)
             alignOpt |= node_align_vertically;
         if(isOpening)
             alignOpt |= node_align_fixPos;
-        node_tree_alignTheChildren(&screen->n, alignOpt, screenRatio, 1.f);
-        float scale = fminf(parent->w / screen->n.w, parent->h / screen->n.h);
-        Vector2 scales = {{scale, scale }};
-        fluid_setScales(&screen->f, scales, isOpening);
+        node_tree_alignTheChildren(&v->n, alignOpt, frame_ratio, 1.f);
+        float aligned_ratio = v->n.w / v->n.h;
+        float scale;
+        if(aligned_ratio < frame_ratio) {
+            scale = parent->h / v->n.h;
+            v->n.w = v->n.h * frame_ratio; 
+        } else {
+            scale = parent->w / v->n.w;
+            v->n.h = v->n.w / frame_ratio;
+        }
+        Vector2 scales = {{ scale, scale }};
+        fluid_setScales(&v->f, scales, isOpening);
         return;
     }
     // Sinon, cas pas d'alignement, juste reprendre les dimensions du parent.
-    fluid_setScales(&screen->f, vector2_ones, isOpening);
-    screen->n.w = parent->w;
-    screen->n.h = parent->h;
+    fluid_setScales(&v->f, vector2_ones, isOpening);
+    v->n.w = parent->w;
+    v->n.h = parent->h;
 }

@@ -9,17 +9,14 @@
 #define _coq_node_view_h
 
 #include "node_fluid.h"
-#include "utils/utils_char_and_keycode.h"
 #include "coq_event.h"
 
-typedef struct View_ {
+typedef struct coq_View View;
+typedef struct coq_View {
     union {  // Upcasting
         Node       n;
         Fluid      f;
     };
-    // References importantes...
-    Root*      root;
-    Prefs**    prefsRef;
     /*-- Enter --*/
     void (*enterOpt)(View*);
     // <- Jusqu'ici la structure est +/- commune à Button...
@@ -32,6 +29,8 @@ typedef struct View_ {
     void (*modifiersChangedToOpt)(View*, uint32_t);
     /*-- Char Responder --*/
     void (*charActionOpt)(View*, char);
+    /*-- Changement system --*/
+    void (*systemChangedOpt)(View*, SystemChange);
 } View;
 
 /// Constructeur et init.
@@ -40,10 +39,9 @@ View* View_create(Root* const root, flag_t flags, size_t sizeOpt);
 // Downcasting
 View*  node_asViewOpt(Node* n);
 
-void   view_alignElements(View* v, bool isOpening);
-
 // Open et reshape de Node (pour sous-structs).
-void   view_open(Node* const node);
+void   view_open(Node* const node);    // (Ne font que caller `view_alignElements`)
 void   view_reshape(Node* const node);
+void   view_alignElements(View* v, bool isOpening);
 
 #endif /* node_screen_h */

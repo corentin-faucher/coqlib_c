@@ -14,6 +14,8 @@ typedef struct _Particule {
     Vector2 pos;
     Vector2 vit;
     Vector2 acc;
+    Vector2 pos_last; // Dernière position
+    Vector2 vit_mean; // Dernière vitesse moyenne
 } Particule;
 
 typedef struct _ParticulesPool {
@@ -37,7 +39,7 @@ typedef struct _PPNode {
     Timer*     timer;
 } PPNode;
 
-PPNode* PPNode_create(Node* ref, Root* root);
+PPNode* PPNode_create(Node* ref);
 
 
 #endif /* my_enums_h */

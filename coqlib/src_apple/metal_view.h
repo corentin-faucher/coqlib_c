@@ -16,6 +16,7 @@
 @public
     Renderer*        renderer;
     Root*            root;
+    ChronoChecker    cc;
 #if TARGET_OS_OSX == 1
     NSTrackingArea*  trackingArea;
 #endif
@@ -27,9 +28,10 @@
 @property (nonatomic) BOOL willTerminate;
 @property (nonatomic) BOOL transitioning;
 @property (nonatomic) BOOL didTransition;
+@property (nonatomic) BOOL iosForceVirtualKeyboard;
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device;
-- (void)updateRootFrame:(CGSize)sizePx;
+- (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix;
 
 // Méthodes à overrider. Superflu ?
 //- (NodeRoot *)getRootNode;

@@ -8,21 +8,23 @@
 #ifndef COQ_MATH_CHRONO_H
 #define COQ_MATH_CHRONO_H
 
-#include "utils/utils_base.h"
+#include <stdbool.h>
 #include <math.h>
 #include <time.h>
 
-#define ONE_MILLION 1000000
+#define ONE_MILLION    1000000
+#define MS_PER_HOUR    3600000
+#define MS_PER_MINUTE    60000
 
 /// Le delai entre les update Timer, Garbage, Root->iterationUpdate.
-/// À 30 ms par defaut.
-extern int64_t Chrono_UpdateDeltaTMS; // = 30;
+/// À 50 ms par defaut,  i.e. 20 refresh / second.
+extern int64_t Chrono_UpdateDeltaTMS; // = 50;
 /*--Chrono global pour le rendering --*/
 /// Mise à jour à chaque frame, e.g. +1/60 sec ~= 16ms au elapsed time.
 void     ChronoRender_update(int64_t deltaTMS);
-void     ChronoRender_setPaused(int isPaused);
+void     ChronoRender_setPaused(bool isPaused);
 /// Pas d'activité ? -> Mettre en pause le rendering.
-int      ChronoRender_shouldSleep(void);
+bool      ChronoRender_shouldSleep(void);
 /// Nombre de ms écoulées depuis l'ouverture de l'app.
 int64_t  ChronoRender_elapsedMS(void);
 float    ChronoRender_elapsedSec(void);
@@ -30,7 +32,7 @@ float    ChronoRender_elapsedSec(void);
 float    ChronoRender_elapsedAngleSec(void);
 
 /*--Chrono global pour le temps réel de l'app. --*/
-void     ChronoApp_setPaused(int isPaused);
+void     ChronoApp_setPaused(bool isPaused);
 /// Vrai nombre de ms écoulées depuis l'ouverture de l'app.
 /// (Pas juste une somme de +1/60sec...)
 int64_t  ChronoApp_elapsedMS(void);
@@ -96,6 +98,6 @@ void    chronochecker_toc_(ChronoChecker* cc, const char* filename, uint32_t lin
 chronochecker_toc_(cc, COQ__FILENAME__, __LINE__);
 
 // Internal... elapsed chronorender.
-extern int64_t _CR_elapsedMS;
+extern int64_t CR_elapsedMS_;
 
 #endif /* chrono_h */

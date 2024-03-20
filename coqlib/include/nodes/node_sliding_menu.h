@@ -8,9 +8,7 @@
 #ifndef _coq_node_sliding_menu_h
 #define _coq_node_sliding_menu_h
 
-#include "node_button.h"
-#include "node_drawable.h"
-
+#include "nodes/node_base.h"
 
 typedef struct _SlidingMenu SlidingMenu;
 

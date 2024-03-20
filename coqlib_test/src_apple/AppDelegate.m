@@ -7,6 +7,7 @@
 #import "AppDelegate.h"
 
 #include "coq_sound.h"
+#include "utils/utils_system.h"
 #include "graph__apple.h"
 
 #include "my_enums.h"
@@ -40,9 +41,9 @@
     printdebug("🐞🐛🐞-- Debug Mode --🐞🐛🐞");
     // 1. Init des variables `system` et independantes des prefs (fonts manager)
     srand((uint32_t)time(NULL));
-    Language_init();
-    CoqSystem_updateCurrentLayout();
-    CoqSystem_updateCurrentTheme();
+    CoqSystem_updateOSLanguageAndRegion();
+    CoqSystem_updateOSLayout();
+    CoqSystem_updateOSTheme();
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     Font_init();
     Mesh_init(device);
@@ -73,11 +74,11 @@
     view = [[CoqMetalView alloc] initWithFrame:[window frame] device: device];
     
     /*-- Tout est init, on peut créer la structure... --*/
-    view->root = Root_createMyRoot();
+    view->root = Root_initAndGetProjectRoot();
     
     // Fini
     [window setContentView:view];
-    [view updateRootFrame:view.drawableSize];
+    [view updateRootFrame:view.drawableSize dontFix:NO];
     
     // Chronos, unpause.
     view->renderer->noSleep = YES;

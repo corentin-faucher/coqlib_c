@@ -7,22 +7,24 @@
 
 #include "graphs/graph_mesh.h"
 
-static Vertex _vertex_default_origin = {
+#include "utils/utils_base.h"
+
+static const Vertex _vertex_default_origin = {
     0.f, 0.f, 0.f,  0.5f,0.5f,  0.f,0.f,1.f
 };
-static Vertex _vertex_uv00 = {
+static const Vertex _vertex_uv00 = {
     0.f, 0.f, 0.f,  0.f,0.f,  0.f,0.f,1.f
 };
-static Vertex _vertex_uv01 = {
+static const Vertex _vertex_uv01 = {
     0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
 };
-static Vertex _vertex_uv10 = {
+static const Vertex _vertex_uv10 = {
     0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
 };
-static Vertex _vertex_uv11 = {
+static const Vertex _vertex_uv11 = {
     0.f, 0.f, 0.f,  1.f,1.f,  0.f,0.f,1.f
 };
-static Vertex _mesh_bar_vertices[8] = {
+static const Vertex _mesh_bar_vertices[8] = {
     {-0.5000, 0.5, 0,  0.000,0,  0,0,1},
     {-0.5000,-0.5, 0,  0.000,1,  0,0,1},
     {-0.1667, 0.5, 0,  0.333,0,  0,0,1},
@@ -32,7 +34,7 @@ static Vertex _mesh_bar_vertices[8] = {
     { 0.5000, 0.5, 0,  1.000,0,  0,0,1},
     { 0.5000,-0.5, 0,  1.000,1,  0,0,1},
 };
-static Vertex _mesh_vbar_vertices[8] = {
+static const Vertex _mesh_vbar_vertices[8] = {
     { 0.5, 0.5000, 0,  1, 0.000,  0,0,1},
     {-0.5, 0.5000, 0,  0, 0.000,  0,0,1},
     { 0.5, 0.1667, 0,  1, 0.333,  0,0,1},
@@ -42,7 +44,7 @@ static Vertex _mesh_vbar_vertices[8] = {
     { 0.5,-0.5000, 0,  1, 1.000,  0,0,1},
     {-0.5,-0.5000, 0,  0, 1.000,  0,0,1},
 };
-static Vertex _mesh_frame_vertices[] = {
+static const Vertex _mesh_frame_vertices[] = {
     {-0.5000, 0.5000, 0,  0.000,0.000,  0,0,1},
     {-0.5000, 0.1667, 0,  0.000,0.333,  0,0,1},
     {-0.5000,-0.1667, 0,  0.000,0.667,  0,0,1},
@@ -60,7 +62,7 @@ static Vertex _mesh_frame_vertices[] = {
     { 0.5000,-0.1667, 0,  1.000,0.667,  0,0,1},
     { 0.5000,-0.5000, 0,  1.000,1.000,  0,0,1},
 };
-static uint16_t _mesh_frame_indices[] = {
+static const uint16_t _mesh_frame_indices[] = {
     0, 1, 4,    1, 5, 4,
     1, 2, 5,    2, 6, 5,
     2, 3, 6,    3, 7, 6,
@@ -72,7 +74,7 @@ static uint16_t _mesh_frame_indices[] = {
     10, 11, 14, 11, 15, 14,
 };
 
-static uint16_t _mesh_fan_indices[] = {
+static const uint16_t _mesh_fan_indices[] = {
     0, 1, 2,   0, 2, 3,
     0, 3, 4,   0, 4, 5,
     0, 5, 6,   0, 6, 7,
@@ -83,7 +85,7 @@ Mesh*  Mesh_createHorizontalBar(void) {
     return Mesh_createEmpty(_mesh_bar_vertices, 8, NULL, 0,
                             mesh_primitive_triangleStrip, mesh_cullMode_none, false);
 }
-Mesh* Mesh_createVerticalBar(void) {
+Mesh*  Mesh_createVerticalBar(void) {
     return Mesh_createEmpty(_mesh_vbar_vertices, 8, NULL, 0,
                             mesh_primitive_triangleStrip, mesh_cullMode_none, false);
 }
@@ -133,12 +135,126 @@ void   mesh_fan_update(Mesh* fan, float ratio) {
     mesh_needToUpdateVertices(fan);
 }
 
+
+/// Les xs/ys devraient être préformaté pour être contenu dans [-0.5, 0.5] x [-0.5, 0.5]...
+/// delta: épaisseur des lignes.
+/// ratio: étirement en largeur.
+Mesh*  Mesh_createPlot(float* xs, float* ys, uint32_t count, float delta, float ratio) {
+    uint32_t n_lines = count - 1;
+    uint32_t n_points = count;
+    uint32_t vertices_count = 4*n_lines + 4*n_points;
+    uint32_t indices_count =  6*n_lines + 6*n_points;
+    Vertex* vertices = coq_calloc(vertices_count, sizeof(Vertex));
+    uint16_t* indices = coq_calloc(indices_count, sizeof(uint16_t));
+    
+    // Lignes
+    Vertex* v = &vertices[0];
+    uint16_t* ind = &indices[0];
+    float* xn = &xs[1]; float* yn = &ys[1]; // (pointeur sur next)
+    float* x =  &xs[0]; float* y =  &ys[0]; // (courant)
+    for(uint32_t i = 0; i < n_lines; i++) {
+        float theta = atanf((*yn - *y) / (*xn - *x));
+        float deltax = delta * sinf(theta) / ratio;
+        float deltay = delta * cosf(theta);
+        *v = (Vertex) {*x - deltax, *y + deltay, 0,     0, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) {*x + deltax, *y - deltay, 0,     0, 1,  0, 0, 1 };  v++;
+        x++; y++;  xn++; yn++;
+        *v = (Vertex) {*x - deltax, *y + deltay, 0,  0.75, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) {*x + deltax, *y - deltay, 0,  0.75, 1,  0, 0, 1 };  v++;
+        *ind = 4*i;      ind++;
+        *ind = 4*i + 1;  ind++;
+        *ind = 4*i + 2;  ind++;
+        *ind = 4*i + 1;  ind++;
+        *ind = 4*i + 2;  ind++;
+        *ind = 4*i + 3;  ind++;
+    }
+    // Points
+    float const pts_deltax = 1.15f*delta / ratio;
+    float const pts_deltay = 1.15f*delta;
+    uint16_t const ind_dec = 4*n_lines;
+    x =  &xs[0]; y =  &ys[0]; // (courant)
+    for(uint32_t i = 0; i < n_points; i++) {
+        *v = (Vertex) {*x - pts_deltax, *y + pts_deltay, 0,     1, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) {*x - pts_deltax, *y - pts_deltay, 0,     1, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {*x + pts_deltax, *y + pts_deltay, 0,     2, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) {*x + pts_deltax, *y - pts_deltay, 0,     2, 1,  0, 0, 1 };  v++;
+        x++; y++;
+        *ind = ind_dec + 4*i;      ind++;
+        *ind = ind_dec + 4*i + 1;  ind++;
+        *ind = ind_dec + 4*i + 2;  ind++;
+        *ind = ind_dec + 4*i + 1;  ind++;
+        *ind = ind_dec + 4*i + 2;  ind++;
+        *ind = ind_dec + 4*i + 3;  ind++;
+    }
+
+    Mesh* mesh = Mesh_createEmpty(vertices, vertices_count, indices, indices_count, 
+                            mesh_primitive_triangle, mesh_cullMode_none, false);
+    coq_free(vertices);
+    coq_free(indices);
+    return mesh;
+}
+Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
+                           float ymin, float ymax, float yR, float deltaY,
+                           float lineWidthRatio) {
+    float x0 = xR - floorf((xR - xmin) / deltaX) * deltaX;
+    uint32_t m = (uint32_t)((xmax - x0) / deltaX) + 1;
+    float xlinedelta = deltaX * lineWidthRatio * 0.5;
+    float y0 = yR - floorf((yR - ymin) / deltaY) * deltaY;
+    uint32_t n = (uint32_t)((ymax - y0) / deltaY) + 1;
+    float ylinedelta = deltaY * lineWidthRatio * 0.5;
+    
+    uint32_t vertices_count = 4*(m + n);
+    uint32_t indices_count =  6*(m + n);
+    Vertex* vertices = coq_calloc(vertices_count, sizeof(Vertex));
+    uint16_t* indices = coq_calloc(indices_count, sizeof(uint16_t));
+    
+    Vertex* v = &vertices[0];
+    uint16_t* ind = &indices[0];
+    // Ligne verticales (divisions en x)
+    for(uint32_t i = 0; i < m; i++) {
+        float x = x0 + (float)i * deltaX;
+        *v = (Vertex) {x - xlinedelta, ymax, 0,     0, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) {x - xlinedelta, ymin, 0,     0, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {x + xlinedelta, ymax, 0,     1, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) {x + xlinedelta, ymin, 0,     1, 1,  0, 0, 1 };  v++;
+        *ind = 4*i;      ind++;
+        *ind = 4*i + 1;  ind++;
+        *ind = 4*i + 2;  ind++;
+        *ind = 4*i + 1;  ind++;
+        *ind = 4*i + 2;  ind++;
+        *ind = 4*i + 3;  ind++;
+    }
+    // Ligne horizontales (divisions en y)
+    uint16_t const ind_dec = 4*m;
+    for(uint32_t i = 0; i < n; i++) {
+        float y = y0 + (float)i * deltaY;
+        *v = (Vertex) { xmin, y + ylinedelta, 0,     0, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) { xmin, y - ylinedelta, 0,     0, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) { xmax, y + ylinedelta, 0,     1, 0,  0, 0, 1 };  v++;
+        *v = (Vertex) { xmax, y - ylinedelta, 0,     1, 1,  0, 0, 1 };  v++;
+        *ind = ind_dec + 4*i;      ind++;
+        *ind = ind_dec + 4*i + 1;  ind++;
+        *ind = ind_dec + 4*i + 2;  ind++;
+        *ind = ind_dec + 4*i + 1;  ind++;
+        *ind = ind_dec + 4*i + 2;  ind++;
+        *ind = ind_dec + 4*i + 3;  ind++;
+    }
+    
+    Mesh* mesh = Mesh_createEmpty(vertices, vertices_count, indices, indices_count, 
+                                mesh_primitive_triangle, mesh_cullMode_none, false);
+    coq_free(vertices);
+    coq_free(indices);
+    return mesh;
+}
+
+#warning TODO...
 Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
     if(v_count < 2) {
         printerror("Mesh curve with less than 2 pos."); return mesh_sprite;
     }
     uint32_t vertex_count = 4*(v_count - 1);
-    Mesh* mesh = Mesh_createEmpty(NULL, vertex_count, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, false);
+    Mesh* mesh = Mesh_createEmpty(NULL, vertex_count, NULL, 0, 
+                    mesh_primitive_triangleStrip, mesh_cullMode_none, false);
     Vertex* vertices = mesh_vertices(mesh);
     // Init des deux premier vertex a gauche. (up-left et down-left).
     Vector2 v0 = v_arr[0], v1 = v_arr[1];

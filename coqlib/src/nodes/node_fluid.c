@@ -7,28 +7,26 @@
 
 #include "nodes/node_fluid.h"
 
+#include "utils/utils_base.h"
+
 float Fluid_defaultFadeInDelta = 2.2f;
 
 void fluid_init_(Fluid* f, float lambda) {
     fl_array_init(&f->sx, &f->n.sx, COQ_FLUID_DIMS_N, lambda);
     // Fonction de positionnement pour les node smooth.
-    if(f->n.flags & flag_fluidOpenFlags)
+    if(f->n.flags & flags_fluidOpen)
         f->n.openOpt = fluid_open_;
-    if(f->n.flags & flag_fluidCloseFlags)
+    if(f->n.flags & flags_fluidClose)
         f->n.closeOpt = fluid_close_;
-    if(f->n.flags & flag_fluidReshapeFlags)
+    if(f->n.flags & flags_fluidReshape)
         f->n.reshapeOpt = fluid_reshape_;
 }
 Fluid* Fluid_create(Node* const refOpt, float x, float y, float w, float h,
                               float lambda, flag_t flags, uint8_t node_place) {
-    Fluid* s = Node_createEmptyOfType_(node_type_n_fluid, sizeof(Fluid),
-                                       flags, refOpt, node_place);
-    s->n.x = x;
-    s->n.y = y;
-    s->n.w = w;
-    s->n.h = h;
-    fluid_init_(s, lambda);
-    return s;
+    Fluid* f = coq_calloc(1, sizeof(Fluid));
+    node_init_(&f->n, refOpt, x, y, w, h, node_type_n_fluid, flags, node_place);
+    fluid_init_(f, lambda);
+    return f;
 }
 Fluid* node_asFluidOpt(Node* n) {
     if(n->_type & node_type_flag_fluid)
@@ -68,6 +66,11 @@ void    fluid_setYrelToDef(Fluid* f, float y, bool fix) {
     else    fl_set(&f->y, f->y.def + y);
     f->n.y = f->y.def + y;
 }
+void    fluid_setZrelToDef(Fluid* f, float z, bool fix) {
+    if(fix) fl_fix(&f->z, f->z.def + z);
+    else    fl_set(&f->z, f->z.def + z);
+    f->n.z = f->z.def + z;
+}
 void    fluid_setScales(Fluid* f, Vector2 scales, bool fix) {
     if(fix) {
         fl_fix(&f->sx, scales.x);
@@ -79,47 +82,71 @@ void    fluid_setScales(Fluid* f, Vector2 scales, bool fix) {
     f->n.sx = scales.x;  f->n.sy = scales.y;
 }
 
-void    fluid_setRelatively_(Fluid* const f, const bool fix) {
-    Node* parent = f->n.parent;
-    if(parent == NULL) return;
-    flag_t flags = f->n.flags;
-    float x = 0;
-    float y = 0;
-    if(flags & flag_fluidRelativeToRight)
-        x =  0.5f * parent->w;
-    else if(flags & flag_fluidRelativeToLeft)
-        x = -0.5f * parent->w;
-    if(flags & flag_fluidRelativeToTop)
-        y =  0.5f * parent->h;
-    else if(flags & flag_fluidRelativeToBottom)
-        y = -0.5f * parent->h;
-    if(flags & flag_fluidJustifiedRight)
-        x -= node_deltaX((Node*)f);
-    else if(flags & flag_fluidJustifiedLeft)
-        x += node_deltaX((Node*)f);
-    if(flags & flag_fluidJustifiedTop)
-        y -= node_deltaY((Node*)f);
-    else if(flags & flag_fluidJustifiedBottom)
-        y += node_deltaY((Node*)f);
-    x += f->x.def;
-    y += f->y.def;
-    if(fix) {
-        fl_fix(&f->x, x);
-        fl_fix(&f->y, y);
-    } else {
-        fl_set(&f->x, x);
-        fl_set(&f->y, y);
-    }
-    f->n.x = x;
-    f->n.y = y;
+/// Applique un effet d'apparition. *Non compatible avec les `flags_fluidOpen` et `flags_fluidClose`*,
+/// i.e. Soit on utilise le fluid pour setter relativement, soint on l'utilies pour l'effet `poping`.
+/// Si "init" -> On set les position `def` des fluid aux position du noeud.
+void    fluid_popIn(Fluid* f, PopingInfo popInfo) {
+    // Calcul des position initiales et finales (relatif aux position par défaut).
+    Node* n = &f->n;
+    float const twoDy = f->sy.def * n->h;
+    Box box0 = {  // (x, y, sx, sy)
+        f->x.def  + popInfo.initRelShift.c_x * twoDy,
+        f->y.def  + popInfo.initRelShift.c_y * twoDy,
+        f->sx.def * (1.f + popInfo.initRelShift.Dx),
+        f->sx.def * (1.f + popInfo.initRelShift.Dy),
+    };
+    Box box1 = {
+        f->x.def  + popInfo.endRelShift.c_x * twoDy,
+        f->y.def  + popInfo.endRelShift.c_y * twoDy,
+        f->sx.def * (1.f + popInfo.endRelShift.Dx),
+        f->sx.def * (1.f + popInfo.endRelShift.Dy),
+    };
+    // Init/Fix à position init et paramètres gamma/k.
+    fl_initGammaK(&f->sx, box0.Dx,  popInfo.gammaScale, popInfo.kScale, false);
+    fl_initGammaK(&f->sy, box0.Dy,  popInfo.gammaScale, popInfo.kScale, false);
+    fl_initGammaK(&f->x,  box0.c_x, popInfo.gammaPos,   popInfo.kPos, false);
+    fl_initGammaK(&f->y,  box0.c_y, popInfo.gammaPos,   popInfo.kPos, false);
+    fl_initGammaK(&f->z,  n->z,     popInfo.gammaPos,   popInfo.kPos, false);
+    // Set à position final.
+    fl_set(&f->sx, box1.Dx);
+    fl_set(&f->sy, box1.Dy);
+    fl_set(&f->x,  box1.c_x); 
+    fl_set(&f->y,  box1.c_y);
+    n->sx = box1.Dx; 
+    n->sy = box1.Dy;
+    n->x = box1.c_x;
+    n->y = box1.c_y;
 }
+/// Pour popOut, seulement la box `endRelShift` est utilisé.
+void    fluid_popOut(Fluid* f, PopingInfo popInfo) {
+    // Calcul des position finales
+    Node* n = &f->n;
+    float const twoDy = f->sy.def * n->h;
+    Box box1 = {
+        f->x.def  + popInfo.endRelShift.c_x * twoDy,
+        f->y.def  + popInfo.endRelShift.c_y * twoDy,
+        f->sx.def * (1.f + popInfo.endRelShift.Dx),
+        f->sx.def * (1.f + popInfo.endRelShift.Dy),
+    };
+    // Update des par. gamma/k.
+    fl_updateToConstants(&f->sx, popInfo.gammaScale, popInfo.kScale);
+    fl_updateToConstants(&f->sy, popInfo.gammaScale, popInfo.kScale);
+    fl_updateToConstants(&f->x,  popInfo.gammaPos, popInfo.kPos);
+    fl_updateToConstants(&f->y,  popInfo.gammaPos, popInfo.kPos);
+    fl_updateToConstants(&f->z,  popInfo.gammaPos, popInfo.kPos);
+    // Set à position final.
+    fl_set(&f->sx, box1.Dx);
+    fl_set(&f->sy, box1.Dy);
+    fl_set(&f->x,  box1.c_x); 
+    fl_set(&f->y,  box1.c_y);
+    n->sx = box1.Dx; 
+    n->sy = box1.Dy;
+    n->x = box1.c_x;
+    n->y = box1.c_y;
+}
+
 void    fluid_open_(Node* const node) {
-    Fluid* s = node_asFluidOpt(node);
-    if(!s) { printerror("Not smooth."); return; }
-    if(node->flags & flag_fluidRelativeFlags)
-        fluid_setRelatively_(s, true);
-    if(!(node->flags & flag_show) && (node->flags & flag_fluidFadeInRight))
-        fl_fadeIn(&s->x, Fluid_defaultFadeInDelta);
+    node_setXYrelatively(node, (uint32_t)node->flags, true);
 }
 void    fluid_close_(Node* const node) {
     Fluid* s = node_asFluidOpt(node);
@@ -127,9 +154,7 @@ void    fluid_close_(Node* const node) {
     fl_fadeOut(&s->x, Fluid_defaultFadeInDelta);
 }
 void    fluid_reshape_(Node* const node) {
-    Fluid* s = node_asFluidOpt(node);
-    if(!s) { printerror("Not smooth."); return; }
-    fluid_setRelatively_(s, false);
+    node_setXYrelatively(node, (uint32_t)node->flags, false);
 }
 
 /// superflu ?

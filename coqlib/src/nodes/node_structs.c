@@ -6,6 +6,8 @@
 //
 
 #include "nodes/node_structs.h"
+
+#include "utils/utils_base.h"
 #include "graphs/graph_colors.h"
 
 void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
@@ -15,23 +17,19 @@ void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
         printerror("No last node."); return;
     }
     float height = nd->h;
-    
-    Drawable* d = Drawable_createAndSetDims(nd, 0.f, 0.f, 0.f, height,
-                         Texture_sharedImage(diskPngId), mesh_sprite, 0, 0);
+    Drawable* d = Drawable_createImage(nd, diskPngId, 0, 0, height, 0);
     drawable_setTile(d, diskTile, 0);
-    d->n.piu.emph = 0.1f;
-    d = Drawable_createAndSetDims(nd, 0.f, 0.f, 0.f, height,
-                                  Texture_sharedImage(iconPngId), mesh_sprite, 0, 0);
+    d->n._piu.emph = 0.1f;
+    d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
     drawable_setTile(d, iconTile, 0);
 }
 void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile) {
     Node* nd = node_last_nonLeaf;
     if(nd == NULL) { printerror("No last node."); return; }
     float height = nd->h;
-    Drawable* d = Drawable_createAndSetDims(nd, 0.f, 0.f, 0.f, height,
-                     Texture_sharedImage(iconPngId), mesh_sprite, 0, 0);
+    Drawable* d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
     drawable_setTile(d, iconTile, 0);
-    d->n.piu.emph = 0.1f;
+    d->n._piu.emph = 0.1f;
 }
 void node_last_addIconLanguage(uint32_t pngId) {
     Node* nd = node_last_nonLeaf;
@@ -40,22 +38,34 @@ void node_last_addIconLanguage(uint32_t pngId) {
     }
     float height = nd->h;
     Drawable* d = Drawable_createImageLanguage(nd, pngId, 0, 0, height, 0);
-    d->n.piu.emph = 0.1f;
+    d->n._piu.emph = 0.1f;
 }
+
+/// Text noir par défaut.
+Vector4 text_color;
+/// Largeur du cadre, e.g. 0.2 -> 0.2*h.
+float   frame_ratio;
+/// inside == 0 -> le cadre est à l'extérieur des lettres.
+float   frame_inside;
+/// Marge en x (0.5*h).
+float   x_margin;
+/// Pas de spilling -> Le frame est dans les dimension a priori.
+/// Si spilling -> le frame fait grossing les dimension a priori.
+bool    frame_isSpilling;
+/// On met à jours les dimension du parent.
+bool    updateParentSizes;
 
 const FramedStringParams framedString_defPars = {
     0.2f,  // Largeur du cadre (0.2*h).
-    0.f,   // inside == 0 -> le cadre est à l'extérieur des lettres.
+    0.0f,   // inside == 0 -> le cadre est à l'extérieur des lettres.
     false, // Pas de spiling -> Le frame est dans les dimension a priori.
     true,  // On met à jours les dimension du parent.
-    0.5,   // Marge en x (0.5*h).
-    {{0, 0, 0, 1 }}, // Text noir par défaut.
 };
 
 /// Ajoute un frame et string (string encadrée) au noeud.
 /// Voir `FramedStringParams` pour les options.
 /// Retourne le drawable string créé.
-Drawable* node_addFramedString(Node* n, uint32_t framePngId, Texture* strTex,
+Drawable* node_addFramedString(Node* n, uint32_t framePngId, StringDrawable str,
                           FramedStringParams params) {
     float strH;
     float delta;
@@ -69,25 +79,21 @@ Drawable* node_addFramedString(Node* n, uint32_t framePngId, Texture* strTex,
     } else {
         strH = n->h / (1.f + 2.f*params.frame_ratio*(1.f-params.frame_inside));
         delta = params.frame_ratio * strH;
-        strW = n->w - 2.f*delta*(1.f - params.frame_inside);
+        strW = fmaxf(0.f, n->w - 2.f*delta*(1.f - params.frame_inside));
     }
     Frame_create(n, params.frame_inside, delta, 0, 0, framePngId,
                  params.updateParentSizes ? frame_option_giveSizesToParent : 0);
-    Drawable *d = Drawable_create(n, strTex, mesh_sprite,
-                                  flag_giveSizeToBigbroFrame, 0);
-    d->n.piu.color = params.text_color;
-    d->x_margin = params.x_margin;
-    drawable_updateDimsWithDeltas(d, strW, strH);
+    Drawable* d = Drawable_createString(n, str, 0, 0, strW, strH, flag_giveSizeToBigbroFrame, 0);
     return d;
 }
 
 /// Ajoute au dernier noeud créé une frame et string.
 /// On donc last->{..., frame, string}. Voir `node_addFramedString`.
-void node_last_addFramedString(uint32_t framePngId, Texture* strTex,
+void node_last_addFramedString(uint32_t framePngId, StringDrawable str,
                                FramedStringParams params) {
     Node* nd = node_last_nonLeaf;
     if(nd == NULL) {
         printerror("No last node."); return;
     }
-    node_addFramedString(nd, framePngId, strTex, params);
+    node_addFramedString(nd, framePngId, str, params);
 }

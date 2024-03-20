@@ -6,6 +6,9 @@
 //
 
 #include "maths/math_flpos.h"
+
+#include <string.h>
+
 #include "maths/math_chrono.h"
 
 #define _sm_type_static     0x0000
@@ -112,8 +115,7 @@ void  fl_updateToLambda(FluidPos *fl, float lambda) {
 }
 
 void  fl_init(FluidPos* sp, float pos, float lambda, bool asAngle) {
-    if(asAngle)
-        pos = float_toNormalizedAngle(pos);
+    if(asAngle) pos = float_toNormalizedAngle(pos);
     memset(sp, 0, sizeof(FluidPos));
     sp->_pos = pos;
     sp->def =  pos;
@@ -121,6 +123,16 @@ void  fl_init(FluidPos* sp, float pos, float lambda, bool asAngle) {
     sp->_flags = _sm_type_static | (asAngle ? _sm_flag_angle : 0);
     
     _sp_setLambdaBetaType(sp, 2*lambda, lambda * lambda);
+}
+void  fl_initGammaK(FluidPos *sp, float pos, float gamma, float k, bool asAngle) {
+    if(asAngle) pos = float_toNormalizedAngle(pos);
+    memset(sp, 0, sizeof(FluidPos));
+    sp->_pos = pos;
+    sp->def =  pos;
+    sp->_time = (uint32_t)ChronoApp_elapsedMS();
+    sp->_flags = _sm_type_static | (asAngle ? _sm_flag_angle : 0);
+    
+    _sp_setLambdaBetaType(sp, gamma, k);
 }
 void  fl_set(FluidPos* sp, float pos) {
     float elapsedSec = _sp_getElapsedSec(sp);
@@ -140,6 +152,17 @@ void  fl_fix(FluidPos* sp, float pos) {
         sp->_pos = float_toNormalizedAngle(pos);
     else
         sp->_pos = pos;
+}
+/** Changement de référentiel quelconques (avec positions et scales absolues). */
+void  fl_newReferential(FluidPos* fp, float pos, float destPos, float scale, float destScale) {
+    fp->_pos = (pos - destPos) / destScale;
+    fp->_A = fp->_A * scale / destScale;
+    fp->_B = fp->_B * scale / destScale;
+}
+void  fl_newReferentialAsDelta(FluidPos* fp, float scale, float destScale) {
+    fp->_pos = fp->_pos * scale / destScale;
+    fp->_A = fp->_A * scale / destScale;
+    fp->_B = fp->_B * scale / destScale;
 }
 
 // Les convenience du set...

@@ -7,6 +7,8 @@
 
 #include "coq_map.h"
 
+#include "utils/utils_base.h"
+
 #define _MAP_MAX_NAME_COMPARE 64
 #define _MAP_MAX_NAME_HASH    80
 
@@ -65,24 +67,26 @@ HashSlot* _hashslot_foundFirstInListWithKey(HashSlot* hs, const char* key) {
     return NULL;
 }
 /// Retourne la nouvelle tete de liste. (Peut etre NULL, si plus d'elements.)
-HashSlot* _hashslot_destroyWithKey(HashSlot* hs, const char* key) {
+HashSlot* _hashslot_destroyWithKey(HashSlot* const hsHead, const char* key, void (*value_deinitOpt)(void*)) {
     HashSlot* last = NULL;
-    HashSlot* first = hs;
+    HashSlot* hs = hsHead;
     while(hs) {
         if(strncmp(key, hs->key, _MAP_MAX_NAME_COMPARE-1) == 0) {
-            if(hs == first) {
-                first = hs->next;
+            HashSlot* newHead = hsHead;
+            if(hs == hsHead) {
+                newHead = hs->next;
             } else {
                 last->next = hs->next;
             }
+            if(value_deinitOpt) value_deinitOpt(hs->valueData);
             coq_free(hs);
-            return first;
+            return newHead;
         }
         last = hs;
         hs = hs->next;
     }
     printwarning("Key %s not found", key);
-    return first;
+    return hsHead;
 }
 void  _hashslot_print(HashSlot* hs, void (*printValue)(const char*)) {
     int i = 0;
@@ -104,11 +108,11 @@ StringMap* Map_create(uint32_t count, size_t size_value) {
     ht->size_value = size_value;
     return ht;
 }
-void       map_destroyAndNull(StringMap** const map, void (*value_deinitOpt)(void*)) {
-    if(*map == NULL) return;
+void       map_destroyAndNull(StringMap** const mapOptRef, void (*value_deinitOpt)(void*)) {
+    if(*mapOptRef == NULL) return;
     // Deinit
-    HashSlot** p = (*map)->table;
-    HashSlot** end = &(*map)->table[(*map)->count];
+    HashSlot** p = (*mapOptRef)->table;
+    HashSlot** end = &(*mapOptRef)->table[(*mapOptRef)->count];
     HashSlot* last;
     HashSlot* hs;
     while(p < end) {
@@ -125,9 +129,9 @@ void       map_destroyAndNull(StringMap** const map, void (*value_deinitOpt)(voi
         p++;
     }
     // Destroy
-    coq_free(*map);
+    coq_free(*mapOptRef);
     // Null
-    *map = NULL;
+    *mapOptRef = NULL;
 }
 void _print_string(const char* str) {
     printf("%s", str);
@@ -188,10 +192,14 @@ char* map_putAsString(StringMap* map, const char* key, const char* const string)
 char* map_put(StringMap* map, const char* key, const void* const valueDataOpt) {
     return map_putWithSize(map, key, valueDataOpt, map->size_value);
 }
-void  map_removeKeyValue(StringMap* map, const char* key) {
+void  map_removeKeyValue(StringMap* map, const char* key, void (*value_deinitOpt)(void*)) {
+    if(map->it_hs) {
+        printerror("Removing key while iterator active.");
+        map->it_hs = NULL;
+    }
     size_t hashKey = _hash(key) % map->count;
-    HashSlot** hsRef = &map->table[hashKey];
-    *hsRef = _hashslot_destroyWithKey(*hsRef, key);
+    HashSlot** const hsHeadRef = &map->table[hashKey];
+    *hsHeadRef = _hashslot_destroyWithKey(*hsHeadRef, key, value_deinitOpt);
 }
 const char* map_valueRefOptOfKey(StringMap* map, const char* key) {
     size_t hashKey = _hash(key) % map->count;
@@ -236,6 +244,49 @@ bool map_iterator_next(StringMap* map) {
     map->it_hs = NULL;
     return false;
 }
+bool map_iterator_removeAndNext(StringMap* map, void (*value_deinitOpt)(void*)) {
+    if(map->it_hs == NULL)
+        return false;
+    // Trouver le précément
+    HashSlot* last = NULL;
+    HashSlot* next = NULL;
+    HashSlot* hs = map->table[map->it_index];
+    bool didRemove = false;
+    while(hs) {
+        if(hs == map->it_hs) {
+            if(last == NULL) { // Retrait de head.
+                map->table[map->it_index] = hs->next;
+            } else {
+                last->next = hs->next;
+            }
+            next = hs->next;
+            if(value_deinitOpt) value_deinitOpt(hs->valueData);
+            coq_free(hs);
+            didRemove = true;
+            break;
+        }
+        last = hs;
+        hs = hs->next;
+    }
+    if(!didRemove)
+        printerror("Did not remove element.");
+    // S'il y a d'autre slots...
+    if(next) {
+        map->it_hs = next;
+        return true;
+    }
+    // Sinon chercher le prochain hash.
+    map->it_index++;
+    while(map->it_index < map->count) {
+        if(map->table[map->it_index] != NULL) {
+            map->it_hs = map->table[map->it_index];
+            return true;
+        }
+        map->it_index++;
+    }
+    map->it_hs = NULL;
+    return false;
+}
 const char* map_iterator_valueRefOpt(StringMap* map) {
     if(map->it_hs == NULL)
         return NULL;
@@ -260,7 +311,9 @@ void _printint(const char* intRef) {
     printf("%d", *((int*)intRef));
 }
 
-void _Map_test(void) {
+
+
+void Map_test_(void) {
     StringMap* ht = Map_create(10, sizeof(int));
     int value = 5;
     map_put(ht, "Gustave", &value);

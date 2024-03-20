@@ -17,13 +17,13 @@ static float     _volumes[Sound_volume_count] = {
 static AVAudioEngine*        _engine = nil;
 static dispatch_queue_t      _sound_queue = NULL;
 
-typedef struct {
+struct Player_ {
     AVAudioPlayerNode*    audio_player;
     AVAudioUnitTimePitch* pitch_controller;
     int64_t               expirationTimeMS;
-} _Player;
-const uint32_t               _player_count = 5;
-static _Player               _players[_player_count];
+};
+const uint32_t               player_count_ = 5;
+static struct Player_        players_[player_count_] = {};
 
 typedef struct {
     size_t            count;
@@ -94,15 +94,15 @@ void  Sound_resume(void) {
     // 2. Engine
     AVAudioEngine* engine = [[AVAudioEngine alloc] init];
     // 3. Attach/connect 5 AudioPlayers with their PitchControler (On peut jouer jusqu'à 5 sons en même temps...)
-    for(uint32_t playerId = 0; playerId < _player_count; playerId ++) {
-        _players[playerId].audio_player = [[AVAudioPlayerNode alloc] init];
-        _players[playerId].pitch_controller = [[AVAudioUnitTimePitch alloc] init];
-        _players[playerId].expirationTimeMS = ChronoApp_elapsedMS();
-        [engine attachNode:_players[playerId].audio_player];
-        [engine attachNode:_players[playerId].pitch_controller];
-        [engine connect:_players[playerId].audio_player
-                      to:_players[playerId].pitch_controller format:format];
-        [engine connect:_players[playerId].pitch_controller
+    for(uint32_t playerId = 0; playerId < player_count_; playerId ++) {
+        players_[playerId].audio_player = [[AVAudioPlayerNode alloc] init];
+        players_[playerId].pitch_controller = [[AVAudioUnitTimePitch alloc] init];
+        players_[playerId].expirationTimeMS = ChronoApp_elapsedMS();
+        [engine attachNode:players_[playerId].audio_player];
+        [engine attachNode:players_[playerId].pitch_controller];
+        [engine connect:players_[playerId].audio_player
+                      to:players_[playerId].pitch_controller format:format];
+        [engine connect:players_[playerId].pitch_controller
                       to:engine.mainMixerNode format:format];
     }
     // (superflu?)
@@ -123,9 +123,9 @@ void  Sound_suspend(void) {
     // Suspendre dans la thread sound_queue (pour pas faire boguer un sound_play)
     dispatch_async(_sound_queue, ^{
         [_engine stop];
-        for(uint32_t playerId = 0; playerId < _player_count; playerId ++) {
-            _players[playerId].audio_player = nil;
-            _players[playerId].pitch_controller = nil;
+        for(uint32_t playerId = 0; playerId < player_count_; playerId ++) {
+            players_[playerId].audio_player = nil;
+            players_[playerId].pitch_controller = nil;
         }
         
         if(_buffers) {
@@ -173,13 +173,13 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
         // 1. Trouver un player disponible...
 //        uint32_t bestPlayerId = 0;
 //        int64_t  bestRemainingMS = 20000;
-        _Player* player = NULL;
+        struct Player_* player = NULL;
 //        bool     foundFree = false;
-        for(uint32_t playerId = 0; playerId < _player_count; playerId ++) {
-            int64_t remaining = _players[playerId].expirationTimeMS - ChronoApp_elapsedMS();
+        for(uint32_t playerId = 0; playerId < player_count_; playerId ++) {
+            int64_t remaining = players_[playerId].expirationTimeMS - ChronoApp_elapsedMS();
             // Ok, trouve...
             if(remaining <= 0) {
-                player = &_players[playerId];
+                player = &players_[playerId];
 //                bestPlayerId = playerId;
 //                foundFree = true;
                 break;

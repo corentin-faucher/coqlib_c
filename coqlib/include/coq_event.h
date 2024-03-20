@@ -9,34 +9,66 @@
 
 #include "maths/math_base.h"
 #include "utils/utils_char_and_keycode.h"
+#include "utils/utils_string.h"
 
-typedef struct _Root Root;
+typedef struct coq_Root Root;
+typedef struct _SlidingMenu SlidingMenu;
 
-typedef enum _EventFlag {
-    event_flag_toDo_ =             0x0001,
-    event_flag_done_ =             0x0002,
+enum EventFlag {
+    event_type_null =                           0x000,
     // Event de la window vers la root.
-    event_type_touch_hovering =    0x0010,
-    event_type_touch_down =        0x0020,
-    event_type_touch_drag =        0x0040,
-    event_type_touch_up =          0x0080,
-    event_type_scroll =            0x0100,
-    event_type_scrollTrackBegin =  0x0200,
-    event_type_scrollTrack =       0x0400,
-    event_type_scrollTrackEnd =    0x0800,
-    event_type_key_down =          0x1000,
-    event_type_key_up =            0x2000,
-    event_type_key_mod =           0x4000,
-    event_type_resize =          0x008000,
-    event_type_system_change =   0x010000,
+    event_type_touch_hovering =                 0x001,
+    event_type_touch_down =                     0x002,
+    event_type_touch_drag =                     0x004,
+    event_type_touch_up =                       0x008,
+    event_type_scroll =                         0x010,
+    event_type_key_down =                       0x020,
+    event_type_key_up =                         0x040,
+    event_type_key_mod =                        0x080,
+    event_type_resize =                       0x00100,
+    event_type_systemChanged =                0x00200,
     
     // Event de la root vers la window.
-    event_type_win_full_screen = 0x100000,
-    event_type_win_windowed =    0x200000,
+    event_type_win_mac_resize =             0x00010000,
+    event_type_win_ios_keyboardNeeded =     0x00020000,
+    event_type_win_ios_keyboardNotNeeded =  0x00040000,
+    event_type_win_ios_scrollviewNeeded =   0x00080000,
+    event_type_win_ios_scrollviewNotNeeded =0x00100000,
+    /// (`private`, désactivation temporaire de la scrollview lorsqu'un noeud est grabbé)
+    event_type_win_ios_scrollviewDisable_ = 0x00200000,
+    event_type_win_ios_fonts_install =      0x00400000,
+    event_type_win_ios_fonts_uninstall =    0x00800000,
+//    event_type_win_requestAppleIDName =     0x01000000,
+    event_type_win_sendEmail =              0x02000000,
     
-    event_types_root_ =          0x0FFFF0,
-    event_types_win_ =           0xF00000,
-} EventFlag;
+    // (privates flags)
+    event_types_root_ =                     0x0000FFFF,
+    event_types_win_ =                      0xFFFF0000,
+};
+
+enum {
+    scroll_type_scroll,
+    scroll_type_trackBegin,
+    scroll_type_track,
+    scroll_type_trackEnd,
+    scroll_type_offSet,
+};
+typedef struct {
+    uint16_t scrollType;
+    union {
+        Vector2  scroll_deltas;
+        struct {
+            float offset_ratio;
+            bool  offset_letGo;
+        };
+    };
+} ScrollInfo;
+
+typedef struct {
+    Rectangle  rect;
+    float      contentFactor;
+    float      offSetRatio;
+} RequireScrollViewInfo;
 
 /// Structure pour un keyboard event.
 typedef struct {
@@ -55,43 +87,68 @@ typedef struct {
     Rectangle framePt;
     /// Taille en pixels.
     Vector2   sizesPix;
-    bool      inTransition;
     bool      fullScreen;
     bool      justMoving;
+    bool      dontFix;
 } ResizeInfo;
 
 typedef struct {
-    bool      layoutDidChanged;
-    bool      languageDidChanged;
-    bool      themeDidChanged;
+    bool      layoutDidChange;
+    bool      languageRegionDidChange;
+    bool      themeDidChange;
+    bool      userNameDidChange;
+    bool      ios_keyboardUp;
+    bool      ios_keyboardDown;
 } SystemChange;
 
-/// Union des infos pour les différents types d'events.
 typedef struct {
-    uint32_t flags;
+    const char* recipient;
+    const char* subject;
+    const char* body;
+} EmailInfo;
+
+/// Union des infos pour les différents types d'events.
+typedef struct CoqEvent {
+    uint32_t type;
     union {
         // mouse/touch : hovering, down, drag.
         Vector2       touch_pos;
         // scroll/swipe
-        Vector2       scroll_deltas;
+        ScrollInfo    scroll_info;
         // keyboard events
         KeyboardInput key;
         // View resize
         ResizeInfo    resize_info;
         // System change (layout, language, theme)
         SystemChange  system_change;
+        
     };
+    bool _todo;
 } CoqEvent;
+
+typedef struct CoqEventWin {
+    uint32_t type;
+    union {
+        // Mac, demande de resize de la window.
+        ResizeInfo            resize_info;
+        // iOS, besoin d'une dummy scroll-view
+        RequireScrollViewInfo win_scrollViewInfo;
+        // iOS, install/uninstall de Fonts
+        SharedStringsArray    win_font_list;
+        EmailInfo             email_info;
+    };
+    bool _todo;
+} CoqEventWin;
 
 extern bool CoqEvent_ignoreRepeatKeyDown; // true
 
 /// Evenement de window -> root, e.g. clic de la souris.
-void   CoqEvent_addEvent(CoqEvent event);
+void   CoqEvent_addToRootEvent(CoqEvent event);
 /// A mettre dans l'update de la boucle principale.
 void   CoqEvent_processEvents(Root* root);
 
 /// Evenement de root -> window, e.g. l'app veut passer en mode plein ecran.
-void      CoqEvent_addWindowEvent(CoqEvent event);
-CoqEvent* CoqEvent_getWindowEventOpt(void);
+void        CoqEvent_addToWindowEvent(CoqEventWin event);
+CoqEventWin CoqEvent_getNextTodoWindowEvent(void);
 
 #endif /* coqevent_h */

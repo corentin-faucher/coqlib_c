@@ -13,11 +13,12 @@
 #include "graphs/graph_mesh.h"
 
 /*-- Texture --*/
-void           Texture_init(id<MTLDevice> const device);
+void           Texture_init(id<MTLDevice> const device, PngInfo const pngInfos[], const uint pngCount);
 id<MTLTexture> texture_MTLTexture(Texture* texOpt);
 
 /*-- Mesh --*/
 void           Mesh_init(id<MTLDevice> const device);
-id<MTLBuffer>  mesh_MTLIndicesBuffer(Mesh* mesh);
+id<MTLBuffer>  mesh_MTLIndicesBufferOpt(Mesh* mesh);
+id<MTLBuffer>  mesh_MTLVerticesBuffer(Mesh* mesh);
 
 #endif /* graph_texture_apple_h */

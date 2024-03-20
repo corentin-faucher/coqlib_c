@@ -1,0 +1,61 @@
+//
+//  coq_system.h
+//  Acces à divers info du système, 
+//  i.e. Keyboard layout, theme, cloud drive, 
+//
+//  Created by Corentin Faucher on 2023-10-25.
+//
+
+#ifndef COQ_UTILS_SYSTEM_H
+#define COQ_UTILS_SYSTEM_H
+
+#include <stdbool.h>
+
+void        CoqSystem_init(void);
+
+enum {
+    coqsystem_os_desktop,
+    coqsystem_os_tablet_big,  // (genre +12", i.e. assez gros pour afficher un clavier standard.)
+    coqsystem_os_tablet,
+    coqsystem_os_phone,
+    
+    coqsystem_os__default_,
+};
+unsigned    CoqSystem_OS_type(void);
+/// Pour tester. Mettre en mode phone/tablet, par exemple.
+void        CoqSystem_OS_forceTo(unsigned coqsystem_os);
+
+const char* CoqSystem_OS_versionOpt(void);
+
+
+void        CoqSystem_layoutUpdate(void);
+/// Nom du layout (juste dans macOS pour l'instant), e.g. "com.apple.keylayout.US" pour le Qwerty-US.
+const char* CoqSystem_layoutOpt(void);
+enum {
+    keyboardtype_ansi,
+    keyboardtype_iso,
+    keyboardtype_jis,
+};
+unsigned    CoqSystem_keyboardType(void);
+
+const char* CoqSystem_appVersionOpt(void);
+const char* CoqSystem_appBuildOpt(void);
+const char* CoqSystem_appDisplayNameOpt(void);
+
+void        CoqSystem_theme_OsThemeUpdate(void);
+bool        CoqSystem_theme_OsThemeIsDark(void);
+void        CoqSystem_theme_setAppTheme(bool isDark);
+void        CoqSystem_theme_setAppThemeToOsTheme(void);
+bool        CoqSystem_theme_appThemeIsDark(void);
+
+bool        CoqSystem_isCloudDriveEnabled(void);
+//const char* CoqSystem_cloudUserNameOpt(void);
+//void        CoqSystem_initCloudUserName(const char* container_name);
+//void        CoqSystem_requestPermissionAndSetCloudUserName(void);
+
+// TODO : Mettre dans events ?
+/// Pour iOS, par défaut l'apparition du clavier virtuel modifie la margin.bottom 
+/// pour ne pas cacher les élement de l'app.
+extern bool CoqSystem_dontResizeOnVirtualKeyboard; // false
+
+#endif

@@ -5,6 +5,7 @@
 //
 
 #include "utils/utils_string.h"
+#include "utils/utils_base.h"
 
 
 char* String_createCopy(const char* src) {
@@ -14,10 +15,21 @@ char* String_createCopy(const char* src) {
     return copy;
 }
 char* String_createCat(const char* src1, const char* src2) {
-    size_t size = strlen(src1) + strlen(src2) + 1;
-    char* new = coq_malloc(size);
-    strcpy(new, src1);
-    strcat(new, src2);
+    size_t size1 = strlen(src1);
+    size_t size2 = strlen(src2);
+    char* new = coq_malloc(size1 + size2 + 1);
+    memcpy(new, src1, size1);
+    memcpy(new + size1, src2, size2);
+    return new;
+}
+char* String_createCat3(const char* src1, const char* src2, const char* src3) {
+    size_t size1 = strlen(src1);
+    size_t size2 = strlen(src2);
+    size_t size3 = strlen(src3);
+    char* new = coq_malloc(size1 + size2 + size3 + 1);
+    memcpy(new, src1, size1);
+    memcpy(new + size1, src2, size2);
+    memcpy(new + size1 + size2, src3, size3);
     return new;
 }
 
@@ -34,31 +46,30 @@ bool  string_startWithPrefix(const char* c_str, const char* prefix) {
 }
 
 /*-- Navigation dans string utf8 ---------------------------------------*/
-size_t stringUTF8_charSizeAt(const char* c_str, size_t pos) {
-    const char* ptr = &c_str[pos];
+size_t charRef_sizeAsUTF8(const char* const ref) {
     // ASCII ordinaire...
     // 0xxx xxxx
-    if(!(*ptr & 0x80))
+    if(!(*ref & 0x80))
         return 1;
     // Byte intermediare ?
     // 10xx xxxx
-    if((*ptr & 0xC0) == 0x80) {
+    if((*ref & 0xC0) == 0x80) {
         printerror("UTF8 Inter-byte.");
         return 1;
     }
     // 110x xxxx ...
-    if((*ptr & 0xE0) == 0xC0)
+    if((*ref & 0xE0) == 0xC0)
         return 2;
     // 1110 xxxx ...
-    if((*ptr & 0xF0) == 0xE0)
+    if((*ref & 0xF0) == 0xE0)
         return 3;
     // 1111 0xxx ...
-    if((*ptr & 0xF8) == 0xF0)
+    if((*ref & 0xF8) == 0xF0)
         return 4;
-    printerror("Bad utf8 %d.", *ptr);
+    printerror("Bad utf8 %d.", *ref);
     return 1;
 }
-void   stringUTF8_moveToNextChar(const char* const c_str, const char** ref) {
+void   charRef_moveToNextUTF8Char(char** const ref) {
     // Aller au next a priori.
     (*ref)++;
     // Se deplacer encore si on est sur byte "extra", i.e. avec 10xx xxxx.
@@ -66,26 +77,19 @@ void   stringUTF8_moveToNextChar(const char* const c_str, const char** ref) {
         (*ref)++;
     }
 }
-void   stringUTF8_setToLastChar(const char* const c_str, const char** ref) {
-    // Aller à la fin
-    *ref = c_str;
-    while(**ref) (*ref)++;
-    if(*ref == c_str) return;
-    // Aller au utf8 précédent
-    (*ref)--;
-    // Remonter si byte intermediare 10xx xxxx
-    while((*ref > c_str) && ((**ref & 0xC0) == 0x80)) (*ref)--;
-}
-void   stringUTF8_moveToPreviousChar(const char* const c_str, const char** ref) {
-    if(*ref <= c_str) {
-        printwarning("Already at begining.");
-        return;
-    }
+void   charRef_moveToPreviousUTF8Char(char** const ref) {
     // Aller au previous a priori.
     (*ref)--;
     // Se deplacer encore si on est sur byte "intermedaire", i.e. avec 10xx xxxx.
-    while((*ref > c_str) && (**ref & 0xC0) == 0x80) (*ref)--;
+    int i = 0;
+    while((i < 4) && ((**ref & 0xC0) == 0x80)) {
+        (*ref)--;
+        i++;
+    } 
 }
+//void   charRef_moveToEnd(const char** ref) {
+//    while(**ref) (*ref)++;
+//}
 void   stringUTF8_deleteLastChar(char* const c_str) {
     // Aller à la fin
     char* c = c_str;
@@ -94,28 +98,32 @@ void   stringUTF8_deleteLastChar(char* const c_str) {
         printwarning("Already empty string.");
         return;
     }
+    char* const end = c;
     // Aller au utf8 précédent
-    c--;
-    *c = 0;
-    // Remonter si byte intermediare 10xx xxxx
-    while((c > c_str) && ((*c & 0xC0) == 0x80)) {
-        c--;
+    charRef_moveToPreviousUTF8Char(&c);
+    if(c < c_str) {
+        printerror("Bad utf8 string.");
+        return;
+    }
+    // Effacer
+    while(c < end) {
         *c = 0;
+        c++;
     }
 }
 
 size_t stringUTF8_lenght(const char* const c_str) {
-    const char* c = c_str;
+    char* c = (char*)c_str;
     size_t lenght = 0;
     while(*c) {
-        stringUTF8_moveToNextChar(c_str, &c);
+        charRef_moveToNextUTF8Char(&c);
         lenght++;
     }
     return lenght;
 }
 
 bool   stringUTF8_isSingleEmoji(const char* c_str) {
-    size_t size = stringUTF8_charSizeAt(c_str, 0);
+    size_t size = charRef_sizeAsUTF8(c_str);
     if(size != 4) return false;
     if(c_str[4] != 0) return false;
     // Bon on serait cense verifier le range...

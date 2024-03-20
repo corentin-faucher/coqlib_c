@@ -4,28 +4,30 @@
 //
 //  Created by Corentin Faucher on 2023-10-15.
 //
-
 #include "nodes/node_tree.h"
+
+#include "utils/utils_base.h"
 #include "nodes/node_squirrel.h"
-#include "nodes/node_root.h"
+
+//#define DEBUG_SEARCH
 
 void  node_tree_addFlags(Node* const nd, flag_t flags) {
     nd->flags |= flags;
     // Version avec goto et juste un pointeur...
-    Node* pos = nd -> firstChild;
+    Node* pos = nd -> _firstChild;
     if(pos == NULL) return;
 add_flag:
     pos->flags |= flags;
-    if(pos->firstChild) {
-        pos = pos->firstChild;
+    if(pos->_firstChild) {
+        pos = pos->_firstChild;
         goto add_flag;
     }
 check_littleBro:
-    if(pos->littleBro) {
-        pos = pos->littleBro;
+    if(pos->_littleBro) {
+        pos = pos->_littleBro;
         goto add_flag;
     }
-    pos = pos->parent;
+    pos = pos->_parent;
     if(pos == nd) return;
     if(pos == NULL) {
         printerror("Root not found.");
@@ -51,7 +53,7 @@ check_littleBro:
 void  node_tree_removeFlags(Node* nd, flag_t flags) {
     if(nd == NULL) return;
     nd->flags &= ~flags;
-    Node* firstChild = nd->firstChild;
+    Node* firstChild = nd->_firstChild;
     if(firstChild == NULL) return;
     Squirrel sq;
     sq_init(&sq, firstChild, sq_scale_ones);
@@ -70,20 +72,20 @@ void  node_tree_apply(Node* nd, void (*block)(Node*)) {
     if(nd == NULL) return;
     block(nd);
     // Version goto
-    Node* pos = nd -> firstChild;
+    Node* pos = nd -> _firstChild;
     if(pos == NULL) return;
 apply_block:
     block(pos);
-    if(pos->firstChild) {
-        pos = pos->firstChild;
+    if(pos->_firstChild) {
+        pos = pos->_firstChild;
         goto apply_block;
     }
 check_littleBro:
-    if(pos->littleBro) {
-        pos = pos->littleBro;
+    if(pos->_littleBro) {
+        pos = pos->_littleBro;
         goto apply_block;
     }
-    pos = pos->parent;
+    pos = pos->_parent;
     if(pos == nd) return;
     if(pos == NULL) {
         printerror("Root not found.");
@@ -109,7 +111,7 @@ void  node_tree_applyToTyped(Node* nd, void (*block)(Node*), uint32_t type_flag)
     if(nd == NULL) return;
     if(nd->_type & type_flag)
         block(nd);
-    Node* firstChild = nd->firstChild;
+    Node* firstChild = nd->_firstChild;
     if(firstChild == NULL) return;
     Squirrel sq;
     sq_init(&sq, firstChild, sq_scale_ones);
@@ -127,12 +129,13 @@ void  node_tree_applyToTyped(Node* nd, void (*block)(Node*), uint32_t type_flag)
     }
 }
 //void  node_childs_applyToTyped...
-void  node_tree_addRootFlag(Node* nd, flag_t flag) {
-    Node* pos = nd->parent;
+void  node_tree_addRootFlags(Node* nd, flag_t flags) {
+    Node* pos = nd->_parent;
     while(pos) {
-        if(pos->flags & flag) break;
-        pos->flags |= flag;
-        pos = pos->parent;
+        // (Il faut tout les flags, d'où le ==)
+        if((pos->flags & flags) == flags) break;
+        pos->flags |= flags;
+        pos = pos->_parent;
     }
 }
 // Superflu...
@@ -146,22 +149,22 @@ void  node_tree_openAndShow(Node* const nd) {
         nd->flags |= flag_show;
     if(!(nd->flags & flag_show)) return;
     // Version goto
-    Node* pos = nd -> firstChild;
+    Node* pos = nd -> _firstChild;
     if(pos == NULL) return;
 open_node:
     if(pos->openOpt) pos->openOpt(pos);
     if(!(pos->flags & flag_hidden))
         pos->flags |= flag_show;
-    if(pos->flags & flag_show && pos->firstChild) {
-        pos = pos->firstChild;
+    if(pos->flags & flag_show && pos->_firstChild) {
+        pos = pos->_firstChild;
         goto open_node;
     }
 check_littleBro:
-    if(pos->littleBro) {
-        pos = pos->littleBro;
+    if(pos->_littleBro) {
+        pos = pos->_littleBro;
         goto open_node;
     }
-    pos = pos->parent;
+    pos = pos->_parent;
     if(pos == nd) return;
     if(pos == NULL) {
         printerror("Root not found.");
@@ -188,15 +191,15 @@ check_littleBro:
 }
 void  node_tree_unhideAndTryToOpen(Node* nd) {
     nd->flags &= ~flag_hidden;
-    if(!nd->parent) return;
-    if(!(nd->parent->flags & flag_show)) return;
+    if(!nd->_parent) return;
+    if(!(nd->_parent->flags & flag_show)) return;
     node_tree_openAndShow(nd);
 }
 void  node_tree_close(Node* nd) {
     if(!(nd->flags & flag_exposed))
         nd->flags &= ~flag_show;
     if(nd->closeOpt) nd->closeOpt(nd);
-    Node* firstChild = nd->firstChild;
+    Node* firstChild = nd->_firstChild;
     if(firstChild == NULL) return;
     Squirrel sq;
     sq_init(&sq, firstChild, sq_scale_ones);
@@ -223,7 +226,7 @@ void  node_tree_reshape(Node* nd) {
     if(!(nd->flags & flag_show)) return;
     if(nd->reshapeOpt) nd->reshapeOpt(nd);
     if(!(nd->flags & flag_parentOfReshapable)) return;
-    Node *firstChild = nd->firstChild;
+    Node *firstChild = nd->_firstChild;
     if(!firstChild) return;
     Squirrel sq;
     sq_init(&sq, firstChild, sq_scale_ones);
@@ -241,66 +244,7 @@ void  node_tree_reshape(Node* nd) {
         }
     }
 }
-Button* root_searchButtonOpt(Root* const root, Vector2 const absPos,
-                                 Node* const nodeToAvoidOpt) {
-    if(&root->n == nodeToAvoidOpt) return NULL;
-    // Superflu... besoin d'une rechere a partir d'un non-root ?
-//    vector2_absPosToPosInReferentialOfNode(absPos, root);
-    Squirrel sq;
-    sq_initWithRelPos(&sq, &root->n, absPos, sq_scale_ones);
-    if(!sq_isIn(&sq)) return NULL;
-    if(!(sq.pos->flags & flag_show)) return NULL;
-    // 1. Vérif la root (superflu)
-    Button* b;
-//    b = node_asActiveButtonOpt(sq.pos);
-//    if(b) return b;
-//    if(!(sq.pos->flags & flag_parentOfButton))
-//        return NULL;
-    // 2. Se placer au premier child
-    if(!sq_goDownP(&sq))
-        return NULL;
-    while (true) {
-        if(sq_isIn(&sq) && (sq.pos->flags & flag_show)
-           && (sq.pos != nodeToAvoidOpt))
-        {
-            // 1. Possibilité trouvé
-            b = node_asActiveButtonOpt(sq.pos);
-            if(b) return b;
-            // 2. Aller en profondeur
-            if(sq.pos->flags & flag_parentOfButton) {
-                if(sq_goDownP(&sq)) continue;
-            }
-        }
-        // 3. Remonter, si plus de petit-frère
-        while(!sq_goRight(&sq)) {
-            if(!sq_goUpP(&sq)) {
-                printerror("Pas de root."); return NULL;
-            } else if(sq.pos == &root->n) return NULL;
-        }
-    }
-}
-SlidingMenu* root_searchFirstSlidingMenuOpt(Root* root) {
-//    if(!root) return NULL;
-    Squirrel sq;
-    sq_init(&sq, &root->n, sq_scale_ones);
-    // Se placer au premier child
-    if(!sq_goDownP(&sq))
-        return NULL;
-    while(true) {
-        if(sq.pos->flags & flag_show) {
-            SlidingMenu* sm = node_asSlidingMenuOpt(sq.pos);
-            if(sm) return sm;
-            if(sq.pos->flags & flag_parentOfScrollable)
-                if(sq_goDown(&sq)) continue;
-        }
-        // 3. Remonter, si plus de petit-frère
-        while(!sq_goRight(&sq)) {
-            if(!sq_goUp(&sq)) {
-                printerror("Pas de root."); return NULL;
-            } else if(sq.pos == &root->n) return NULL;
-        }
-    }
-}
+
 //Button* node_tree_searchFirstSelectableOptUsing(Node* const nd, bool (*testIsValid)(Button*)) {
 //    if(!(nd->flags & flag_show)) return NULL;
 //    if(nd->_type & _node_type_selectable) {
@@ -341,24 +285,29 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
     bool fix = ((alignOpt & node_align_fixPos) != 0);
     bool horizontal = ((alignOpt & node_align_vertically) == 0);
     bool setSecondaryToDefPos = ((alignOpt & node_align_setSecondaryToDefPos) != 0);
+    bool dontSetPrimaryDefPos = ((alignOpt & node_align_dontSetPrimaryDefPos) != 0);
     // 1. Mesurer largeur et hauteur requises
     float w = 0;
     float h = 0;
     int n = 0;
     if(horizontal) {
-        float htmp;
         do {
             w += 2.f*spacingRef*node_deltaX(sq.pos);
             n ++;
-            htmp = 2.f*node_deltaY(sq.pos);
+            float htmp = 2.f*node_deltaY(sq.pos);
+            Fluid* fluid = node_asFluidOpt(sq.pos);
+            if(fluid && setSecondaryToDefPos)
+                htmp += 2*fabsf(fluid->y.def);
             if(htmp > h) h = htmp;
         } while(sq_goRightWithout(&sq, flag_hidden|flag_notToAlign));
     } else {
-        float wtmp;
         do {
             h += 2.f*spacingRef*node_deltaY(sq.pos);
             n ++;
-            wtmp = 2.f*node_deltaX(sq.pos);
+            float wtmp = 2.f*node_deltaX(sq.pos);
+            Fluid* fluid = node_asFluidOpt(sq.pos);
+            if(fluid && setSecondaryToDefPos)
+                wtmp += 2*fabsf(fluid->x.def);
             if(wtmp > w) w = wtmp;
         } while(sq_goRightWithout(&sq, flag_hidden|flag_notToAlign));
     }
@@ -382,7 +331,7 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
         nd->w = w;
         nd->h = h;
         if(nd->flags & flag_giveSizeToBigbroFrame)
-            node_tryUpdatingAsFrameOfBro(nd->bigBro, nd);
+            node_tryUpdatingAsFrameOfBro(nd->_bigBro, nd);
     }
     // 4. Aligner les éléments
     sq_init(&sq, nd, sq_scale_ones);
@@ -394,9 +343,12 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
             x += spacingRef * node_deltaX(sq.pos) + extraHalfSpace;
             Fluid* fluid = node_asFluidOpt(sq.pos);
             if(fluid) {
+                if(!dontSetPrimaryDefPos) fluid->x.def = x;
                 fluid_setX(fluid, x, fix);
-                if(setSecondaryToDefPos) fluid_setYrelToDef(fluid, 0.f, fix);
-                else fluid_setY(fluid, 0.f, fix);
+                if(setSecondaryToDefPos) {
+                    fluid_setYrelToDef(fluid, 0.f, fix);
+                } else 
+                    fluid_setY(fluid, 0.f, fix);
             } else {
                 sq.pos->x = x;
                 sq.pos->y = 0.f;
@@ -411,9 +363,11 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
         y -= spacingRef * node_deltaY(sq.pos) + extraHalfSpace;
         Fluid* fluid = node_asFluidOpt(sq.pos);
         if(fluid) {
+            if(!dontSetPrimaryDefPos) fluid->y.def = y;
             fluid_setY(fluid, y, fix);
-            if(setSecondaryToDefPos) fluid_setXrelToDef(fluid, 0.f, fix);
-            else fluid_setX(fluid, 0.f, fix);
+            if(setSecondaryToDefPos) {
+                fluid_setXrelToDef(fluid, 0.f, fix);
+            } else fluid_setX(fluid, 0.f, fix);
         } else {
             sq.pos->y = y;
             sq.pos->x = 0.f;

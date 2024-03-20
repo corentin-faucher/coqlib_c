@@ -8,7 +8,9 @@
 #ifndef COQ_UTILS_FILE_H
 #define COQ_UTILS_FILE_H
 
-#include "utils_base.h"
+#include <stdio.h>  // printf, sprintf, file, etc.
+#include <stdbool.h>
+#include <stdint.h>
 #if __APPLE__
 #include <sys/syslimits.h>
 #endif
@@ -16,22 +18,44 @@
 #include <limits.h>
 #endif
 
-/// Optenir le contenu d'un fichier texte.
+enum {
+    file_exist_none,
+    file_exist_file,
+    file_exist_dir,
+};
+/// Retourne 1 si un ficher, 2 si un dossier et 0 si rien.
+int         FILE_fileExistAt(const char* path);
+/// Optenir le contenu d'un fichier texte (+1 à la taille pour le `\0` terminal ajouté à la string).
 /// Il ne faut pas `free` le buffer retourné. Pour ce faire utiliser `FILE_freeBuffer`.
 const char* FILE_contentOpt(const char* path);
+/// Obtenir le contenu d'un fichier binaire.
+const void* FILE_contentDataOpt(const char* path);
 /// Taille du tempon retourné par `FILE_contentOpt`.
 size_t      FILE_bufferSize(void);
 /// Libérer le tempon (facultatif).
 void        FILE_freeBuffer(void);
 /// Ecrire une string dans un fichier texte.
 void        FILE_write(const char* path, const char* content);
+void        FILE_writeData(const char* path, const void* buffer, size_t buffer_size);
 
 /// Dossier où sont situé les resources de l'application (res, Resources,...)
-/// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.
-char* const FileManager_getResourcePathOpt(const char* fileNameOpt, 
+/// Retourne le buffer *editable* `_FileManager_tmp_path` de taille `PATH_MAX`.
+char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
                         const char* fileExtOpt, const char* subDirOpt);
-/// Dossier où l'application peut stocker ses fichiers.
+/// Dossier `local` où l'application peut stocker ses fichiers.
 /// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.
-char*       FileManager_getApplicactionSupportDirectoryPathOpt(void);
+char*        FileManager_getApplicationSupportDirectoryPathOpt(void);
+/// Dossier `Cloud` où l'application peut stocker ses fichiers.
+/// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.
+char*        FileManager_getApplicationCloudMainDirectoryPathOpt(void);
+/// Dossier `Cloud` document où l'application peut stocker ses fichiers.
+/// Il s'agit du sous-dossier "Documents" visible dans Finder -> iCloud Drive.
+/// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.
+char*        FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void);
+/// Vérifie si le directory existe et est bien un directory.
+/// S'il s'agit d'un fichier le fichier est effacé.
+/// Ensuite on crée le directory s'il est manquant.
+/// Retourne true si OK, false si échec.
+bool         FileManager_checkAndCreateDirectory(const char* dir_path);
 
 #endif /* file_utils_h */

@@ -41,6 +41,7 @@ typedef enum _Digit {
 
 typedef struct _Number {
     Node     n;
+    
     int32_t  value;
     Texture* digitTex;
     uint32_t unitDecimal;
@@ -62,7 +63,12 @@ Number*  Number_create(Node* ref, int32_t value,
                       float x, float y, float height);
 /// Downcasting Node to Number.
 Number*  node_asNumberOpt(Node* n);
+/// Créer tout de suite la structure des chiffres pour avoir les vrais dimensions (width depend des chiffres)
 void     number_setTo(Number* nb, int32_t newValue);
+void     number_last_setDigitTexture(Texture* digitTexture);
+void     number_last_setExtraDigit(uint32_t extraDigit);
+void     number_last_setSeparator(uint32_t separatorDigit);
+void     number_last_setunitDecimal(uint32_t unitDecimal);
 /// Créer tout de suite la structure des chiffres pour avoir les vrais dimensions (width depend des chiffres)
 void     number_last_setNow(void);
 
