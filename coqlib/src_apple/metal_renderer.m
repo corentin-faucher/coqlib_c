@@ -22,7 +22,7 @@
         return self;
     }
 //    printdebug("Pixel format %d.", view.colorPixelFormat);
-//    view.colorPixelFormat = MTLPixelFormatRGBA8Unorm_sRGB;
+    view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     /*-- Command queue --*/
     queue = [device newCommandQueue];
     
@@ -33,11 +33,10 @@
 #if TARGET_OS_OSX == 1
     rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
 #else
-#warning Tester si il faut une vertex_function_ios13... ? (transition ok ?)
     if(@available(iOS 14.0, *)) {
         rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
     } else {
-        rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
+        rpd.vertexFunction = [library newFunctionWithName:@"vertex_function_ios13"];
     }
 #endif
     rpd.fragmentFunction = [library newFunctionWithName:@"fragment_function"];
@@ -49,7 +48,15 @@
     colorAtt.pixelFormat = view.colorPixelFormat;
     [colorAtt setBlendingEnabled:YES];
     [colorAtt setRgbBlendOperation:MTLBlendOperationAdd];
+#if TARGET_OS_OSX == 1
     [colorAtt setSourceRGBBlendFactor:MTLBlendFactorSourceAlpha];
+#else
+    if(@available(iOS 14.0, *)) {
+        [colorAtt setSourceRGBBlendFactor:MTLBlendFactorSourceAlpha];
+    } else {
+        [colorAtt setSourceRGBBlendFactor:MTLBlendFactorOne];
+    }
+#endif
     [colorAtt setDestinationRGBBlendFactor:MTLBlendFactorOneMinusSourceAlpha];
     pipelineState = [device newRenderPipelineStateWithDescriptor:rpd error:nil];
     
@@ -129,13 +136,15 @@
         printerror("Root not init.");
         return;
     }
-    if(metalView.isPaused) { return; }
+    if(metalView.isPaused) {
+        return; 
+    }
 #if TARGET_OS_OSX != 1
     if(metalView.transitioning) {
         CALayer* presentation = [[metalView layer] presentationLayer];
         if(!metalView.didTransition && (presentation != nil)) {
             Vector2 frameSizePt = CGSize_toVector2([presentation bounds].size);
-#warning Fix frame size plutôt ?
+//#warning Fix frame size plutôt ?
             root_justSetFrameSize_(root, frameSizePt);
         } else {
             metalView.transitioning = NO;

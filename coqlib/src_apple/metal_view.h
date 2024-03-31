@@ -7,7 +7,9 @@
 
 #import <MetalKit/MetalKit.h>
 #import "metal_renderer.h"
-
+#if TARGET_OS_OSX != 1
+#import "ViewController.h"
+#endif
 
 //@protocol CoqViewDelegate;
 
@@ -19,6 +21,8 @@
     ChronoChecker    cc;
 #if TARGET_OS_OSX == 1
     NSTrackingArea*  trackingArea;
+#else
+    ViewController*  viewController;
 #endif
     dispatch_queue_t checkup_queue;
     NSTimer*         win_event_timer;
@@ -31,6 +35,7 @@
 @property (nonatomic) BOOL iosForceVirtualKeyboard;
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device;
+- (void)setUpRendererAndNotifications;
 - (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix;
 
 // Méthodes à overrider. Superflu ?

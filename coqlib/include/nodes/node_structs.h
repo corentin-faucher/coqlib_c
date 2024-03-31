@@ -45,5 +45,10 @@ Drawable* node_addFramedString(Node* n, uint32_t framePngId, StringDrawable str,
 void node_last_addFramedString(uint32_t framePngId, StringDrawable str,
                                FramedStringParams params);
 
+/// Petite structure avec un array de string dans un encadré.
+/// parent -> node -> {frame, strRoot-> {str1, str2,...}}
+void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringDrawable* str_arr, uint32_t str_count,
+                                  float x, float y, float twoDxOpt, float strHeight,
+                                  FramedStringParams params);
 
 #endif /* node_structs_h */

@@ -18,24 +18,26 @@
 #include <limits.h>
 #endif
 
-enum {
-    file_exist_none,
-    file_exist_file,
-    file_exist_dir,
-};
+//enum {
+//    file_exist_none,
+//    file_exist_file,
+//    file_exist_dir,
+//};
 /// Retourne 1 si un ficher, 2 si un dossier et 0 si rien.
-int         FILE_fileExistAt(const char* path);
+/// Superflu ? Juste essayer d'ouvrir...
+//int         FILE_existAt(const char* path);
+
 /// Optenir le contenu d'un fichier texte (+1 à la taille pour le `\0` terminal ajouté à la string).
 /// Il ne faut pas `free` le buffer retourné. Pour ce faire utiliser `FILE_freeBuffer`.
-const char* FILE_contentOpt(const char* path);
+const char* FILE_stringContentOptAt(const char* path);
 /// Obtenir le contenu d'un fichier binaire.
-const void* FILE_contentDataOpt(const char* path);
+const void* FILE_bufferContentOptAt(const char* path);
 /// Taille du tempon retourné par `FILE_contentOpt`.
 size_t      FILE_bufferSize(void);
 /// Libérer le tempon (facultatif).
 void        FILE_freeBuffer(void);
 /// Ecrire une string dans un fichier texte.
-void        FILE_write(const char* path, const char* content);
+void        FILE_writeString(const char* path, const char* content);
 void        FILE_writeData(const char* path, const void* buffer, size_t buffer_size);
 
 /// Dossier où sont situé les resources de l'application (res, Resources,...)
@@ -56,6 +58,6 @@ char*        FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void);
 /// S'il s'agit d'un fichier le fichier est effacé.
 /// Ensuite on crée le directory s'il est manquant.
 /// Retourne true si OK, false si échec.
-bool         FileManager_checkAndCreateDirectory(const char* dir_path);
+bool         FileManager_checkAndCreateDirectory(const char* dirPath_cstr);
 
 #endif /* file_utils_h */

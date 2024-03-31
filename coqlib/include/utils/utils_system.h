@@ -48,7 +48,12 @@ void        CoqSystem_theme_setAppTheme(bool isDark);
 void        CoqSystem_theme_setAppThemeToOsTheme(void);
 bool        CoqSystem_theme_appThemeIsDark(void);
 
-bool        CoqSystem_isCloudDriveEnabled(void);
+void        CoqSystem_cloudDrive_startWatching_(const char* subFolderOpt, const char* extensionOpt);
+bool        CoqSystem_cloudDrive_isEnabled(void);
+bool        CoqSystem_cloudDrive_isUpdating(void);
+void        CoqSystem_cloudDrive_stopWatching_(void);
+
+
 //const char* CoqSystem_cloudUserNameOpt(void);
 //void        CoqSystem_initCloudUserName(const char* container_name);
 //void        CoqSystem_requestPermissionAndSetCloudUserName(void);

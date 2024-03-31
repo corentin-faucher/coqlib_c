@@ -269,7 +269,7 @@ void  noderef_fastDestroyAndNull(Node** const nodeOptRef) {
     node_tree_throwToGarbage(*nodeOptRef);
     *nodeOptRef = NULL;
 }
-void  noderef_slowDestrowAndNull(Node** const nodeOptRef, int64_t deltaTimeMSOpt) {
+void  noderef_slowDestroyAndNull(Node** const nodeOptRef, int64_t deltaTimeMSOpt) {
     if(*nodeOptRef == NULL) return;
     if(deltaTimeMSOpt == 0) deltaTimeMSOpt = 400;
     node_tree_close(*nodeOptRef);

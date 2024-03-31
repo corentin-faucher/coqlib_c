@@ -79,7 +79,7 @@ void  node_tree_throwToGarbage(Node* node);
 void  noderef_fastDestroyAndNull(Node** nodeOptRef);
 /// Version avec délai de `noderef_fastDestroyAndNull`.
 /// Close, et schedule destroy. deltaTimeMS = 400 par défaut (si mit à 0). 
-void  noderef_slowDestrowAndNull(Node** nodeOptRef, int64_t deltaTimeMSOpt);
+void  noderef_slowDestroyAndNull(Node** nodeOptRef, int64_t deltaTimeMSOpt);
 /// Free les noeuds dans la poubelle. A faire régulièrement
 /// (à chaque 2~3 frame? ou après avoir updaté la structure).
 void  NodeGarbage_burn(void);

@@ -8,26 +8,26 @@
 #include "utils/utils_file.h"
 
 #include "utils/utils_base.h"
-#include <sys/stat.h>
+//#include <sys/stat.h>
+//#include <unistd.h>
 
 static char*  FILE_buffer_ = NULL;
 static size_t FILE_buffer_size_ = 0;
 
-int  FILE_fileExistAt(const char* path) {
-    struct stat st;
-    stat(path, &st);
-    if(S_ISDIR(st.st_mode))
-        return file_exist_dir;
-    if(S_ISREG(st.st_mode))
-        return file_exist_file;
-    return file_exist_none;
-}
-
-const char* FILE_contentOpt(const char* path) {
+//int         FILE_existAt(const char* path) {
+//    struct stat st;
+//    stat(path, &st);
+//    if(S_ISDIR(st.st_mode))
+//        return file_exist_dir;
+//    if(S_ISREG(st.st_mode))
+//        return file_exist_file;
+//    return file_exist_none;
+//}
+const char* FILE_stringContentOptAt(const char* path) {
     FILE_freeBuffer();
     if(!path) {  printerror("No path to open."); return NULL; }
     FILE* f = fopen(path, "r");
-    if(!f) { printerror("Cannot open %s.", path); return NULL; }
+    if(!f) { return NULL; }
     fseek(f, 0, SEEK_END);
     // Ajouter + 1 pour le `\0` de fin de string.
     FILE_buffer_size_ = ftell(f) + 1;
@@ -47,11 +47,11 @@ const char* FILE_contentOpt(const char* path) {
     }
     return FILE_buffer_;
 }
-const void* FILE_contentDataOpt(const char* path) {
+const void* FILE_bufferContentOptAt(const char* path) {
     FILE_freeBuffer();
     if(!path) {  printerror("No path to open."); return NULL; }
     FILE* f = fopen(path, "rb");
-    if(!f) { printerror("Cannot open %s.", path); return NULL; }
+    if(!f) { return NULL; }
     fseek(f, 0, SEEK_END);
     FILE_buffer_size_ = ftell(f);
     rewind(f);
@@ -70,7 +70,7 @@ const void* FILE_contentDataOpt(const char* path) {
     }
     return FILE_buffer_;
 }
-void     FILE_write(const char* path, const char* content) {
+void     FILE_writeString(const char* path, const char* content) {
     if(!path) { printwarning("No path to open."); return; }
     if(!content) { printwarning("No content to write."); return; }
     FILE* f = fopen(path, "w");
@@ -90,7 +90,8 @@ size_t FILE_bufferSize(void) {
     return FILE_buffer_size_;
 }
 void   FILE_freeBuffer(void) {
-    if(FILE_buffer_) free(FILE_buffer_);
+    if(!FILE_buffer_) return;
+    free(FILE_buffer_);
     FILE_buffer_ = NULL;
     FILE_buffer_size_ = 0;
 }

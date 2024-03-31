@@ -20,6 +20,7 @@
     [self setContentSize:CGSizeMake(self.bounds.size.width, contentHeight)];
     [self setContentOffset:CGPointMake(self.contentOffset.x, offSet * self.contentSize.height)];
     
+    /* Test couleurs de fond...
     CGFloat subviewheight = self.contentSize.height / 8.0;
     CGFloat ypos = 0;
     while(ypos < self.contentSize.height - 5) {
@@ -31,22 +32,20 @@
         
         ypos += subviewheight;        
     }
+    */
     return self;
 }
 
 -(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    printdebug("dummy scroll began");
     [[self nextResponder] touchesBegan:touches withEvent:event];
 }
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
     [[self nextResponder] touchesMoved:touches withEvent:event];
 }
 -(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    printdebug("dummy scroll ended");
     [[self nextResponder] touchesEnded:touches withEvent:event];
 }
 -(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    printdebug("dummy scroll cancel");
     [[self nextResponder] touchesCancelled:touches withEvent:event];
     
 }

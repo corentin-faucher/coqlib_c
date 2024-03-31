@@ -37,7 +37,7 @@ void     ChronoApp_setPaused(bool isPaused);
 /// (Pas juste une somme de +1/60sec...)
 int64_t  ChronoApp_elapsedMS(void);
 /// Durée de la dernière mise en pause (avec ChronoApp_setPaused).
-float    ChronoApp_lastSleepTimeSec(void);
+int64_t  ChronoApp_lastSleepTimeMS(void);
 
 /*-- Chrono ordinaire. Se base sur ChronoApp a priori (temps réel). --*/
 typedef struct _Chrono {

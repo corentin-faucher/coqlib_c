@@ -19,6 +19,7 @@
 #import "ios_dummyTextField.h"
 #import "ios_dummy_scrollview.h"
 #import <CoreText/CoreText.h>
+#import <MessageUI/MessageUI.h>
 
 @interface CoqMetalView ()
 
@@ -33,13 +34,24 @@
 @implementation CoqMetalView
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device {
+    printdebug("Init CoqMetalView...");
     self = [super initWithFrame:frameRect device:device];
+    [self setUpRendererAndNotifications];
+    return self;
+}
+- (void)awakeFromNib {
+    [super awakeFromNib];
+    [self setDevice:MTLCreateSystemDefaultDevice()];
+    [self setUpRendererAndNotifications];
+}
+-(void)setUpRendererAndNotifications {
     [self setColorPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB];
     renderer = [[Renderer alloc] initWithView:self];
     [self setDelegate:renderer];
     [self setPaused:YES];
     chronochecker_set(&(self->cc));
 #if TARGET_OS_OSX == 1
+    // Notifications
     {
         // Notifications Full screen (pause unpause)
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowWillEnterFullScreenNotification
@@ -114,7 +126,7 @@
         [dc addObserverForName:UIKeyboardDidShowNotification
                         object:nil queue:nil
                     usingBlock:^(NSNotification * _Nonnull note) {
-            printdebug("🐷 Keyboard did show, trans %d.", self.transitioning);
+//            printdebug("🐷 Keyboard did show, trans %d.", self.transitioning);
             self.keyboard_height = [note.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue].size.height;
             if(self.transitioning) return;
             CoqEvent_addToRootEvent((CoqEvent) {
@@ -129,7 +141,7 @@
     //    }];
         [dc addObserverForName:UIKeyboardDidChangeFrameNotification object:nil queue:nil
                     usingBlock:^(NSNotification * _Nonnull note) {
-            printdebug("🐷 Keyboard did change, trans %d.", self.transitioning);
+//            printdebug("🐷 Keyboard did change, trans %d.", self.transitioning);
             CGRect keyboardRect = [note.userInfo[UIKeyboardFrameEndUserInfoKey] CGRectValue];
             self.keyboard_height = keyboardRect.size.height;
         }];
@@ -146,7 +158,7 @@
                     usingBlock:^(NSNotification * _Nonnull note) {
             // (On remet les marges ordinaires)
             self.keyboard_height = 0;
-            printdebug("🐷 Keyboard did hide, trans %d.", self.transitioning);
+//            printdebug("🐷 Keyboard did hide, trans %d.", self.transitioning);
             if(self.transitioning) return;
             [self updateRootFrame:self.drawableSize dontFix:YES];
             CoqEvent_addToRootEvent((CoqEvent) {
@@ -155,11 +167,9 @@
             });
         }];
     }
-    
 #endif
-    
-    return self;
 }
+
 -(BOOL)acceptsFirstResponder {
     return YES;
 }
@@ -182,6 +192,15 @@
                 [self.window setFrame:frame display:YES];
                 break;
             }
+            case event_type_win_sendEmail: {
+                NSSharingService* mailService = [NSSharingService sharingServiceNamed:NSSharingServiceNameComposeEmail];
+                if(!mailService) { printerror("Cannot init email service."); break; }
+                
+                [mailService setRecipients:   @[[NSString stringWithUTF8String:event.email_info.recipient]]];
+                [mailService setSubject:        [NSString stringWithUTF8String:event.email_info.subject]];
+                [mailService performWithItems:@[[NSString stringWithUTF8String:event.email_info.body]]];
+                break;
+            }
             case event_type_win_ios_keyboardNeeded:
             case event_type_win_ios_keyboardNotNeeded:
             case event_type_win_ios_scrollviewNotNeeded:
@@ -189,11 +208,25 @@
             case event_type_win_ios_scrollviewDisable_:
                 printwarning("Received an iOS win event : %#x.", event.type);
                 break; // (pass)
+            
 #else
             case event_type_win_mac_resize:
-                printwarning("macOS win event : %#x.", event->type);
+                printwarning("macOS win event : %#x.", event.type);
                 break;
                 // Event spécifiques à iOS
+            case event_type_win_sendEmail: {
+                if(![MFMailComposeViewController canSendMail]) {
+                    printerror("Cannot send mail.");
+                    break;
+                }
+                MFMailComposeViewController* mail = [[MFMailComposeViewController alloc] init];
+                [mail setMailComposeDelegate:viewController];
+                [mail setToRecipients:@[[NSString stringWithUTF8String:event.email_info.recipient]]];
+                [mail setSubject:        [NSString stringWithUTF8String:event.email_info.subject]];
+                [mail setMessageBody:[NSString stringWithUTF8String:event.email_info.body] isHTML:NO];
+                [viewController presentViewController:mail animated:YES completion:nil];
+                break;
+            }
             case event_type_win_ios_keyboardNeeded: {
                 [self activateDummyTextField];
                 break;
@@ -203,9 +236,9 @@
                 break;
             }
             case event_type_win_ios_scrollviewNeeded: {
-                CGRect rect = rectangle_toCGRect(event->win_scrollViewInfo.rect);
-                CGFloat factor = (CGFloat)event->win_scrollViewInfo.contentFactor;
-                CGFloat offset = (CGFloat)event->win_scrollViewInfo.offSetRatio;
+                CGRect rect = rectangle_toCGRect(event.win_scrollViewInfo.rect);
+                CGFloat factor = (CGFloat)event.win_scrollViewInfo.contentFactor;
+                CGFloat offset = (CGFloat)event.win_scrollViewInfo.offSetRatio;
                 if(_dummyScrollView != nil) [_dummyScrollView removeFromSuperview];
                 _dummyScrollView = [[DummyScrollView alloc] initWithFrame:rect contentFactor:factor offSet:offset metalView:self];
                 [self addSubview:_dummyScrollView];
@@ -262,16 +295,12 @@
                 break;
             }
 #endif
-        // Event communs
-            case event_type_win_sendEmail: {
-                NSSharingService* mailService = [NSSharingService sharingServiceNamed:NSSharingServiceNameComposeEmail];
-                if(!mailService) { printerror("Cannot init email service."); break; }
-                
-                [mailService setRecipients:   @[[NSString stringWithUTF8String:event.email_info.recipient]]];
-                [mailService setSubject:        [NSString stringWithUTF8String:event.email_info.subject]];
-                [mailService performWithItems:@[[NSString stringWithUTF8String:event.email_info.body]]];
-                break;
-            }
+            case event_type_win_cloudDrive_start: {
+                CoqSystem_cloudDrive_startWatching_(event.cloudDrive_info.subFolderOpt, event.cloudDrive_info.extensionOpt);
+            } break;
+            case event_type_win_cloudDrive_stop: {
+                CoqSystem_cloudDrive_stopWatching_();
+            } break;
             default: {
                 printerror("Undefined win event %#010x.", event.type);
             }
@@ -300,7 +329,8 @@
             NodeGarbage_burn();
             // Check optionnels
             if(chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
-                printwarning("Overwork?"); 
+                if(chronochecker_elapsedMS(&cc) > 200)
+                    printwarning("Overwork? %lld ms.", chronochecker_elapsedMS(&cc)); 
                 continue;
             }
             Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
@@ -365,14 +395,14 @@
     // Ok, changement...
     ChronoApp_setPaused(paused);
     [super setPaused:paused];
-//    [self setPreferredFramesPerSecond:paused ? 1 : 60];
+    [self setPreferredFramesPerSecond:paused ? 1 : 60];
     if(win_event_timer) [win_event_timer invalidate];
     win_event_timer = nil;
     if(paused) {
         return;
     }
     // Unpause
-    if(root) if(root->didResumeActionOpt) root->didResumeActionOpt(root);
+    if(root) if(root->resumeAfterMSOpt) root->resumeAfterMSOpt(root, ChronoApp_lastSleepTimeMS());
     [self startCheckUpDispatchQueue];
     win_event_timer = [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:true block:^(NSTimer * _Nonnull timer) {
         [self checkWindowEvents];
@@ -385,8 +415,8 @@
     [self updateRootFrame: self.drawableSize dontFix:YES];
 }
 - (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix {
+    if(!root) { return; }
     [self setPaused:NO];
-    if(!root) { printerror("root not init"); return; }
 #if TARGET_OS_OSX == 1
     NSWindow* window = [self window];
     bool isFullScreen = [window styleMask] & NSWindowStyleMaskFullScreen;
@@ -650,10 +680,6 @@
         uint16_t keycode = key.keyCode;
         uint16_t mkc = MKC_of_keycode[keycode];
         const char* c_str = [key.characters UTF8String];
-        printdebug("Key down. keycode %#06x / %d, mkc %d, mods %#010x, c_str %s.",
-                   keycode, keycode, mkc, mods, c_str);
-        
-//        if(keycode == keycode_capsLock) continue;
         
         uint32_t event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
                                 event_type_key_mod : event_type_key_down;
@@ -691,7 +717,7 @@
     [self setPaused:NO];
     if(self.isPaused) return;
     if(@available(iOS 13.4, *)) {for(UIPress* press in presses) {
-#warning A tester.
+//#warning A tester.
         UIKey *key = press.key;
         uint32_t mods = (uint32_t)key.modifierFlags & (~modifier_capslock);
         uint16_t keycode = key.keyCode;

@@ -6,7 +6,7 @@
 //
 
 #include "nodes/node_structs.h"
-
+#include "nodes/node_tree.h"
 #include "utils/utils_base.h"
 #include "graphs/graph_colors.h"
 
@@ -85,6 +85,22 @@ Drawable* node_addFramedString(Node* n, uint32_t framePngId, StringDrawable str,
                  params.updateParentSizes ? frame_option_giveSizesToParent : 0);
     Drawable* d = Drawable_createString(n, str, 0, 0, strW, strH, flag_giveSizeToBigbroFrame, 0);
     return d;
+}
+void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringDrawable* str_arr, uint32_t str_count,
+                                  float x, float y, float twoDxOpt, float strHeight,
+                                  FramedStringParams params) {
+    float delta = params.frame_ratio * strHeight;
+    float strW = twoDxOpt;
+    if(!params.frame_isSpilling && strW) {
+        strW = fmaxf(0.f, strW - 2.f*delta*(1.f - params.frame_inside));
+    }
+    Node* n = Node_create(parent, x, y, 1, 1, 0, 0);
+    Frame_create(n, params.frame_inside, delta, 0, 0, framePngId, frame_option_giveSizesToParent);
+    Node* strsRoot = Node_create(n, 0, 0, 1, 1, flag_giveSizeToBigbroFrame, 0);
+    for(uint32_t i = 0; i < str_count; i ++) {
+        Drawable_createString(strsRoot, str_arr[i], 0, 0, strW, strHeight, 0, 0);
+    }
+    node_tree_alignTheChildren(strsRoot, node_align_vertically, 1, 1);   
 }
 
 /// Ajoute au dernier noeud créé une frame et string.

@@ -207,31 +207,31 @@ Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
 #pragma mark - Secure/Hoverable button
 
 // As Hoverable... (Nom du bouton qui apparaaît)
-
-void buttonhov_showPopMessage_(Node* nd) {
-    ButtonSecureHov* hv = (ButtonSecureHov*)nd;
-    PopMessage_spawnOver(nd, 0, 0.4, 2.5, hv->popFramePngId, hv->popMessage, framedString_defPars, false);
+void buttonhov_showPopMessage_callback_(Node* nd) {
+    ButtonSecureHov_* hv = (ButtonSecureHov_*)nd;
+    PopMessage_spawnOver(nd, 0, 0.4, 2.5, hv->popFramePngId, hv->popMessage, 
+                         framedString_defPars, hv->popInFrontView);
 }
 void buttonhov_startHovering_(Button* b) {
-    ButtonSecureHov* h = (ButtonSecureHov*)b;
+    ButtonSecureHov_* h = (ButtonSecureHov_*)b;
     timer_cancel(&h->timer);
-    timer_scheduled(&h->timer, 350, false, &h->n, buttonhov_showPopMessage_);
+    timer_scheduled(&h->timer, 350, false, &h->n, buttonhov_showPopMessage_callback_);
 }
 void buttonhov_stopHovering_(Button* b) {
-    ButtonSecureHov* hv = (ButtonSecureHov*)b;
+    ButtonSecureHov_* hv = (ButtonSecureHov_*)b;
     timer_cancel(&hv->timer);
 }
 
 // As secure (hold to activate)
 
 void buttonsecure_action_callback_(Node* nd) {
-    ButtonSecureHov* bt = (ButtonSecureHov*)nd;
+    ButtonSecureHov_* bt = (ButtonSecureHov_*)nd;
     popdisk_cancel(&bt->pop);
     bt->b.action(&bt->b);
     bt->didActivate = true;
 }
 void buttonsecure_grab_(Button* sel, Vector2 pos) {
-    ButtonSecureHov* bt = (ButtonSecureHov*)sel;
+    ButtonSecureHov_* bt = (ButtonSecureHov_*)sel;
     bt->didActivate = false;
     popdisk_cancel(&bt->pop);
     PopDisk_spawn(&bt->n, &bt->pop, bt->spi.popPngId, bt->spi.popTile,
@@ -243,7 +243,7 @@ void buttonsecure_drag_(Button* sel, Vector2 pos) {
     // pass
 }
 void buttonsecure_letGo_(Button* but) {
-    ButtonSecureHov* bt = (ButtonSecureHov*)but;
+    ButtonSecureHov_* bt = (ButtonSecureHov_*)but;
     popdisk_cancel(&bt->pop);
     timer_cancel(&bt->timer);
     if(bt->didActivate) return;
@@ -251,12 +251,12 @@ void buttonsecure_letGo_(Button* but) {
 }
 
 void buttonsecurehov_deinit_(Node* n) {
-    timer_cancel(&((ButtonSecureHov*)n)->timer);
+    timer_cancel(&((ButtonSecureHov_*)n)->timer);
 }
 Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
                 SecurePopInfo spi, uint32_t popFramePngId, StringDrawable popMessage,
                 float x, float y, float height, float lambda, flag_t flags) {
-    ButtonSecureHov *sec = coq_calloc(1, sizeof(ButtonSecureHov));
+    ButtonSecureHov_ *sec = coq_calloc(1, sizeof(ButtonSecureHov_));
     node_init_(&sec->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
     fluid_init_(&sec->f, lambda);
     button_init_(&sec->b, action);
@@ -273,14 +273,14 @@ Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
     
     return &sec->b;
 }
-void buttonsecurehov_initJustSecure_(ButtonSecureHov* bsh, SecurePopInfo spi) {
+void buttonsecurehov_initJustSecure_(ButtonSecureHov_* bsh, SecurePopInfo spi) {
     bsh->b.grabOpt =          buttonsecure_grab_;
     bsh->b.dragOpt =          buttonsecure_drag_;
     bsh->b.letGoOpt =         buttonsecure_letGo_;
     bsh->n.deinitOpt =        buttonsecurehov_deinit_;
     bsh->spi =                spi;
 }
-void buttonsecurehov_initJustHoverable_(ButtonSecureHov* bsh, uint32_t popFramePngId, StringDrawable popMessage) {
+void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFramePngId, StringDrawable popMessage) {
     bsh->b.startHoveringOpt = buttonhov_startHovering_;
     bsh->b.stopHoveringOpt =  buttonhov_stopHovering_;
     bsh->n.deinitOpt =        buttonsecurehov_deinit_;
@@ -290,7 +290,7 @@ void buttonsecurehov_initJustHoverable_(ButtonSecureHov* bsh, uint32_t popFrameP
 /// Juste secure pas de pop-over lors du survol.
 Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
                             SecurePopInfo spi, float x, float y, float height, float lambda, flag_t flags) {
-    ButtonSecureHov *sec = coq_calloc(1, sizeof(ButtonSecureHov));
+    ButtonSecureHov_ *sec = coq_calloc(1, sizeof(ButtonSecureHov_));
     node_init_(&sec->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
     fluid_init_(&sec->f, lambda);
     button_init_(&sec->b, action);
@@ -303,12 +303,19 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
 Button* ButtonHoverable_create(Node* refOpt, void (*action)(Button*),
                 uint32_t popFramePngId, StringDrawable popMessage,
                 float x, float y, float height, float lambda, flag_t flags) {
-    ButtonSecureHov *sec = coq_calloc(1, sizeof(ButtonSecureHov));
-    node_init_(&sec->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
+    ButtonSecureHov_ *sec = coq_calloc(1, sizeof(ButtonSecureHov_));
+    node_init_(&sec->n, refOpt, x, y, height, height, node_type_nfb_secHov, flags, 0);
     fluid_init_(&sec->f, lambda);
     button_init_(&sec->b, action);
     
     buttonsecurehov_initJustHoverable_(sec, popFramePngId, popMessage);
     
     return &sec->b;
+}
+void buttonhoverable_last_setToPopInFrontView(void) {
+    if(!button_last_) { printerror("No last button."); return; }
+    if(!(button_last_->n._type & node_type_flag_secHov)) {
+        printerror("Not a secure/hoverable button."); return;
+    }
+    ((ButtonSecureHov_*)button_last_)->popInFrontView = true;
 }

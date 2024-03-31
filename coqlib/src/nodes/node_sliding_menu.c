@@ -192,8 +192,6 @@ void _slidingmenu_open(Node* nd) {
             .win_scrollViewInfo = { rect, contentFactor, offSetRatio },
         });
     }
-#warning Faire aussi reshape
-        
 #endif
 #endif
     // 6. Open "node" : fadeIn, relativePos...

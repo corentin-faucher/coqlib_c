@@ -235,9 +235,7 @@ void   drawable_open_testframe_getSizesOfParent_(Node* nd) {
     d->n.sx = p->w; d->n.sy = p->h;
 }
 void   node_tryToAddTestFrame(Node* ref) {
-#ifndef DEBUG
-    return;
-#endif
+#ifdef DEBUG
     if(mesh_sprite == NULL) { printerror("Missing Mesh_init()."); return; }
     if(!ref) { printerror("No parent."); return; }
     Drawable *d = coq_calloc(1, sizeof(Drawable));
@@ -248,6 +246,7 @@ void   node_tryToAddTestFrame(Node* ref) {
         ref->flags |= flag_parentOfReshapable;
         d->n.reshapeOpt = drawable_open_testframe_getSizesOfParent_;
     }
+#endif
 }
 void   node_last_tryToAddTestFrame(void) {
     node_tryToAddTestFrame(node_last_nonLeaf);

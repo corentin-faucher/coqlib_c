@@ -37,7 +37,7 @@ Root* node_asRootOpt(Node* n) {
     if(n->_type & node_type_flag_root) return (Root*)n;
     return NULL;
 }
-void   _root_closeActiveScreen(Root* rt) {
+void   root_releaseActiveView_(Root* rt) {
     View* viewLast = rt->viewActiveOpt;
     if(viewLast == NULL) return;
     node_tree_close(&viewLast->n);
@@ -47,11 +47,11 @@ void   _root_closeActiveScreen(Root* rt) {
     rt->viewActiveOpt =     NULL;
     rt->buttonSelectedOpt = NULL;
 }
-void   _root_setActiveScreen(Root* rt, View* newScreen) {
-    rt->viewActiveOpt = newScreen;
-    node_tree_openAndShow(&newScreen->n);
-    if(rt->changeScreenActionOpt)
-        rt->changeScreenActionOpt(rt);
+void   root_setActiveView_(Root* rt, View* newView) {
+    rt->viewActiveOpt = newView;
+    node_tree_openAndShow(&newView->n);
+    if(rt->changeViewOpt)
+        rt->changeViewOpt(rt);
 }
 void   _root_callback_terminate(Node* node) {
     Root* rt = (Root*)node;
@@ -75,7 +75,7 @@ void  root_changeViewActiveTo(Root* rt, View* const newViewOpt) {
         return;
     }
     // 1. Fermer l'écran actif (déconnecter si evanescent)
-    _root_closeActiveScreen(rt);
+    root_releaseActiveView_(rt);
     // 2. Si null -> fermeture de l'app.
     if(newViewOpt == NULL) {
         rt->viewActiveOpt = NULL;
@@ -83,7 +83,7 @@ void  root_changeViewActiveTo(Root* rt, View* const newViewOpt) {
         return;
     }
     // 3. Ouverture du nouvel écran.
-    _root_setActiveScreen(rt, newViewOpt);
+    root_setActiveView_(rt, newViewOpt);
 }
 
 typedef struct {
@@ -174,7 +174,7 @@ void root_viewResized(Root *rt, ResizeInfo info)
     node_tree_reshape(&rt->n);
     // 6. Action supplementaire au resize ?
 root_resize_end:
-    if(rt->resizeActionOpt) rt->resizeActionOpt(rt, info);
+    if(rt->resizeOpt) rt->resizeOpt(rt, info);
 }
 
 bool    root_isLandscape(Root* r) {

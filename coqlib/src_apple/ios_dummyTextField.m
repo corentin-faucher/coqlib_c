@@ -24,7 +24,7 @@
     UITextInputAssistantItem* item = [self inputAssistantItem];
     item.leadingBarButtonGroups = @[];
     item.trailingBarButtonGroups = @[];
-#warning Utile ? bogue avec le mode dictée... ?
+//#warning Utile ? bogue avec le mode dictée... ?
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(inputModeDidChange:)
                                                  name:UITextInputCurrentInputModeDidChangeNotification
@@ -51,7 +51,7 @@
 -(BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string
 {
     [metalView setPaused:NO];
-#warning Inutile ?
+//#warning Inutile ?
     [self setText:@"-"];
     CoqEvent coqevent;
     // Backspace

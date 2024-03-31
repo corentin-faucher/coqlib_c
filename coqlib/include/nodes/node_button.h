@@ -89,10 +89,10 @@ void    button_slider_drag_(Button* b, Vector2 pos_rel);
 #pragma mark - Secure button with pop over.
 
 typedef struct  {
-    float    holdTimeSec;
-    uint32_t popPngId;
-    uint32_t popTile;
-    uint32_t failPopFramePngId;
+    float          holdTimeSec;
+    uint32_t       popPngId;
+    uint32_t       popTile;
+    uint32_t       failPopFramePngId;
     StringDrawable failMessage;
 } SecurePopInfo;
 
@@ -107,9 +107,12 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
 Button* ButtonHoverable_create(Node* refOpt, void (*action)(Button*),
                 uint32_t popFramePngId, StringDrawable popMessage,
                 float x, float y, float height, float lambda, flag_t flags);
+void    buttonhoverable_last_setToPopInFrontView(void);
 
-// La structure, pour si on veut faire une sous-struct.
-typedef struct ButtonSecureHov {
+
+
+// La structure (plus ou moins `privé`), pour si on veut faire une sous-struct.
+typedef struct ButtonSecureHov_ {
     union {  // Upcasting...
         Node      n;
         Fluid     f;
@@ -117,16 +120,17 @@ typedef struct ButtonSecureHov {
     };
     Timer*        timer;
     // Hoverable
-    uint32_t      popFramePngId;
+    uint32_t       popFramePngId;
     StringDrawable popMessage;
+    bool           popInFrontView;
     // Secure
     SecurePopInfo spi; // Info supplementaire pour un bouton secure. (plus commode en un packet)
     PopDisk*      pop;
     bool          didActivate;
-} ButtonSecureHov;
+} ButtonSecureHov_;
 
-void buttonsecurehov_initJustSecure_(ButtonSecureHov* bsh, SecurePopInfo spi);
-void buttonsecurehov_initJustHoverable_(ButtonSecureHov* bsh, uint32_t popFramePngId, StringDrawable popMessage);
+void buttonsecurehov_initJustSecure_(ButtonSecureHov_* bsh, SecurePopInfo spi);
+void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFramePngId, StringDrawable popMessage);
 
 //extern Button* button_last_;
 

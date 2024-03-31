@@ -38,8 +38,9 @@ enum EventFlag {
     event_type_win_ios_scrollviewDisable_ = 0x00200000,
     event_type_win_ios_fonts_install =      0x00400000,
     event_type_win_ios_fonts_uninstall =    0x00800000,
-//    event_type_win_requestAppleIDName =     0x01000000,
-    event_type_win_sendEmail =              0x02000000,
+    event_type_win_cloudDrive_start =       0x01000000,
+    event_type_win_cloudDrive_stop =        0x02000000,
+    event_type_win_sendEmail =              0x04000000,
     
     // (privates flags)
     event_types_root_ =                     0x0000FFFF,
@@ -97,6 +98,7 @@ typedef struct {
     bool      languageRegionDidChange;
     bool      themeDidChange;
     bool      userNameDidChange;
+    bool      cloudDriveDidChange;
     bool      ios_keyboardUp;
     bool      ios_keyboardDown;
 } SystemChange;
@@ -106,6 +108,10 @@ typedef struct {
     const char* subject;
     const char* body;
 } EmailInfo;
+typedef struct {
+    const char* subFolderOpt;
+    const char* extensionOpt;
+} CloudDriveInfo;
 
 /// Union des infos pour les différents types d'events.
 typedef struct CoqEvent {
@@ -136,6 +142,7 @@ typedef struct CoqEventWin {
         // iOS, install/uninstall de Fonts
         SharedStringsArray    win_font_list;
         EmailInfo             email_info;
+        CloudDriveInfo        cloudDrive_info;
     };
     bool _todo;
 } CoqEventWin;

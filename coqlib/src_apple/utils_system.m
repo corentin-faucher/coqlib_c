@@ -12,6 +12,7 @@
 
 #include "utils/utils_base.h"
 #include "utils/utils_string.h"
+#include "coq_event.h"
 
 #if TARGET_OS_OSX == 1
 #import <Carbon/Carbon.h>
@@ -19,8 +20,6 @@
 #else
 #import <UIKit/UIKit.h>
 #endif
-
-#pragma mark - Keyboard Layout
 
 static char* coqsystem_layoutName_ = NULL;
 static unsigned coqsystem_keyboardtype_ = keyboardtype_ansi;
@@ -42,7 +41,7 @@ void  CoqSystem_setOs_(void) {
     }
 #endif
 }
-
+void  CoqSystem_cloudDrive_init_(void); // (voir plus bas)
 void  CoqSystem_init(void) {
     if(coqsystem_os_version_ != NULL) { printerror("Already init."); return; }
     // Os version
@@ -62,10 +61,10 @@ void  CoqSystem_init(void) {
     // App name
     NSString* app_name = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
     coqsystem_app_name_ = String_createCopy([app_name UTF8String]);
+#if TARGET_OS_OSX == 1
     // Layout name
     CoqSystem_layoutUpdate();
     // Keyboard type
-#if TARGET_OS_OSX == 1
     switch(KBGetLayoutType(LMGetKbdType())) {
         case kKeyboardANSI: coqsystem_keyboardtype_ = keyboardtype_ansi; break;
         case kKeyboardISO:  coqsystem_keyboardtype_ = keyboardtype_iso; break;
@@ -74,7 +73,11 @@ void  CoqSystem_init(void) {
 #endif
     // Theme
     CoqSystem_theme_OsThemeUpdate();
+    // iCloud
+    CoqSystem_cloudDrive_init_();
 }
+
+#pragma mark - Keyboard Layout
 
 const char* CoqSystem_layoutOpt(void) {
     return coqsystem_layoutName_;
@@ -106,7 +109,6 @@ unsigned    CoqSystem_keyboardType(void) {
     return coqsystem_keyboardtype_;
 }
 
-
 #pragma mark - App version
 
 unsigned    CoqSystem_OS_type(void) {
@@ -115,8 +117,9 @@ unsigned    CoqSystem_OS_type(void) {
 void        CoqSystem_OS_forceTo(unsigned coqsystem_os) {
     if(coqsystem_os >= coqsystem_os__default_) {
         CoqSystem_setOs_();
+    } else {
+        coqsystem_os_type_ = coqsystem_os;
     }
-    coqsystem_os_type_ = coqsystem_os;
 }
 
 const char*  CoqSystem_OS_versionOpt(void) {
@@ -181,9 +184,159 @@ bool        CoqSystem_theme_appThemeIsDark(void) {
     return current_theme_is_dark_;
 }
 
-bool        CoqSystem_isCloudDriveEnabled(void) {
-    return [[NSFileManager defaultManager] ubiquityIdentityToken] != nil;
+#pragma mark - iCloud Drive
+
+// TODO... pour les "Documents", i.e. visible dans iCloud Drive.
+@interface ICloudDriveManager : NSObject {
+    NSMetadataQuery* metaDataQuery;
+@public
+    BOOL             updating;
+    BOOL             iCloudEnabled;
 }
+@end
+@implementation ICloudDriveManager
+-(void)iCloudChanged {
+    iCloudEnabled = [[NSFileManager defaultManager] ubiquityIdentityToken] != nil;
+    CoqEvent_addToRootEvent((CoqEvent) {
+        .type = event_type_systemChanged,
+        .system_change = { .cloudDriveDidChange = true },
+    });
+}
+-(id)init {
+    self = [super init];
+    iCloudEnabled = [[NSFileManager defaultManager] ubiquityIdentityToken] != nil;
+    updating = true;
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(iCloudChanged)
+        name:NSUbiquityIdentityDidChangeNotification object:nil];
+    
+    return self;
+}
+-(void)dataQueryDidUpdate {
+    __block bool newUpdating = false;
+    if(metaDataQuery == nil) {
+        printerror("No data query.");
+    } else { [metaDataQuery enumerateResultsUsingBlock:^(id  _Nonnull item, NSUInteger index, BOOL * _Nonnull stop) {
+        NSMetadataItem* metaDataItem = (NSMetadataItem*)item;
+//        printdebug("checking metadata %s, path key %s.",
+//            [[metaDataItem valueForAttribute:NSMetadataItemFSNameKey] UTF8String],
+//            [[metaDataItem valueForAttribute:NSMetadataItemPathKey] UTF8String]
+//        );
+        NSURL* url = [metaDataItem valueForAttribute:NSMetadataItemURLKey];
+        NSString* downloadStatus = [metaDataItem valueForAttribute:NSMetadataUbiquitousItemDownloadingStatusKey];
+        if([downloadStatus isEqual:NSMetadataUbiquitousItemDownloadingStatusCurrent]) {
+            // Cas "OK", fini d'updater.
+//            printdebug("✅: %s.", [[url relativeString] UTF8String]);
+        } else if ([downloadStatus isEqual:NSMetadataUbiquitousItemDownloadingStatusDownloaded]) {
+            // Cas "de trop" sera effacé...
+            newUpdating = true;
+        } else if ([downloadStatus isEqual:NSMetadataUbiquitousItemDownloadingStatusNotDownloaded]) {
+            // Cas "manquant"
+            newUpdating = true;
+            // Demande de téléchargement...
+            NSError* error;
+            [[NSFileManager defaultManager] startDownloadingUbiquitousItemAtURL:url error:&error];
+            if(error != nil) {
+                printf("Error %s", [[error localizedDescription] UTF8String]);
+            }
+        } else {
+            printerror("Undefined data query status.");
+        }
+    }];}
+    // (pas de changement)
+    if(newUpdating == updating)
+        return;
+    updating = newUpdating;
+    CoqEvent_addToRootEvent((CoqEvent) {
+        .type = event_type_systemChanged,
+        .system_change = { .cloudDriveDidChange = true },
+    });
+}
+-(void)startDataQueryIn:(nullable NSString*)folderOpt withExtension:(nullable NSString*) extension {
+    if(metaDataQuery) return;
+    updating = true;
+    metaDataQuery = [[NSMetadataQuery alloc] init];
+    [metaDataQuery setSearchScopes:@[NSMetadataQueryUbiquitousDataScope]];
+    if(folderOpt || extension) {
+        NSString* format;
+        if(folderOpt) {
+            NSURL* cloudUrl = [[NSFileManager defaultManager] URLForUbiquityContainerIdentifier:nil];
+            cloudUrl = [cloudUrl URLByAppendingPathComponent:folderOpt isDirectory:YES];
+            if(extension)
+                format = [NSString stringWithFormat:@"%@ BEGINSWITH \"%@\" AND %@ LIKE \"*.%@\"",
+                            NSMetadataItemPathKey, cloudUrl.path, NSMetadataItemFSNameKey, extension];
+            else
+                format = [NSString stringWithFormat:@"%@ BEGINSWITH \"%@\"",
+                            NSMetadataItemPathKey, cloudUrl.path];
+        } else {
+            format = [NSString stringWithFormat:@"%@ LIKE \"*.%@\"",
+                            NSMetadataItemFSNameKey, extension];
+        }
+        NSPredicate* predicate = [NSPredicate predicateWithFormat:format];
+        [metaDataQuery setPredicate:predicate];
+    }
+    [metaDataQuery startQuery];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dataQueryDidUpdate)
+        name:NSMetadataQueryDidUpdateNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(dataQueryDidUpdate)
+        name:NSMetadataQueryDidFinishGatheringNotification object:nil];
+}
+-(void)stopDataQuery {
+    if(!metaDataQuery) return;
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+        name:NSMetadataQueryDidUpdateNotification object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self
+        name:NSMetadataQueryDidFinishGatheringNotification object:nil];
+    [metaDataQuery stopQuery];
+    metaDataQuery = nil;
+}
+@end
+
+ICloudDriveManager* cloudDrive_manager_ = nil;
+void        CoqSystem_cloudDrive_init_(void) {
+    if(cloudDrive_manager_ != nil) {
+        printwarning("Cloud drive manager already set.");
+        return;
+    }
+    cloudDrive_manager_ = [[ICloudDriveManager alloc] init];
+}
+void        CoqSystem_cloudDrive_startWatching_(const char* subFolderOpt, const char* extensionOpt) {
+    if(cloudDrive_manager_ == nil) {
+        printerror("No cloud drive manager.");
+        return;
+    }
+    if(cloudDrive_manager_->iCloudEnabled) {
+        NSString* folder = nil;
+        NSString* extension = nil;
+        if(subFolderOpt) folder = [NSString stringWithUTF8String:subFolderOpt];
+        if(extensionOpt) extension = [NSString stringWithUTF8String:extensionOpt];
+        [cloudDrive_manager_ startDataQueryIn:folder withExtension:extension];
+    } else {
+        printwarning("iCloud not enabled.");
+    }
+    
+}
+bool        CoqSystem_cloudDrive_isEnabled(void) {
+    if(cloudDrive_manager_ == nil) {
+        printwarning("No cloud drive manager.");
+        return false;
+    }
+    return cloudDrive_manager_->iCloudEnabled;
+}
+bool        CoqSystem_cloudDrive_isUpdating(void) {
+    if(cloudDrive_manager_ == nil) {
+        printwarning("No cloud drive manager.");
+        return false;
+    }
+    return cloudDrive_manager_->updating;
+}
+void        CoqSystem_cloudDrive_stopWatching_(void) {
+    if(cloudDrive_manager_ == nil) {
+        printwarning("No cloud drive manager.");
+        return;
+    }
+    [cloudDrive_manager_ stopDataQuery];
+}
+
 
 #pragma mark - User Name
 /*

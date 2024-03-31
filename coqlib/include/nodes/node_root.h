@@ -58,11 +58,10 @@ typedef struct coq_Root {
     /// Par défaut `node_defaultUpdateModelAndGetAsDrawableOpt`.
     Drawable*   (*updateModelAndGetDrawable)(Node*);
     // Actions optionnelles à definir pour differents events...
-    void        (*changeScreenActionOpt)(Root*);
-    void        (*resizeActionOpt)(Root*, ResizeInfo);
-    void        (*didResumeActionOpt)(Root*);
-//    void        (*systemDidChangedActionOpt)(Root*, SystemChange);
-
+    /// Action à faire à chaque changement de vue, e.g. faire un bruit.
+    void        (*changeViewOpt)(Root*);
+    void        (*resizeOpt)(Root*, ResizeInfo);
+    void        (*resumeAfterMSOpt)(Root*, int64_t);
 //    void        (*willTerminateOpt)(Root*);  // Utile ?
 } Root;
 

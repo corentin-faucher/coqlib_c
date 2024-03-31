@@ -156,6 +156,9 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
     }
     if(Sound_isMute || _volumes[volumeId] < 0.01)
         return;
+    if(_sound_queue == NULL) {
+        printerror("No Sound queue."); return;
+    }
     dispatch_async(_sound_queue, ^{
         if(_engine == nil) return;
         if(![_engine isRunning]) {

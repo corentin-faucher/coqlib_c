@@ -44,6 +44,10 @@ char* FileManager_getApplicationSupportDirectoryPathOpt(void) {
 
 char* FileManager_getApplicationCloudMainDirectoryPathOpt(void) {
     NSURL* icloudContainer = [[NSFileManager defaultManager] URLForUbiquityContainerIdentifier:NULL];
+//    if(icloudContainer == nil) {
+//        printerror("No iCloud countainer? and icloud token is %s.", 
+//            [[[[NSFileManager defaultManager] ubiquityIdentityToken] description] UTF8String]);
+//    }
     if(icloudContainer == nil) { return NULL; }
     strcpy(_FileManager_tmp_path, [[icloudContainer path] UTF8String]);
     return _FileManager_tmp_path;
@@ -59,18 +63,20 @@ char* FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void) {
     return _FileManager_tmp_path;
 }
 
-bool  FileManager_checkAndCreateDirectory(const char* dir_path) {
-    if(!dir_path) { printerror("No dir path."); return false; }
-    int exist = FILE_fileExistAt(dir_path);
+bool  FileManager_checkAndCreateDirectory(const char* dirPath_cstr) {
+    if(!dirPath_cstr) { printerror("No dir path."); return false; }
+    NSString* path = [NSString stringWithUTF8String:dirPath_cstr];
+    BOOL isDirectory;
+    BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDirectory];
     // 1. Case OK (already exists)
-    if (exist == file_exist_dir) {
+    if (fileExists && isDirectory) {
         return true;
     }
     // 2. Case file... delete the file.
-    if (exist == file_exist_file) {
-        printwarning("File exists with the name of the directory %s.", dir_path);
+    if (fileExists) {
+        printwarning("File exists with the name of the directory %s.", dirPath_cstr);
         NSError* error = nil;
-        [[NSFileManager defaultManager] removeItemAtPath:[NSString stringWithUTF8String:dir_path] error:&error];
+        [[NSFileManager defaultManager] removeItemAtPath:path error:&error];
         if(error != nil) {
             printerror("Cannot remove file with dir name : %s.", [[error localizedDescription] UTF8String]);
             return false;
@@ -78,7 +84,7 @@ bool  FileManager_checkAndCreateDirectory(const char* dir_path) {
     }
     // 3. Create the directory
     NSError* error = nil;
-    [[NSFileManager defaultManager] createDirectoryAtPath:[NSString stringWithUTF8String:dir_path]
+    [[NSFileManager defaultManager] createDirectoryAtPath:path
                               withIntermediateDirectories:YES attributes:nil error:&error];
     if(error != nil) {
         printerror("Cannot create dir : %s.", [[error localizedDescription] UTF8String]);

@@ -71,8 +71,8 @@ void    ChronoApp_setPaused(bool isPaused) {
 int64_t ChronoApp_elapsedMS(void) {
     return CA_isPaused_ ? CA_time_ : (CA_systemTime_() - CA_time_);
 }
-float   ChronoApp_lastSleepTimeSec(void) {
-    return (float)CA_lastSleepTime_ / 1000.f;
+int64_t  ChronoApp_lastSleepTimeMS(void) {
+    return CA_lastSleepTime_;
 }
 
 /** Un chronomètre basé sur le AppChrono (temps écoulé sans les "pause" de l'app).

@@ -22,6 +22,7 @@ typedef struct {
     uint32_t m, n;
     bool     nearest;
     bool     isCoqlib;
+    // float alpha, beta;  // "Spreading", Superflu ?
 } PngInfo;
 
 /*-- Infos d'une texture. (implementation partiellement cachée, depend de l'OS.) --*/
