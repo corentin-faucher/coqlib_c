@@ -14,6 +14,7 @@
 #include "nodes/node_root.h"
 #include "nodes/node_poping.h"
 #include "nodes/node_sliding_menu.h"
+#include "nodes/node_drawable_multi.h"
 // (les autres sont déjà inclus dans ces derniers...)
 
 #endif /* Header_h */

@@ -10,6 +10,53 @@
 #include "graph__apple.h"
 #include "utils/utils_base.h"
 
+static id<MTLDevice> MTL_device_ = nil;
+
+#pragma mark - Testing... Metal Buffer (pour uniforms) -----------------------
+
+typedef struct UniformBuffer {
+    id<MTLBuffer> mtlBuffer;
+} UniformBuffer;
+
+UniformBuffer* UniformBuffer_create(size_t size) {
+    // A priori, on ne fait qu'écrire dans le buffer ?
+    UniformBuffer* ub = coq_calloc(1, sizeof(UniformBuffer));
+    ub->mtlBuffer = [MTL_device_ newBufferWithLength:size options:MTLResourceOptionCPUCacheModeWriteCombined];
+    return ub;
+};
+void   uniformbuffer_setDataAt(UniformBuffer* ub, const void *newData, size_t size, size_t offset) {
+    memcpy([ub->mtlBuffer contents] + offset, newData, size);
+}
+void   uniformbufferref_destroyAndNull(UniformBuffer** const ubToDeleteRef) {
+    if(*ubToDeleteRef == NULL) return;
+    (*ubToDeleteRef)->mtlBuffer = nil;
+    coq_free(*ubToDeleteRef);
+    *ubToDeleteRef = NULL;
+}
+id<MTLBuffer>  uniformbuffer_MTLBuffer(UniformBuffer* ub) {
+    return ub->mtlBuffer;
+}
+
+// Ou bien... (semble mieux...)
+
+const void* MTLBuffer_createAndGetCPointer(size_t size) {
+    return CFBridgingRetain([MTL_device_ newBufferWithLength:size options:MTLResourceOptionCPUCacheModeWriteCombined]);
+}
+void mtlbufferCptr_setDataAt(const void* mtlBufferCPtr, const void *newData, size_t size, size_t offset) {
+    id<MTLBuffer> mtlBuffer = (__bridge id<MTLBuffer>)(mtlBufferCPtr);
+    memcpy([mtlBuffer contents] + offset, newData, size);
+}
+void mtlbufferCPtrRef_releaseAndNull(const void** mtlBufferRef) {
+    if(*mtlBufferRef == NULL) return;
+    CFRelease(*mtlBufferRef);
+    *mtlBufferRef = NULL;
+}
+id<MTLBuffer> mtlbufferCPtr_asMTLBuffer(const void* mtlBufferCPtr) {
+    return (__bridge id<MTLBuffer>)mtlBufferCPtr;
+}
+
+#pragma mark - Mesh ------------------------------------------------------
+
 typedef struct Mesh_ {
     size_t        vertices_size;      // La taille en bytes de l'array vertices.
     uint32_t      vertex_count;       // Le nombre de vertex.
@@ -18,11 +65,11 @@ typedef struct Mesh_ {
     uint16_t      cull_mode;
     bool          isShared;
     id<MTLBuffer> indicesBufferOpt;   // Buffer Metal des indices (optionel).
-    id<MTLBuffer> verticesBuffer;
+    id<MTLBuffer> verticesBuffer;     // (Suffisant, pas besoin d'array vertices.)
 //    Vertex        vertices[1];         // Array des vertex. A LA FIN, fait varier la taille.
 } Mesh;
 
-static id<MTLDevice> _mesh_device = nil;
+
 
 static Vertex _mesh_sprite_vertices[4] = {
     {-0.5, 0.5, 0, 0,0, 0,0,1},
@@ -33,7 +80,7 @@ static Vertex _mesh_sprite_vertices[4] = {
 Mesh*  mesh_sprite = NULL;
 
 void Mesh_init(id<MTLDevice> const device) {
-    _mesh_device = device;
+    MTL_device_ = device;
     
     // Init de la sprite.
     mesh_sprite = Mesh_createEmpty(_mesh_sprite_vertices, 4, NULL, 0,
@@ -45,7 +92,7 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
                         enum MeshPrimitiveType primitive_type,
                         enum MeshCullMode cull_mode, 
                         bool isShared) {
-    if(_mesh_device == nil) {
+    if(MTL_device_ == nil) {
         printerror("Mesh not init.");
         return NULL;
     }
@@ -62,7 +109,7 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
     
     if(indexCount && indicesOpt) {
         size_t indicesSize = indexCount * sizeof(uint16_t);
-        mesh->indicesBufferOpt = [_mesh_device
+        mesh->indicesBufferOpt = [MTL_device_
                                newBufferWithBytes:indicesOpt
                                length:indicesSize options:0];
     } else {
@@ -71,10 +118,10 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
         mesh->indicesBufferOpt = nil;
     }
     if(verticesOpt) {
-        mesh->verticesBuffer = [_mesh_device newBufferWithBytes:verticesOpt 
+        mesh->verticesBuffer = [MTL_device_ newBufferWithBytes:verticesOpt 
                                         length:mesh->vertices_size options:0];
     } else {
-        mesh->verticesBuffer = [_mesh_device newBufferWithLength:mesh->vertices_size options:0];
+        mesh->verticesBuffer = [MTL_device_ newBufferWithLength:mesh->vertices_size options:0];
     }
     return mesh;
 }

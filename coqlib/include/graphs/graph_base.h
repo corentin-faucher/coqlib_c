@@ -27,6 +27,17 @@ typedef __attribute__((aligned(16)))struct {
     uint32_t flags;
     float    unused1, unused2, unused3;
 } PerInstanceUniforms;
+
+// Test... Wrapper d'un buffer d'uniform Metal...
+typedef struct UniformBuffer UniformBuffer;
+UniformBuffer* UniformBuffer_create(size_t size);
+void           uniformbuffer_setDataAt(UniformBuffer* ub, const void *newData, size_t size, size_t offset);
+void           uniformbufferref_destroyAndNull(UniformBuffer** const ubToDeleteRef);
+
+const void* MTLBuffer_createAndGetCPointer(size_t size);
+void        mtlbufferCptr_setDataAt(const void* mtlBufferCPtr, const void *newData, size_t size, size_t offset);
+void        mtlbufferCPtrRef_releaseAndNull(const void** mtlBufferRef);
+
 // Piu par defaut : Matrice identite, blanc, tile (0, 0), show == 1.
 #define PIU_DEFAULT \
 {{{ 1.f, 0.f, 0.f, 0.f, \

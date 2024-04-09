@@ -21,4 +21,12 @@ void           Mesh_init(id<MTLDevice> const device);
 id<MTLBuffer>  mesh_MTLIndicesBufferOpt(Mesh* mesh);
 id<MTLBuffer>  mesh_MTLVerticesBuffer(Mesh* mesh);
 
+/*-- Uniforms Buffer --*/
+id<MTLBuffer>  uniformbuffer_MTLBuffer(UniformBuffer* ub);
+
+id<MTLBuffer>  mtlbufferCPtr_asMTLBuffer(const void* mtlBufferCPtr);
+
+
+
+
 #endif /* graph_texture_apple_h */

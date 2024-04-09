@@ -111,17 +111,19 @@
                          length:sizeof(PerTextureUniforms) atIndex:3];
     }
     // 3. Per instance uniforms
-    [encoder setVertexBytes:&d->n._piu length:sizeof(PerInstanceUniforms) atIndex:1];
+    uint32_t instanceCount = 1;
+    DrawableMulti* dm = node_asDrawableMultiOpt(&d->n);
+    if(dm) {
+        instanceCount = dm->currentInstanceCount;
+        [encoder setVertexBuffer:mtlbufferCPtr_asMTLBuffer(dm->_piusBufferCptr) offset:0 atIndex:1];
+    } else
+        [encoder setVertexBytes:&d->n._piu length:sizeof(PerInstanceUniforms) atIndex:1];
     // 4. Dessiner
     if(current_indicesBufferOpt != nil) {
-        [encoder drawIndexedPrimitives:current_primitive_type
-                            indexCount:current_indexCount
-                             indexType:MTLIndexTypeUInt16
-                           indexBuffer:current_indicesBufferOpt
-                     indexBufferOffset:0];
+        [encoder drawIndexedPrimitives:current_primitive_type indexCount:current_indexCount indexType:MTLIndexTypeUInt16 indexBuffer:current_indicesBufferOpt indexBufferOffset:0 instanceCount:instanceCount];
     } else {
-        [encoder drawPrimitives:current_primitive_type
-                    vertexStart:0 vertexCount:current_vertex_count];
+        [encoder drawPrimitives:current_primitive_type vertexStart:0 
+            vertexCount:current_vertex_count instanceCount:instanceCount];
     }
 }
 

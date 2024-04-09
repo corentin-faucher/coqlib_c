@@ -22,10 +22,11 @@ typedef enum {
     node_type_flag_view =         0x0040,
     node_type_flag_number =       0x0080,
     node_type_flag_secHov =       0x0100,
+    node_type_flag_drawMulti =    0x0200,
 //  #warning Enlever ? Complique les choses pour rien. Tout est non copyable par defaut...
 //    node_type_flag_notCopyable =  0x0100, // Contien des refs de descendants, string, etc.
 //                                          // i.e. besoin d'une fonction clone dédié.
-    node_type_flag_leaf =         0x0200, // Utile ?
+    node_type_flag_leaf =         0x0400, // Utile ?
     /// Premier "type flag" custom pour un noeud.
     /// Seulement besoin d'un "type flag" si la sous-struct de Node a besoin d'etre casté.
     node_type_firstCustomFlag = 0x001000,
@@ -36,6 +37,7 @@ typedef enum {
     node_type_n_fluid = node_type_flag_fluid,
     node_type_leaf_drawable = node_type_flag_leaf|node_type_flag_drawable,
     node_type_dl_frame = node_type_flag_leaf|node_type_flag_drawable|node_type_flag_frame,
+    node_type_d_multi = node_type_flag_leaf|node_type_flag_drawable|node_type_flag_drawMulti,
     // Les boutons sont aussi smooth.
     node_type_nf_button = node_type_flag_fluid|node_type_flag_button,
     node_type_nfb_secHov = node_type_flag_fluid|node_type_flag_button|node_type_flag_secHov,

@@ -205,7 +205,7 @@ bool        CoqSystem_theme_appThemeIsDark(void) {
 -(id)init {
     self = [super init];
     iCloudEnabled = [[NSFileManager defaultManager] ubiquityIdentityToken] != nil;
-    updating = true;
+    updating = false;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(iCloudChanged)
         name:NSUbiquityIdentityDidChangeNotification object:nil];
     
@@ -288,6 +288,7 @@ bool        CoqSystem_theme_appThemeIsDark(void) {
         name:NSMetadataQueryDidFinishGatheringNotification object:nil];
     [metaDataQuery stopQuery];
     metaDataQuery = nil;
+    updating = false;
 }
 @end
 

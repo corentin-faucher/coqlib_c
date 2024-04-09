@@ -15,7 +15,7 @@
 // struct __attribute__((aligned(16))) Vector { union {...};};
 // Simd ou just __attribute__((aligned(16))) ??
 
-#pragma mark -- Vector2 -------------------------------------------------*/
+#pragma mark -- Vector2 -------------------------------------------------
 /// Paire de 2 float. (Non aligned)
 /// Pour une paire de unsigned, vour UintPair.
 /// On met le float array en premier pour une init plus simple. e.g. Vector2 v = {1,2}.
@@ -33,6 +33,7 @@ extern const Vector2 vector2_zeros;
 float   vector2_norm(Vector2 v);
 float   vector2_norm2(Vector2 v);
 float   vector2_dot(Vector2 v1, Vector2 v2);
+/// Projection de v sur target, i.e. proj = (v • t) * t / ||t||^2.
 Vector2 vector2_projOn(Vector2 v, Vector2 target);
 float   vector2_distance(Vector2 v1, Vector2 v2);
 Vector2 vector2_normalize(Vector2 v);
@@ -43,6 +44,8 @@ Vector2 vector2_times(Vector2 v, float f);
 Vector2 vector2_opposite(Vector2 v);
 /// Produit vectoriel avec vec k (i.e. Rotation de 90deg dans le sens horaire).
 Vector2 vector2_cross(Vector2 v);
+
+#pragma mark -- Pair de unsigned  ----------------------------------------------
 
 /// Paire de unsigned.
 typedef struct UintPair {uint32_t uint0, uint1; } UintPair;
@@ -74,7 +77,7 @@ typedef union {
     };
 } Box;
 
-#pragma mark -- Marges (autour d'une view) -------------------------------------*/
+#pragma mark -- Marges (autour d'une view) ----------------------------------*/
 /// Marges en pixels.
 typedef struct {
     double top;
@@ -200,5 +203,8 @@ float float_toRoundedSubDiv(float f);
 /// Fonction droite "coupé", "en S", i.e.    __/
 ///                                         /
 float float_truncated(float f, float delta);
+/// Fonction exponentielle decroissante avec pende de zéro au début, i.e. cas particulier de l'amortissementd critique.
+/// lambda * (x + 1/lambda) * exp(-lambda*x).
+float float_smoothOut(float x, float lambda);
 
 #endif /* maths_h */

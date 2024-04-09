@@ -9,11 +9,12 @@
 
 #include "math_chrono.h"
 
+// (Public pour avoir la taille, mais la structure est "privée".)
 typedef struct SmTrans {
     ChronoTiny _t;
     ChronoTiny _D;
-    uint16_t _flags;
-    uint16_t _sub;
+    uint16_t   _flags;
+    uint16_t   _sub;
 } SmTrans;
 
 void  SmTrans_setPopFactor(float popFactor);

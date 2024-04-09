@@ -341,3 +341,7 @@ float float_truncated(float f, float delta) {
         return fminf(0.f, f + delta);
     }
 }
+
+float float_smoothOut(float x, float lambda) {
+    return lambda * (x + 1.f / lambda) * expf(-lambda*x);
+}
