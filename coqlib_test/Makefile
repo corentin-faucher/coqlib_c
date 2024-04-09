@@ -9,8 +9,8 @@ BINNAME := coqlib_test
 BIN :=     $(BINDIR)/$(BINNAME)
 OS_NAME := $(shell uname -s)
 
-CFLAGS=-g -DDEBUG -DWITH_OPENGL -Wall -Iinclude \
-       -I../coqlib/include `sdl2-config --cflags`
+CFLAGS=-g -DDEBUG -DWITH_OPENGL -Wall -Wno-unknown-pragmas -Iinclude \
+       -I../coqlib/src `sdl2-config --cflags`
 
 ifeq ($(OS_NAME), Darwin)
 	LFLAGS=-L../coqlib/lib -framework OpenGL -framework OpenAL \

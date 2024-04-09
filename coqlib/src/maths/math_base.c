@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
-#include "maths/math_base.h"
+#include "math_base.h"
 
-#include "utils/utils_base.h"
+#include "../utils/utils_base.h"
 
 const Vector2 vector2_ones =  {{1, 1}};
 const Vector2 vector2_zeros = {{0, 0}};

@@ -345,13 +345,23 @@ double   Texture_currentFontSize(void) {
     return Font_currentSize_;
 }
 
+
 #pragma mark - Init Metal --------------------
 
-void      Texture_MTLinit(id<MTLDevice> const device) {
+id<MTLDevice> MTL_device_ = nil;
+static Vertex _mesh_sprite_vertices[4] = {
+    {-0.5, 0.5, 0, 0,0, 0,0,1},
+    {-0.5,-0.5, 0, 0,1, 0,0,1},
+    { 0.5, 0.5, 0, 1,0, 0,0,1},
+    { 0.5,-0.5, 0, 1,1, 0,0,1},
+};
+Mesh*  mesh_sprite = NULL;
+void      CoqGraph_MTLinit(id<MTLDevice> const device) {
     if(MTLtextureLoader_) {
         printerror("Texture already init.");
         return;
     }
+    MTL_device_ = device;
     // 1. Texture loader et font.
     MTLtextureLoader_ = [[MTKTextureLoader alloc] initWithDevice:device];
     Font_current_ =     [Font systemFontOfSize:Font_currentSize_];
@@ -375,5 +385,9 @@ void      Texture_MTLinit(id<MTLDevice> const device) {
         forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName, CoqSpreadingAttributeName]];
     // 2. Texture par défaut
     mtltexture_transparent_ = MTLTexture_createPngImageOpt_(@"coqlib_transparent", true, false);
+    
+    // 3. Mesh par défaut (sprite)
+    mesh_sprite = Mesh_createEmpty(_mesh_sprite_vertices, 4, NULL, 0,
+          mesh_primitive_triangleStrip, mesh_cullMode_none, true);
 }
 

@@ -5,10 +5,9 @@
 //  Created by Corentin Faucher on 2023-11-06.
 //
 
-#include "nodes/node_drawable.h"
-#include "nodes/node_fluid.h"
-
-#include "utils/utils_base.h"
+#include "node_drawable.h"
+#include "node_fluid.h"
+#include "../utils/utils_base.h"
 
 /*-- Surface de "Bar". Un segment de taille ajustable. Version 1D de "Frame". --------------*/
 void   _bar_update(Frame* bar, Vector2 deltas) {
@@ -124,7 +123,7 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
 Frame* Frame_createWithName(Node* const refOpt, float inside, float delta, 
                     float twoDxOpt, float twoDyOpt, const char* pngName, uint16_t options) {
     Frame* frame = coq_calloc(1, sizeof(Frame));
-    node_init_(&frame->n, refOpt, 0, 0, 1, 1, node_type_dl_frame, flag_drawableDontRespectRatio, 0);
+    node_init_(&frame->n, refOpt, 0, 0, 1, 1, node_type_nd_frame, flag_drawableDontRespectRatio, 0);
     drawable_and_frame_init_(frame, Texture_sharedImageByName(pngName), inside, delta, options);
     // Setter tout de suite les dimensions ?
     if(twoDxOpt <= 0.f && twoDyOpt <= 0.f)
@@ -135,7 +134,7 @@ Frame* Frame_createWithName(Node* const refOpt, float inside, float delta,
 Frame* Frame_create(Node* const refOpt, float inside, float delta,
                     float twoDxOpt, float twoDyOpt, uint32_t pngId, uint16_t options) {
     Frame* frame = coq_calloc(1, sizeof(Frame));
-    node_init_(&frame->n, refOpt, 0, 0, 1, 1, node_type_dl_frame, flag_drawableDontRespectRatio, 0);
+    node_init_(&frame->n, refOpt, 0, 0, 1, 1, node_type_nd_frame, flag_drawableDontRespectRatio, 0);
     drawable_and_frame_init_(frame, Texture_sharedImage(pngId), inside, delta, options);
     // Setter tout de suite les dimensions ?
     if(twoDxOpt <= 0.f && twoDyOpt <= 0.f)

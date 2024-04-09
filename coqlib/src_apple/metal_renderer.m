@@ -23,13 +23,14 @@
     }
 //    printdebug("Pixel format %d.", view.colorPixelFormat);
     view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
-    /*-- Command queue --*/
+    //-- Command queue --
     queue = [device newCommandQueue];
     
-    /*-- Init du pipeline --*/
+    //-- Init du pipeline --
     id<MTLLibrary> library = [device newDefaultLibrary];
     if(library == nil) { printerror("no library."); return self; }
-    MTLRenderPipelineDescriptor *rpd = [MTLRenderPipelineDescriptor new];
+    MTLRenderPipelineDescriptor *rpd = [[MTLRenderPipelineDescriptor alloc] init];
+    
 #if TARGET_OS_OSX == 1
     rpd.vertexFunction = [library newFunctionWithName:@"vertex_function"];
 #else
@@ -59,8 +60,8 @@
 #endif
     [colorAtt setDestinationRGBBlendFactor:MTLBlendFactorOneMinusSourceAlpha];
     pipelineState = [device newRenderPipelineStateWithDescriptor:rpd error:nil];
-    
-    /*-- Sampler state pour les textures --*/
+    rpd = nil;
+    //-- Sampler state pour les textures --/
     MTLSamplerDescriptor *sd = [MTLSamplerDescriptor new];
     sd.magFilter = MTLSamplerMinMagFilterNearest;
     sd.minFilter = MTLSamplerMinMagFilterNearest;
@@ -70,7 +71,7 @@
     samplerStateLinear = [device newSamplerStateWithDescriptor:sd];
     current_tex_nearest = false;
     
-    /*-- Depth (si besoin) --*/
+    //-- Depth (si besoin) --/
     depthStencilState = nil;
 //    MTLDepthStencilDescriptor *dsd = [MTLDepthStencilDescriptor new];
 //    dsd.depthCompareFunction = MTLCompareFunctionLess;
@@ -101,13 +102,13 @@
     // 2. Mise a jour de la texture ?
     if(current_tex != d->_tex) {
         current_tex = d->_tex;
-        bool newNearest = texture_isNearest(current_tex);
+        bool newNearest = current_tex->flags & tex_flag_nearest;
         if(current_tex_nearest != newNearest) {
             current_tex_nearest = newNearest;
             [encoder setFragmentSamplerState:(current_tex_nearest ? samplerStateNearest : samplerStateLinear) atIndex:0];
         }
         [encoder setFragmentTexture:texture_MTLTexture(current_tex) atIndex:0];
-        [encoder setVertexBytes:texture_ptu(current_tex)
+        [encoder setVertexBytes:&current_tex->ptu
                          length:sizeof(PerTextureUniforms) atIndex:3];
     }
     // 3. Per instance uniforms
@@ -115,7 +116,13 @@
     DrawableMulti* dm = node_asDrawableMultiOpt(&d->n);
     if(dm) {
         instanceCount = dm->currentInstanceCount;
-        [encoder setVertexBuffer:mtlbufferCPtr_asMTLBuffer(dm->_piusBufferCptr) offset:0 atIndex:1];
+        if(instanceCount == 0) {
+            printwarning("No instance to draw.");
+            return;
+        }
+        id<MTLBuffer> mtlBuf = piusbuffer_asMTLBuffer(&dm->piusBuffer);
+        [encoder setVertexBuffer:mtlBuf offset:0 atIndex:1];
+        
     } else
         [encoder setVertexBytes:&d->n._piu length:sizeof(PerInstanceUniforms) atIndex:1];
     // 4. Dessiner
@@ -128,6 +135,9 @@
 }
 
 - (void)drawInMTKView:(nonnull MTKView *)view {
+    if(view.isPaused) {
+        return; 
+    }
     if(![view isKindOfClass:[CoqMetalView class]]) {
         printerror("MTKView is not a custom MetalView.");
         return;
@@ -137,9 +147,6 @@
     if(root == NULL) {
         printerror("Root not init.");
         return;
-    }
-    if(metalView.isPaused) {
-        return; 
     }
 #if TARGET_OS_OSX != 1
     if(metalView.transitioning) {
@@ -218,7 +225,6 @@
     CoqMetalView* metalView = (CoqMetalView*)view;
     if(!metalView.transitioning) [metalView updateRootFrame:size dontFix:NO];
 }
-
 
 
 @end

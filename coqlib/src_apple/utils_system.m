@@ -5,13 +5,13 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "utils/utils_system.h"
+#include "utils_system.h"
 
 #import <Foundation/Foundation.h>
 #import <CloudKit/CloudKit.h>
 
-#include "utils/utils_base.h"
-#include "utils/utils_string.h"
+#include "utils_base.h"
+#include "utils_string.h"
 #include "coq_event.h"
 
 #if TARGET_OS_OSX == 1

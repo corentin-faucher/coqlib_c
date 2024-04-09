@@ -5,78 +5,153 @@
 //  Created by Corentin Faucher on 2023-11-29.
 //
 
-#include "nodes/node_number.h"
-#include "nodes/node_squirrel.h"
-#include "nodes/node_tree.h"
-#include "utils/utils_base.h"
+#include "node_number.h"
 
-void sq_goToDrawable_(Squirrel* sq, Node* const ref, Texture* tex, float x_margin, uint32_t digit) {
-    Drawable* d = NULL;
-    if(sq->pos == ref) {
-        Node* child = sq->pos->_firstChild;
-        if(!child) { // Creation premier child.
-            d = Drawable_createImageGeneral(ref, tex, mesh_sprite, 0, 0, 0, 1, x_margin, 0, 0);
-            drawable_setTile(d, digit, 0);
-            sq->pos = &d->n;
-            return;
-        }
-        sq->pos = child;
-        d = node_asDrawableOpt(child);
-        if(!d) {printerror("Non drawable in number."); }
-    } else {
-        do {
-            Node* littlebro = sq->pos->_littleBro;
-            if(!littlebro) break;
-            sq->pos = littlebro;
-            d = node_asDrawableOpt(littlebro);
-            if(d) break;
-            printerror("Non drawable in number.");
-        } while(true);
-    }
-    if(!d) { // Pas trouver de drawable, le créer et se placer dessus.
-        d = Drawable_createImageGeneral(sq->pos, tex, mesh_sprite, 0, 0, 0, 1, x_margin, 0, node_place_asBro);
-        drawable_setTile(d, digit, 0);
-        sq->pos = &d->n;
-        return;
-    }
-    // Si trouver, mettre à jour.
-    d->x_margin = x_margin;
-    drawable_updateDims_(d);
-    drawable_setTile(d, digit, 0);
-}
+#include "node_squirrel.h"
+#include "node_tree.h"
+#include "../utils/utils_base.h"
 
-void  number_open_(Node* n) {
+
+Texture* Number_defaultTex = NULL;
+
+#pragma mark - Number 2 -----------------------------
+
+static Number* number_last_ = NULL;
+void      number_open_(Node* n) {
     Number* nb = (Number*)n;
     number_setTo(nb, nb->value);
 }
-Texture* Number_defaultTex = NULL;
-static Number* number_last_ = NULL;
-
-Number* Number_create(Node* ref, int32_t value, float x, float y,
-                      float height) {
+void      number_updateModels_(DrawableMulti* const dm, const Matrix4* const pm) {
+    Number* nb = (Number*)dm;
+    float const show = nb->n._piu.show;
+    float const pop = (nb->n.flags & flag_poping) ? show : 1.f;
+    float const pos_y = nb->n.y;
+    float const pos_z = nb->n.z;
+    Vector2 const scales = nb->n.scales;
+    PerInstanceUniforms* piu = dm->piusBuffer.pius;
+    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->_maxInstanceCount];
+    const float* x = nb->_xs;
+    while(piu < end) {
+        piu->show = show;
+        float const pos_x = nb->n.x + (*x) * scales.x;
+        Matrix4* m = &piu->model;
+        // Petite translation sur la parent-matrix en fonction du digit.
+        m->v0.v = pm->v0.v * scales.x * pop;
+        m->v1.v = pm->v1.v * scales.y * pop;
+        m->v2 =   pm->v2;
+        m->v3 = (Vector4) {{
+            pm->v3.x + pm->v0.x * pos_x + pm->v1.x * pos_y + pm->v2.x * pos_z,
+            pm->v3.y + pm->v0.y * pos_x + pm->v1.y * pos_y + pm->v2.y * pos_z,
+            pm->v3.z + pm->v0.z * pos_x + pm->v1.z * pos_y + pm->v2.z * pos_z,
+            pm->v3.w,
+        }};
+        piu++; x++;
+    }
+}
+Number*   Number_create(Node* ref, int32_t value,
+                      float x, float y, float height,
+                      flag_t flags, uint8_t node_place) {
     Number* nb = coq_calloc(1, sizeof(Number));
-    node_init_(&nb->n, ref, x, y, 1, 1, node_type_n_number, 0, 0);
+    node_init_(&nb->n, ref, x, y, 1, 1, node_type_ndm_number, flags, node_place);
     nb->n.sx = height; nb->n.sy = height;
-    nb->n.openOpt = number_open_;
-    nb->value = value;
     if(Number_defaultTex == NULL)
         Number_defaultTex = Texture_sharedImageByName("coqlib_digits_black");
-    nb->digitTex = Number_defaultTex;
+    drawable_init_(&nb->d, Number_defaultTex, mesh_sprite, 0, 1);
+    // (pass drawable_updateDims_)
+    drawablemulti_init_(&nb->dm, NUMBER_MAX_DIGITS_);
+    nb->dm.currentInstanceCount = 0;
+    // Init as number
+    nb->n.openOpt = number_open_;
+    nb->dm.updateModels = number_updateModels_;
+    nb->value = value;
     nb->separator = digit_dot;
-    nb->digit_x_margin = -0.15;
-    nb->separator_x_margin = -0.25;
+    nb->digit_x_margin =     -0.25;
+    nb->separator_x_margin = -0.60;
+    nb->extra_x_margin =      0.25;
+    nb->n.sx = height * nb->d._tex->ratio;
     number_last_ = nb;
     
     return nb;
 }
-Number* node_asNumberOpt(Node* n) {
+Number*   node_asNumberOpt(Node* n) {
     if(n->_type & node_type_flag_number)
         return (Number*)n;
     return NULL;
 }
+typedef struct NumberIt_ {
+    float*                     xit;
+    float                      x1;
+    PerInstanceUniforms*       piu;
+    PerInstanceUniforms* const end;
+    uint32_t const             m;
+    uint32_t                   i;
+} NumberIt_; 
+void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
+    if(nbit->piu >= nbit->end) {
+        printerror("Number overflow, cannot add digit %d.", digit);
+        return;
+    }
+    nbit->x1 += deltaX;
+    *nbit->xit = nbit->x1;
+    nbit->piu->i = digit % nbit->m;
+    nbit->piu->j = digit / nbit->m;
+    nbit->piu++; nbit->xit++; nbit->i++;
+    nbit->x1 += deltaX;
+}
+void    number_setTo(Number* const nb, int32_t const newValue) {
+    // Pas de changement ?
+    if((newValue == nb->value) && nb->dm.currentInstanceCount)
+        return;
+    // 0. Init
+    nb->value = newValue;
+    uint32_t const displayedNumber = newValue < 0 ? -newValue : newValue;
+    bool const isNegative = nb->value < 0;
+    uint32_t const maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
+    float const deltaX_def = 0.5*(1.f + nb->digit_x_margin);
+    NumberIt_ it = {
+        nb->_xs, 0, nb->dm.piusBuffer.pius, &nb->dm.piusBuffer.pius[NUMBER_MAX_DIGITS_], nb->d._tex->m, 0
+    };
+    // 1. Signe "+/-"
+    if(isNegative) {
+        numberit_setAndNext_(&it, digit_minus, deltaX_def);
+    } else if(nb->showPlus) {
+        numberit_setAndNext_(&it, digit_plus, deltaX_def);
+    }
+    // 2. Chiffres avant le "separator"
+    // (ici, attention au unsigned...)
+    for(uint32_t u = 0; u <= maxDigits - nb->unitDecimal; u++) {
+        uint32_t digit = (nb->initAsBlank) ? digit_underscore : uint_digitAt(displayedNumber, maxDigits - u);
+        numberit_setAndNext_(&it, digit, deltaX_def);
+    }
+    // 3. Separator et chiffres restants
+    if(nb->unitDecimal > 0) {
+        float const deltaX_sep = 0.5*(1.f + nb->separator_x_margin);
+        numberit_setAndNext_(&it, nb->separator, deltaX_sep);
+        for(uint32_t u = 0; u < nb->unitDecimal; u++) {
+            // ici `decimal = nb->unitDecimal - 1 - u`.
+            uint32_t digit = (nb->initAsBlank) ? digit_underscore :
+                             uint_digitAt(displayedNumber, nb->unitDecimal - 1 - u);
+            numberit_setAndNext_(&it, digit, deltaX_def);
+        }
+    }
+    // 4. Extra/"unit" digit
+    if(nb->extraDigitOpt) {
+        float const deltaX_ext = 0.5*(1.f + nb->extra_x_margin);
+        numberit_setAndNext_(&it, nb->extraDigitOpt, deltaX_ext);
+    }
+    // 5. Finaliser...
+    nb->dm.currentInstanceCount = it.i;
+    float deltaX = 0.5f*it.x1;
+    nb->n.w = 2.f*deltaX;
+    for(float *x = nb->_xs; x < it.xit; x++)
+        *x -= deltaX;  // (centrer)
+}
+
 void     number_last_setDigitTexture(Texture* digitTexture) {
     if(!number_last_) { printerror("No last number."); return; }
-    number_last_->digitTex = digitTexture;
+    if(!(digitTexture->flags & tex_flag_png_shared)) { printerror("Not a png texture."); return; }
+    number_last_->d._tex = digitTexture;
+    number_last_->n.sx = number_last_->n.sy * digitTexture->ratio;
 }
 void   number_last_setExtraDigit(uint32_t extraDigit) {
     if(!number_last_) { printerror("No last number."); return; }
@@ -94,168 +169,3 @@ void   number_last_setNow(void) {
     if(!number_last_) { printerror("No last number."); return; }
     number_setTo(number_last_, number_last_->value);
 }
-void    number_setTo(Number* nb, int32_t newValue) {
-    // Pas de changement ?
-    if((newValue == nb->value) && nb->n._firstChild)
-        return;
-    // 0. Init
-    nb->value = newValue;
-    uint32_t displayedNumber = newValue < 0 ? -newValue : newValue;
-    bool isNegative = nb->value < 0;
-    uint32_t maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
-    Node* const ref = &nb->n;
-    Texture* tex = nb->digitTex;
-    Squirrel sq;
-    sq_init(&sq, ref, sq_scale_ones);
-    // 1. Signe "+/-"
-    if(isNegative) {
-        sq_goToDrawable_(&sq, ref, tex, nb->digit_x_margin, digit_minus);
-    } else if(nb->showPlus) {
-        sq_goToDrawable_(&sq, ref, tex, nb->digit_x_margin, digit_plus);
-    }
-    // 2. Chiffres avant le "separator"
-    // (ici, attention au unsigned...
-    for(uint32_t u = 0; u <= maxDigits - nb->unitDecimal; u++) {
-        uint32_t digit = (nb->initAsBlank) ? digit_underscore : uint_digitAt(displayedNumber, maxDigits - u);
-        sq_goToDrawable_(&sq, ref, tex, nb->digit_x_margin, digit);
-    }
-    // 3. Separator et chiffres restants
-    if(nb->unitDecimal > 0) {
-        sq_goToDrawable_(&sq, ref, tex, nb->separator_x_margin, nb->separator);
-        for(uint32_t u = 0; u < nb->unitDecimal; u++) {
-            // ici `decimal = nb->unitDecimal - 1 - u`.
-            uint32_t digit = (nb->initAsBlank) ? digit_underscore :
-                             uint_digitAt(displayedNumber, nb->unitDecimal - 1 - u);
-            sq_goToDrawable_(&sq, ref, tex, nb->digit_x_margin, digit);
-        }
-    }
-    // 4. Extra/"unit" digit
-    if(nb->extraDigitOpt)
-        sq_goToDrawable_(&sq, ref, tex, nb->digit_x_margin, nb->extraDigitOpt);
-    // 5. Nettoyage de la queue.
-    while(sq.pos->_littleBro)
-        node_tree_throwToGarbage(sq.pos->_littleBro);
-    // 6. Alignement
-    node_tree_alignTheChildren(&nb->n, 0, 1.f, 1.f);
-    // 7. Vérifier s'il faut afficher... (live update)}
-    if(nb->n.flags & flag_show)
-        node_tree_addFlags(&nb->n, flag_show);
-    return;
-}
-
-/*
-void    number_showDigit(Number* nb, uint32_t decimal) {
-    uint32_t displayedNumber = nb->value < 0 ? -nb->value : nb->value;
-    bool isNegative = nb->value < 0;
-    uint32_t maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
-    if(decimal > maxDigits) { printwarning("Decimal overflow %d, maxDigit %d.", decimal, maxDigits); return; }
-    Squirrel sq;
-    sq_init(&sq, &nb->n, sq_scale_ones);
-    if(!sq_goDown(&sq)) { printwarning("Number not init."); return; }
-    // 1. Signe "+/-"
-    if(isNegative || nb->showPlus) sq_goRight(&sq);
-    // 2. Chiffres avant le "separator"
-    // (ici, attention au unsigned...
-    for(uint32_t u = 0; u <= maxDigits - nb->unitDecimal; u++) {
-        // (Premier deja pret)
-        if(u != 0) sq_goRight(&sq);
-        if(maxDigits - u == decimal) {
-            Drawable* d = node_asDrawableOpt(sq.pos);
-            if(!d) { printerror("Not a drawable."); return; }
-            drawable_setAsDigit_(d, uint_digitAt(displayedNumber, decimal), nb->digit_x_margin);
-            return;
-        }
-    }
-    // 3. Separator et chiffres restants
-    sq_goRight(&sq); // sep
-    for(uint32_t u = 0; u < nb->unitDecimal; u++) {
-        sq_goRight(&sq);
-        if(nb->unitDecimal - 1 - u == decimal) {
-            Drawable* d = node_asDrawableOpt(sq.pos);
-            if(!d) { printerror("Not a drawable."); return; }
-            drawable_setAsDigit_(d, uint_digitAt(displayedNumber, decimal), nb->digit_x_margin);
-            return;
-        }
-    }
-    printerror("No decimal found?");
-}
-Drawable*  number_getDigitDrawableOpt(Number* nb, uint32_t decimal) {
-    uint32_t displayedNumber = nb->value < 0 ? -nb->value : nb->value;
-    bool isNegative = nb->value < 0;
-    uint32_t maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
-    if(decimal > maxDigits) { return NULL; }
-    Squirrel sq;
-    sq_init(&sq, &nb->n, sq_scale_ones);
-    if(!sq_goDown(&sq)) { printwarning("Number not init."); return NULL; }
-    // 1. Signe "+/-"
-    if(isNegative || nb->showPlus) sq_goRight(&sq);
-    // 2. Chiffres avant le "separator"
-    // (ici, attention au unsigned...
-    for(uint32_t u = 0; u <= maxDigits - nb->unitDecimal; u++) {
-        // (Premier deja pret)
-        if(u != 0) sq_goRight(&sq);
-        if(maxDigits - u == decimal) {
-            Drawable* d = node_asDrawableOpt(sq.pos);
-            if(!d) { printerror("Not a drawable."); return NULL; }
-            return d;
-        }
-    }
-    // 3. Separator et chiffres restants
-    sq_goRight(&sq); // sep
-    for(uint32_t u = 0; u < nb->unitDecimal; u++) {
-        sq_goRight(&sq);
-        if(nb->unitDecimal - 1 - u == decimal) {
-            Drawable* d = node_asDrawableOpt(sq.pos);
-            if(!d) { printerror("Not a drawable."); return NULL; }
-            return d;
-        }
-    }
-    printerror("No decimal found?");
-    return NULL;
-}
-
-void    number_last_setTo(int32_t newValue) {
-    if(!number_last_) { printerror("No last number."); return; }
-    number_setTo(number_last_, newValue);
-}
-void    number_last_setDigitTex(Texture* digitTex) {
-    if(!number_last_) { printerror("No last number."); return; }
-    number_last_->digitTex = digitTex;
-}
- 
- void  drawable_setAsDigit_(Drawable* d, uint32_t digit, float x_margin) {
-     drawable_setTile(d, digit, 0);
-     d->x_margin = x_margin;
-     drawable_updateDimsWithDeltas(d, 0.f, 1.f);
- }
- Drawable* _sq_goRightToDrawable(Squirrel* sq, Texture* tex) {
-     while(sq->pos->littleBro) {
-         sq->pos = sq->pos->littleBro;
-         Drawable* d = node_asDrawableOpt(sq->pos);
-         if(d) return d;
-         printerror("Non drawable in Number.");
-     }
-     // Pas trouvé de next drawable.
-     Drawable* d = Drawable_create(sq->pos, tex, mesh_sprite, 0, node_place_asBro);
- //    Drawable* d = Drawable_create(NULL, tex, mesh_sprite, 0, 0);
- //    node_simpleMoveToBro(&d->n, sq->pos, 0);
-     sq->pos = &d->n;
-     return d;
- }
- Drawable* _sq_goDownToDrawable(Squirrel* sq, Texture* tex) {
-     Node* child = sq->pos->firstChild;
-     if(child) {
-         sq->pos = child;
-         Drawable* d = node_asDrawableOpt(sq->pos);
-         if(d) return d;
-         printerror("Non drawable in Number2.");
-         return _sq_goRightToDrawable(sq, tex);
-     }
-     // Pas de child
-     Drawable* d = Drawable_create(sq->pos, tex, mesh_sprite, 0, node_place_asElderBig);
- //    Drawable* d = Drawable_create(NULL, tex, mesh_sprite, 0, 0);
- //    node_simpleMoveToParent(&d->n, sq->pos, true);
-     sq->pos = &d->n;
-     return d;
- }
-*/

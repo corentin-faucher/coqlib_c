@@ -4,20 +4,21 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "utils/utils_string.h"
-#include "utils/utils_base.h"
+#include "utils_string.h"
+#include "utils_base.h"
 
 
 char* String_createCopy(const char* src) {
     size_t size = strlen(src) + 1;
-    char* copy = coq_malloc(size);
+    
+    char* copy = coq_calloc(1, size);
     strcpy(copy, src);  // (inclue le null char).
     return copy;
 }
 char* String_createCat(const char* src1, const char* src2) {
     size_t size1 = strlen(src1);
     size_t size2 = strlen(src2);
-    char* new = coq_malloc(size1 + size2 + 1);
+    char* new = coq_calloc(1, size1 + size2 + 1);
     memcpy(new, src1, size1);
     memcpy(new + size1, src2, size2);
     return new;
@@ -26,7 +27,7 @@ char* String_createCat3(const char* src1, const char* src2, const char* src3) {
     size_t size1 = strlen(src1);
     size_t size2 = strlen(src2);
     size_t size3 = strlen(src3);
-    char* new = coq_malloc(size1 + size2 + size3 + 1);
+    char* new = coq_calloc(1, size1 + size2 + size3 + 1);
     memcpy(new, src1, size1);
     memcpy(new + size1, src2, size2);
     memcpy(new + size1 + size2, src3, size3);

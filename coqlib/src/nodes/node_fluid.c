@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-10-16.
 //
 
-#include "nodes/node_fluid.h"
+#include "node_fluid.h"
 
-#include "utils/utils_base.h"
+#include "../utils/utils_base.h"
 
 float Fluid_defaultFadeInDelta = 2.2f;
 
@@ -89,18 +89,18 @@ void    fluid_popIn(Fluid* f, PopingInfo popInfo) {
     // Calcul des position initiales et finales (relatif aux position par défaut).
     Node* n = &f->n;
     float const twoDy = f->sy.def * n->h;
-    Box box0 = {  // (x, y, sx, sy)
+    Box box0 = {{  // (x, y, sx, sy)
         f->x.def  + popInfo.initRelShift.c_x * twoDy,
         f->y.def  + popInfo.initRelShift.c_y * twoDy,
         f->sx.def * (1.f + popInfo.initRelShift.Dx),
         f->sx.def * (1.f + popInfo.initRelShift.Dy),
-    };
-    Box box1 = {
+    }};
+    Box box1 = {{
         f->x.def  + popInfo.endRelShift.c_x * twoDy,
         f->y.def  + popInfo.endRelShift.c_y * twoDy,
         f->sx.def * (1.f + popInfo.endRelShift.Dx),
         f->sx.def * (1.f + popInfo.endRelShift.Dy),
-    };
+    }};
     // Init/Fix à position init et paramètres gamma/k.
     fl_initGammaK(&f->sx, box0.Dx,  popInfo.gammaScale, popInfo.kScale, false);
     fl_initGammaK(&f->sy, box0.Dy,  popInfo.gammaScale, popInfo.kScale, false);
@@ -122,12 +122,12 @@ void    fluid_popOut(Fluid* f, PopingInfo popInfo) {
     // Calcul des position finales
     Node* n = &f->n;
     float const twoDy = f->sy.def * n->h;
-    Box box1 = {
+    Box box1 = {{
         f->x.def  + popInfo.endRelShift.c_x * twoDy,
         f->y.def  + popInfo.endRelShift.c_y * twoDy,
         f->sx.def * (1.f + popInfo.endRelShift.Dx),
         f->sx.def * (1.f + popInfo.endRelShift.Dy),
-    };
+    }};
     // Update des par. gamma/k.
     fl_updateToConstants(&f->sx, popInfo.gammaScale, popInfo.kScale);
     fl_updateToConstants(&f->sy, popInfo.gammaScale, popInfo.kScale);

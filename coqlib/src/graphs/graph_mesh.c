@@ -5,9 +5,9 @@
 //  Created by Corentin Faucher on 2023-10-26.
 //
 
-#include "graphs/graph_mesh.h"
+#include "graph_mesh.h"
 
-#include "utils/utils_base.h"
+#include "../utils/utils_base.h"
 
 static const Vertex _vertex_default_origin = {
     0.f, 0.f, 0.f,  0.5f,0.5f,  0.f,0.f,1.f

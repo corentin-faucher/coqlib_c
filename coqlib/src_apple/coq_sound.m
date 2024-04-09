@@ -5,9 +5,11 @@
 //  Created by Corentin Faucher on 2023-10-31.
 //
 
-#import <AVFoundation/AVFoundation.h>
+
 #include "coq_sound.h"
-#include "maths/math_chrono.h"
+
+#import <AVFoundation/AVFoundation.h>
+#include "math_chrono.h"
 
 bool             Sound_isMute = false;
 static float     _volumes[Sound_volume_count] = {

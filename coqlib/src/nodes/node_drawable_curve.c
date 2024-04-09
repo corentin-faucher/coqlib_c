@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-12-22.
 //
 
-#include "nodes/node_drawable_curve.h"
+#include "node_drawable_curve.h"
 
 
 

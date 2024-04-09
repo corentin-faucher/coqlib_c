@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-14.
 //
 
-#include "maths/math_smtrans.h"
+#include "math_smtrans.h"
 
 //typedef struct _SmTrans {
 //    ChronoTiny _t;

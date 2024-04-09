@@ -5,14 +5,15 @@
 //  Created by Corentin Faucher on 2023-11-02.
 //
 
-#include "nodes/node_structs.h"
-#include "nodes/node_tree.h"
-#include "utils/utils_base.h"
-#include "graphs/graph_colors.h"
+#include "node_structs.h"
+
+#include "node_tree.h"
+#include "../utils/utils_base.h"
+#include "../graphs/graph_colors.h"
 
 void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
                        uint32_t iconPngId, uint32_t iconTile) {
-    Node* nd = node_last_nonLeaf;
+    Node* nd = node_last_nonDrawable;
     if(nd == NULL) {
         printerror("No last node."); return;
     }
@@ -24,7 +25,7 @@ void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
     drawable_setTile(d, iconTile, 0);
 }
 void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile) {
-    Node* nd = node_last_nonLeaf;
+    Node* nd = node_last_nonDrawable;
     if(nd == NULL) { printerror("No last node."); return; }
     float height = nd->h;
     Drawable* d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
@@ -32,7 +33,7 @@ void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile) {
     d->n._piu.emph = 0.1f;
 }
 void node_last_addIconLanguage(uint32_t pngId) {
-    Node* nd = node_last_nonLeaf;
+    Node* nd = node_last_nonDrawable;
     if(nd == NULL) {
         printerror("No last node."); return;
     }
@@ -107,7 +108,7 @@ void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringDrawa
 /// On donc last->{..., frame, string}. Voir `node_addFramedString`.
 void node_last_addFramedString(uint32_t framePngId, StringDrawable str,
                                FramedStringParams params) {
-    Node* nd = node_last_nonLeaf;
+    Node* nd = node_last_nonDrawable;
     if(nd == NULL) {
         printerror("No last node."); return;
     }

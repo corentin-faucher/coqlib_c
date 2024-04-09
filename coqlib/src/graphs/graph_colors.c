@@ -5,15 +5,15 @@
 //  Created by Corentin Faucher on 2023-10-30.
 //
 
-#include "graphs/graph_colors.h"
+#include "graph_colors.h"
 
 Vector4 vector4_color_toGray(Vector4 v, float level, float alpha) {
-    return (Vector4) {
+    return (Vector4) {{
         (1.f - alpha)*v.r + level*alpha,
         (1.f - alpha)*v.g + level*alpha,
         (1.f - alpha)*v.b + level*alpha,
         v.a,        
-    };
+    }};
 }
 
 const Vector4 color4_black = {{0, 0, 0, 1 }};

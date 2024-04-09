@@ -1,8 +1,8 @@
 // Version OpenAL pour les sons.
 
-#include "coq_sound.h"
-#include "maths/math_chrono.h"
-#include "utils/utils_file.h"
+#include "../coq_sound.h"
+#include "../maths/math_chrono.h"
+#include "../utils/utils_file.h"
 
 #ifdef __APPLE__
 #define AL_SILENCE_DEPRECATION

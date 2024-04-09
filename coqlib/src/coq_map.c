@@ -29,6 +29,7 @@ typedef struct StringMap {
     size_t    size_value;  // Taille des valeur par defaut.
     uint32_t  it_index;    // Pour iterer dans la map.
     HashSlot* it_hs;
+    // TODO: Faire une version avec un array de HashSlot de taille fixe ? (au lieu d'un array de pointeurs) ??
     HashSlot* table[1];    // Liste de pointeurs vers les Hashslots. (array de taille sizeof(void*) * count.)
 } StringMap;
 

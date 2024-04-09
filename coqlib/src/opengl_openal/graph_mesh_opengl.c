@@ -6,7 +6,12 @@
 //
 
 
-#include "graphs/graph__opengl.h"
+#include "../graphs/graph__opengl.h"
+#include "../utils/utils_base.h"
+
+// #include <stddef.h>
+// #include <stdint.h>
+// #include <stdbool.h>
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
@@ -56,14 +61,14 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
     size_t mesh_size = sizeof(Mesh) + sizeof(Vertex) * (vertexCount - 1);
     size_t vertices_size = vertexCount * sizeof(Vertex);
     Mesh* mesh = coq_calloc(1, mesh_size);
-    
+
     mesh->vertex_count = vertexCount;
     mesh->vertices_size = vertices_size;
     mesh->index_count = indexCount;
     mesh->primitive_type = primitive_type;
     mesh->cull_mode = cull_mode;
     mesh->isShared = isShared;
-    
+
     if(verticesOpt) {
         memcpy(mesh->vertices, verticesOpt, mesh->vertices_size);
     }
@@ -81,26 +86,36 @@ Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->indices_buffer_id);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * indexCount, indicesOpt, GL_STATIC_DRAW);
     }
-    glVertexAttribPointer(Mesh_in_position_id_, 3, GL_FLOAT, GL_FALSE, 
+    glVertexAttribPointer(Mesh_in_position_id_, 3, GL_FLOAT, GL_FALSE,
             sizeof(Vertex), 0);
     glEnableVertexAttribArray(Mesh_in_position_id_);
-    glVertexAttribPointer(Mesh_in_uv_id_, 2, GL_FLOAT, GL_FALSE, 
+    glVertexAttribPointer(Mesh_in_uv_id_, 2, GL_FLOAT, GL_FALSE,
             sizeof(Vertex), BUFFER_OFFSET(sizeof(GL_FLOAT)*3));
     glEnableVertexAttribArray(Mesh_in_uv_id_);
+    
 //    glVertexAttribPointer(_Mesh_in_normal_id, 3, GL_FLOAT, GL_FALSE,
 //            sizeof(Vertex), BUFFER_OFFSET(sizeof(GL_FLOAT)*5));
 //    glEnableVertexAttribArray(_Mesh_in_normal_id);
 
     return mesh;
 }
-
+void   mesh_destroyAndNull(Mesh** const meshRef) {
+    if(*meshRef == NULL) return;
+    if((*meshRef)->vertex_buffer_id)
+        glDeleteBuffers(1, &(*meshRef)->vertex_buffer_id);
+    if((*meshRef)->indices_buffer_id)
+        glDeleteBuffers(1, &(*meshRef)->indices_buffer_id);
+    if((*meshRef)->vertex_array_id)
+        glDeleteVertexArrays(1, &(*meshRef)->vertex_array_id);
+    coq_free(*meshRef);  // (free aussi les vertices)
+    *meshRef = NULL;
+}
 void  mesh_glBind(Mesh* mesh) {
     if(mesh->need_to_update_vertices) {
       glBindBuffer(GL_ARRAY_BUFFER, mesh->vertex_buffer_id);
       Vertex* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
       memcpy(vertices, mesh->vertices, mesh->vertices_size);
       glUnmapBuffer(GL_ARRAY_BUFFER);
-      
       mesh->need_to_update_vertices = false;
     }
     glBindVertexArray(mesh->vertex_array_id);
@@ -111,7 +126,9 @@ Vertex* mesh_vertices(Mesh* mesh) {
 void    mesh_needToUpdateVertices(Mesh* mesh) {
     mesh->need_to_update_vertices = true;
 }
-
+uint32_t mesh_indexCount(Mesh* mesh) {
+    return mesh->index_count;
+}
 uint32_t mesh_vertexCount(Mesh* mesh) {
     return mesh->vertex_count;
 }
@@ -126,19 +143,4 @@ enum MeshCullMode      mesh_cullMode(Mesh* mesh) {
 }
 bool     mesh_isShared(Mesh* mesh) {
     return mesh->isShared;
-}
-
-uint32_t mesh_indexCount(Mesh* mesh) {
-    return mesh->index_count;
-}
-
-void   mesh_destroy(Mesh* meshToDelete) {
-    if(meshToDelete->vertex_buffer_id)
-        glDeleteBuffers(1, &meshToDelete->vertex_buffer_id);
-    if(meshToDelete->indices_buffer_id)
-        glDeleteBuffers(1, &meshToDelete->indices_buffer_id);
-    if(meshToDelete->vertex_array_id)
-        glDeleteVertexArrays(1, &meshToDelete->vertex_array_id);
-
-    coq_free(meshToDelete);  // (free aussi les vertices)
 }

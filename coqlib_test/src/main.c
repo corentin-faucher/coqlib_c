@@ -12,47 +12,22 @@
 #define FONT_NAME "FreeSans"
 #endif
 
-#define GL_MAJOR_VERSION_ 3
-#define GL_MINOR_VERSION_ 0
+// #define GL_MAJOR_VERSION_ 3 // 2
+// #define GL_MINOR_VERSION_ 0 // 1
 
 /// Structure de l'app.
 static Root* root = NULL;
 
 /*-- Callbacks d'events  -------------*/
-
-/*
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-    if( action != GLFW_PRESS) return;
-    if (key == GLFW_KEY_ESCAPE) {
-        glfwSetWindowShouldClose(window, GL_TRUE);
-        return;
-    }
-    // Le "scancode" de GLFW semble etre le keycode de l'OS.
-    // Le "key" de GLFW semble etre un correspondance 
-    // entre le Qwerty-US et les ASCII, 
-    // e.g. la touch "A" (sur qwerty) est key = 65.
-    // Ici, on va garder les "scancodes..."
-    CoqEvent coqEvent;
-    coqEvent.flags = event_type_keyDown;
-    coqEvent.key.keycode = scancode;
-    // Correspondance des modifiers...
-    uint32_t modifiers = 0;
-    if(mods & GLFW_MOD_SHIFT) modifiers |= modifier_shift;
-    if(mods & GLFW_MOD_ALT) modifiers |= modifier_option;
-    if(mods & GLFW_MOD_SUPER) modifiers |= modifier_command;
-    if(mods & GLFW_MOD_CONTROL) modifiers |= modifier_control;
-    if(mods & GLFW_MOD_CAPS_LOCK) modifiers |= modifier_capslock;
-    coqEvent.key.modifiers = modifiers;
-    coqEvent.key.isVirtual = false;
-    CoqEvent_addEvent(coqEvent);
-}
-*/
 static void srcoll_callback(double delta_x, double delta_y) {
-    CoqEvent coq_event;
-    coq_event.flags = event_type_scroll;
-    coq_event.scroll_deltas = (Vector2) {{ delta_x, delta_y }};
-    CoqEvent_addEvent(coq_event);
+    CoqEvent coq_event = {
+      .type = event_type_scroll,
+      .scroll_info = {
+        .scrollType = scroll_type_scroll,
+        .scroll_deltas = {{ delta_x, delta_y }}
+      }
+    };
+    CoqEvent_addToRootEvent(coq_event);
 }
 
 static void resize_callback(SDL_Window* window, int widthPx, int heightPx) {
@@ -61,42 +36,46 @@ static void resize_callback(SDL_Window* window, int widthPx, int heightPx) {
   if(!root) { printwarning("No root"); return; }
   // int widthPt, heightPt;
   // glfwGetWindowSize(window, &widthPt, &heightPt);
-  CoqEvent_addEvent((CoqEvent){
+  CoqEvent_addToRootEvent((CoqEvent){
         event_type_resize, .resize_info = {
             { 0, 0, 0, 0 },
             {{ 0, 0, widthPx, heightPx }}, {{ widthPx, heightPx }}, 
-            false, false, false
-    }});
-
+            false, false, false,
+  }});
   // GLFW semble bloquer la boucle principale durant un resize ???
   // Il faut donc checker les event et dessiner ici... ??
   CoqEvent_processEvents(root);
   Renderer_drawView(window, root);
 }
+static bool MouseLeftDown_ = false;
 static void cursor_position_callback(double x, double y) {
   if(!root) { printwarning("No root"); return; }
-  // !! Ici y est inversé !!
   Vector2 viewPos = {{ x, y }};
-
-  CoqEvent coq_event;
-  coq_event.flags = event_type_touch_hovering;
-  coq_event.touch_pos = root_absposFromViewPos(root, viewPos, true);
-  CoqEvent_addEvent(coq_event);
+  // !! Ici y est inversé !!
+  CoqEvent coq_event = {
+      .type = MouseLeftDown_ ? event_type_touch_drag : event_type_touch_hovering, 
+      .touch_pos = root_absposFromViewPos(root, viewPos, true)
+  };
+  CoqEvent_addToRootEvent(coq_event);
 }
 static void mouse_button_callback(int x, int y) {
   if(!root) { printwarning("No root"); return; }
-  // !! Ici y est inversé !!
+  MouseLeftDown_ = true;
   Vector2 viewPos = {{ x, y }};
-  CoqEvent coq_event;
-  coq_event.flags = event_type_touch_down;
-  coq_event.touch_pos = root_absposFromViewPos(root, viewPos, true);
-  CoqEvent_addEvent(coq_event);
+  // !! Ici y est inversé !!
+  CoqEvent coq_event = {
+      .type = event_type_touch_down, 
+      .touch_pos = root_absposFromViewPos(root, viewPos, true)
+  };
+  CoqEvent_addToRootEvent(coq_event);
 }
 static void mouse_button_up_callback(int x, int y) {
   if(!root) { printwarning("No root"); return; }
-  CoqEvent coq_event;
-  coq_event.flags = event_type_touch_up;
-  CoqEvent_addEvent(coq_event);
+  MouseLeftDown_ = false;
+  CoqEvent coq_event = {
+      .type = event_type_touch_up,
+  };
+  CoqEvent_addToRootEvent(coq_event);
 }
 
 /// La fonction `update` de la boucle principale.
@@ -133,8 +112,8 @@ int main(int argc, char** argv) {
     TTF_Init();
     IMG_Init(IMG_INIT_PNG);
     // Init Window
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GL_MAJOR_VERSION_);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GL_MINOR_VERSION_);
+    // SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, GL_MAJOR_VERSION_);
+    // SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, GL_MINOR_VERSION_);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_Window* window = SDL_CreateWindow("Testing SDL...",
                                           100, 100,
@@ -160,13 +139,12 @@ int main(int argc, char** argv) {
     Renderer_initWithWindow(window, FONT_PATH, FONT_NAME);
 
     // Chargement des resources du projet (png, wav, localized string)
-    Texture_loadPngs(MyProject_pngInfos, png_total_pngs);
+    Texture_init(MyProject_pngInfos, png_total_pngs);
     Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds);
     Language_init();
-    // Font_init();
 
-    // Init root (voir my_root.c)
-    root = Root_createMyRoot();
+    // Init app structure (voir my_root.c)
+    root = Root_initAndGetProjectRoot();
     
     // Unpause, refresh rate, set view size...
     ChronoApp_setPaused(false);
@@ -178,47 +156,42 @@ int main(int argc, char** argv) {
     ChronoChecker cc;
     while (run) {
         chronochecker_set(&cc);
+        // Events de la window...
         SDL_Event event;
         while(SDL_PollEvent(&event)) {
           switch(event.type) {
-          case SDL_QUIT:
-            run = false; break;
+          case SDL_QUIT: run = false; break;
           case SDL_KEYDOWN: {
               if(event.key.keysym.sym == SDLK_ESCAPE)
                 run = false;
-              break;
-            }
+            } break;
           case SDL_WINDOWEVENT: {
             if(event.window.event == SDL_WINDOWEVENT_RESIZED) {
               resize_callback(window, event.window.data1, event.window.data2);
             }
-            break;
-          }
+          } break;
           case SDL_MOUSEMOTION: {
               cursor_position_callback(event.motion.x, event.motion.y);
-            break;
-          }
+          } break;
           case SDL_MOUSEBUTTONDOWN: {
-          mouse_button_callback(event.button.x, event.button.y);
-            break;
-          }
+              if(event.button.button != SDL_BUTTON_LEFT) break;
+              mouse_button_callback(event.button.x, event.button.y);
+          } break;
           case SDL_MOUSEBUTTONUP: {
-          mouse_button_up_callback(event.button.x, event.button.y);
-            break;
-          }
+              if(event.button.button != SDL_BUTTON_LEFT) break;
+              mouse_button_up_callback(event.button.x, event.button.y);
+          } break;
           case SDL_MOUSEWHEEL: {
           srcoll_callback(event.wheel.x, event.wheel.y);
-            break;
-          }
+          } break;
           }
         }
 
+        // Timers, process events, generate texture, ...
         if(!main_checkUp(root, &cc))
-          run = false;
-
-        // Draw
+            run = false;
+        // Draw frame.
         Renderer_drawView(window, root);
-
         // Sleep s'il reste du temps.
         int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - chronochecker_elapsedMS(&cc);
         if(sleepDeltaT < 1) sleepDeltaT = 1;
@@ -235,3 +208,33 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
+
+/*
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if( action != GLFW_PRESS) return;
+    if (key == GLFW_KEY_ESCAPE) {
+        glfwSetWindowShouldClose(window, GL_TRUE);
+        return;
+    }
+    // Le "scancode" de GLFW semble etre le keycode de l'OS.
+    // Le "key" de GLFW semble etre un correspondance 
+    // entre le Qwerty-US et les ASCII, 
+    // e.g. la touch "A" (sur qwerty) est key = 65.
+    // Ici, on va garder les "scancodes..."
+    CoqEvent coqEvent;
+    coqEvent.flags = event_type_keyDown;
+    coqEvent.key.keycode = scancode;
+    // Correspondance des modifiers...
+    uint32_t modifiers = 0;
+    if(mods & GLFW_MOD_SHIFT) modifiers |= modifier_shift;
+    if(mods & GLFW_MOD_ALT) modifiers |= modifier_option;
+    if(mods & GLFW_MOD_SUPER) modifiers |= modifier_command;
+    if(mods & GLFW_MOD_CONTROL) modifiers |= modifier_control;
+    if(mods & GLFW_MOD_CAPS_LOCK) modifiers |= modifier_capslock;
+    coqEvent.key.modifiers = modifiers;
+    coqEvent.key.isVirtual = false;
+    CoqEvent_addEvent(coqEvent);
+}
+*/

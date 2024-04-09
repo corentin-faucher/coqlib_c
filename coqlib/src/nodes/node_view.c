@@ -5,11 +5,12 @@
 //  Created by Corentin Faucher on 2023-10-18.
 //
 
-#include "nodes/node_view.h"
+#include "node_view.h"
 
-#include "utils/utils_base.h"
-#include "nodes/node_root.h"
-#include "nodes/node_tree.h"
+#include "node_root.h"
+#include "node_tree.h"
+
+#include "../utils/utils_base.h"
 
 void    view_open(Node* const node) {
     View* v = node_asViewOpt(node);

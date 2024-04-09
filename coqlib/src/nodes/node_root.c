@@ -4,13 +4,13 @@
 //
 //  Created by Corentin Faucher on 2023-10-15.
 //
-
-#include "utils/utils_base.h"
-#include "graphs/graph_colors.h"
-#include "nodes/node_tree.h"
-#include "nodes/node_root.h"
-#include "nodes/node_squirrel.h"
-#include "nodes/node_sliding_menu.h"
+#include "node_tree.h"
+#include "node_root.h"
+#include "node_squirrel.h"
+#include "node_sliding_menu.h"
+#include "node_drawable_multi.h"
+#include "../utils/utils_base.h"
+#include "../graphs/graph_colors.h"
 
 void  root_init(Root* root, Root* parentRootOpt) {
     if(root->n._parent) {
@@ -326,7 +326,7 @@ Rectangle node_windowRectangle(Node* n, bool invertedY) {
     sq_init(&sq, n, sq_scale_deltas);
     while(sq_goUpPS(&sq)) {}
     Root* root = node_asRootOpt(sq.pos);
-    if(!root) { printerror("No root."); return (Rectangle) { 0, 0, 10, 10 }; }
+    if(!root) { printerror("No root."); return (Rectangle) {{ 0, 0, 10, 10 }}; }
     return root_windowRectangleFromBox(root, (Box){.center = sq.v, .deltas = sq.s }, invertedY);
 }
 /// Obtenir la position dans le frame de la root à partir de la position de la vue (en points).
@@ -339,6 +339,47 @@ Vector2   root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY) {
     float y = (invertedY ? -1.f : 1.f)*(viewPos.y / rt->viewSizePt.h - 0.5f) * fullSizeHeight + yShift;
     return (Vector2) {{ x, y }};
 }
+
+Drawable* node_defaultUpdateModelAndGetAsDrawableOpt(Node* const node) {
+    // 0. Cas root
+    {
+        Root* root = node_asRootOpt(node);
+        if(root) {
+            root_updateModelMatrix(root);
+            return NULL;
+        }
+    }
+    Node* const parent = node->_parent;
+    if(parent == NULL) {
+        printerror("Non-root without parent.");
+        return NULL;
+    }
+    // 1. Cas branche
+    if(node->_firstChild != NULL) {
+        node_updateModelMatrixWithParentModel(node, &parent->_piu.model, 1.f);
+        return NULL;
+    }
+    // 3. Cas feuille
+    Drawable* d = node_asDrawableOpt(node);
+    // Laisser faire si n'est pas affichable...
+    if(!d) return NULL;
+    // Facteur d'"affichage"
+    float alpha = smtrans_setAndGetIsOnSmooth(&d->trShow, (d->n.flags & flag_show) != 0);
+    // Rien à afficher...
+    if(alpha < 0.001f)
+        return NULL;
+    d->n._piu.show = alpha;
+    if((d->n.flags & flag_poping) == 0)
+        alpha = 1.f;
+    DrawableMulti* dm = node_asDrawableMultiOpt(node);
+    if(dm) {
+        dm->updateModels(dm, &parent->_piu.model);
+    } else {
+        node_updateModelMatrixWithParentModel(&d->n, &parent->_piu.model, alpha);
+    }
+    return d;
+}
+
 
 void      matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt) {
     float middleZ = fl_pos(&rt->camera.pos[2]);

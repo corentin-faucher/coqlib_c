@@ -9,24 +9,23 @@
 #define graph_texture_apple_h
 
 #import <Metal/Metal.h>
-#include "graphs/graph_texture.h"
-#include "graphs/graph_mesh.h"
+#include "../src/graphs/graph_texture.h"
+#include "../src/graphs/graph_mesh.h"
+
+void           CoqGraph_MTLinit(id<MTLDevice> device);
 
 /*-- Texture --*/
-void           Texture_init(id<MTLDevice> const device, PngInfo const pngInfos[], const uint pngCount);
 id<MTLTexture> texture_MTLTexture(Texture* texOpt);
 
 /*-- Mesh --*/
-void           Mesh_init(id<MTLDevice> const device);
 id<MTLBuffer>  mesh_MTLIndicesBufferOpt(Mesh* mesh);
 id<MTLBuffer>  mesh_MTLVerticesBuffer(Mesh* mesh);
 
 /*-- Uniforms Buffer --*/
-id<MTLBuffer>  uniformbuffer_MTLBuffer(UniformBuffer* ub);
+id<MTLBuffer>  piusbuffer_asMTLBuffer(const PIUsBuffer* piusbuffer);
 
-id<MTLBuffer>  mtlbufferCPtr_asMTLBuffer(const void* mtlBufferCPtr);
-
-
+/*-- Ref au gpu pour créer buffer, texture... --*/
+extern id<MTLDevice> MTL_device_;
 
 
 #endif /* graph_texture_apple_h */

@@ -10,7 +10,7 @@
 #ifndef COQ_UTILS_APPLE_H
 #define COQ_UTILS_APPLE_H
 
-#include "maths/math_base.h"
+#include "math_base.h"
 #import <CoreFoundation/CFCGTypes.h>
 #if TARGET_OS_OSX != 1
 #import <UIKit/UIKit.h>

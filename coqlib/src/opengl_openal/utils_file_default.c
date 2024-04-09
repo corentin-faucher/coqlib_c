@@ -8,13 +8,15 @@
 //
 #include <sys/stat.h>
 #include <sys/types.h>
-#include "utils/utils_file.h"
+#include <string.h>
+#include "../utils/utils_file.h"
+#include "../utils/utils_base.h"
 
 // Espace où est stocker le dernier path demandé.
 static char  _FileManager_tmp_path[PATH_MAX];
 
-char* const FileManager_getResourcePathOpt(const char* fileNameOpt, const char* fileExtOpt,
-                                   const char* subDirOpt) {
+char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
+                        const char* fileExtOpt, const char* subDirOpt) {
     memset(_FileManager_tmp_path, 0, PATH_MAX);
 
     if(fileNameOpt) {
@@ -43,7 +45,7 @@ char* const FileManager_getResourcePathOpt(const char* fileNameOpt, const char* 
     
     return _FileManager_tmp_path;
 }
-char* FileManager_getApplicactionSupportDirectoryPathOpt(void) {
+char*        FileManager_getApplicationSupportDirectoryPathOpt(void) {
     memset(_FileManager_tmp_path, 0, PATH_MAX);
     struct stat st = {0};
     if(stat("./userdata/", &st) == -1) {
@@ -54,3 +56,32 @@ char* FileManager_getApplicactionSupportDirectoryPathOpt(void) {
     return _FileManager_tmp_path;
 }
 
+char*        FileManager_getApplicationCloudMainDirectoryPathOpt(void) {
+  return NULL;
+}
+
+char*        FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void) {
+  return NULL;
+}
+
+bool  FileManager_checkAndCreateDirectory(const char* dirPath_cstr) {
+  if(!dirPath_cstr) { printerror("No dir path."); return false; }
+
+  struct stat st = {0};
+  // Rien, créer.
+  if(stat(dirPath_cstr, &st) == -1) {
+    mkdir(dirPath_cstr, 0755);
+    return true;
+  }
+  // Cas OK.
+  if(S_ISDIR(st.st_mode))
+    return true;
+  // Sinon il y a déjà un fichie du même nom...
+  printwarning("File exists with the name of the directory %s.", dirPath_cstr);
+  if(remove(dirPath_cstr) != 0) {
+    printerror("Cannot delete existing file.");
+    return false;
+  }
+  mkdir(dirPath_cstr, 0755);
+  return true;
+}

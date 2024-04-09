@@ -5,11 +5,10 @@
 //  Created by Corentin Faucher on 2023-10-14.
 //
 
-#include "maths/math_flpos.h"
-
 #include <string.h>
 
-#include "maths/math_chrono.h"
+#include "math_flpos.h"
+#include "math_chrono.h"
 
 #define _sm_type_static     0x0000
 #define _sm_type_oscAmorti  0x0001

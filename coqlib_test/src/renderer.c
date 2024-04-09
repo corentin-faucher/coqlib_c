@@ -5,18 +5,12 @@
 int           Renderer_width = 800;
 int           Renderer_height = 500;
 
-/*-- Id du programme opengl ---------*/
-static GLuint _Renderer_program = 0;
+//-- Version récente ? 
+static bool isOpenGL_3_1_ = false;
 
 /*-- Index des variable GLSL --------*/
 static GLint _frame_projection = 0;
 static GLint _frame_time = 0;
-
-static GLint _inst_model = 0;
-static GLint _inst_color = 0;
-static GLint _inst_ij = 0;
-static GLint _inst_emph = 0;
-static GLint _inst_show = 0;
 
 /*-- Mesh et texture presentement utilisees --*/
 static Mesh*    _current_mesh = NULL;
@@ -30,95 +24,132 @@ static Chrono   _chrono_deltaT;
 static FluidPos _fluid_deltaT;
 
 
-void   _Renderer_drawDrawable(Drawable* d) {
+void   Renderer_drawDrawable_(Drawable* d) {
     // 1. Mise a jour de la mesh ?
-    if(_current_mesh != d->mesh) {
-        _current_mesh = d->mesh;
-        _current_mesh_vertex_count = mesh_vertexCount(d->mesh);
-        _current_mesh_index_count = mesh_indexCount(d->mesh);
-        _current_mesh_primitive = mesh_primitiveType(d->mesh);
+    if(_current_mesh != d->_mesh) {
+        _current_mesh = d->_mesh;
+        _current_mesh_vertex_count = mesh_vertexCount(d->_mesh);
+        _current_mesh_index_count = mesh_indexCount(d->_mesh);
+        _current_mesh_primitive = mesh_primitiveType(d->_mesh);
         mesh_glBind(_current_mesh);
     }
     // 2. Mise a jour de la texture ?
-    if(_current_texture != d->tex) {
-        _current_texture = d->tex;
-
+    if(_current_texture != d->_tex) {
+        _current_texture = d->_tex;
         texture_glBind(_current_texture);
     }
-    // 3. Per instance uniforms (piu)
-    glUniformMatrix4fv(_inst_model, 1, GL_FALSE, d->n.piu.model.f_arr);
-    glUniform4fv(_inst_color, 1, d->n.piu.color.f_arr);
-    glUniform2fv(_inst_ij, 1, d->n.piu.tile);
-    glUniform1f(_inst_emph, d->n.piu.emph);
-    glUniform1f(_inst_show, d->n.piu.show);
-    // printdebug("drawing...");
-
-    // 4. Dessiner
-    if(_current_mesh_index_count) {
+    // 3. Cas standard (une instance)
+    uint32_t instanceCount = 1;
+    DrawableMulti* dm = node_asDrawableMultiOpt(&d->n);
+    if(!dm) {
+      perinstanceuniform_glBind(&d->n._piu);
+      if(_current_mesh_index_count) {
         glDrawElements(GL_TRIANGLES, _current_mesh_index_count, GL_UNSIGNED_SHORT, 0);
-    } else {
+      } else {
         glDrawArrays(_current_mesh_primitive, 0, _current_mesh_vertex_count);
+      }
+      return;
+    }
+    // 4. Cas multi-instance
+    instanceCount = dm->currentInstanceCount;
+    if(instanceCount == 0) {
+        printwarning("No instance to draw.");
+        return;
+    }
+    // (au moins 3.1 pour les instances ??)
+    if(isOpenGL_3_1_) { 
+      piusbuffer_glBind(&dm->piusBuffer);
+      if(_current_mesh_index_count) {
+        glDrawElementsInstanced(GL_TRIANGLES, _current_mesh_index_count, GL_UNSIGNED_SHORT,
+                                0, instanceCount);
+      } else {
+        glDrawArraysInstanced(_current_mesh_primitive, 0, 
+                              _current_mesh_vertex_count, instanceCount);
+      }
+      return;
+    }
+    // Sinon boucle pour dessiner toutes les instances... :(  ??
+    const PerInstanceUniforms* piu =        dm->piusBuffer.pius;
+    const PerInstanceUniforms* const end = &dm->piusBuffer.pius[instanceCount];
+    while(piu < end) {
+        perinstanceuniform_glBind(piu);
+        if(_current_mesh_index_count) {
+          glDrawElements(GL_TRIANGLES, _current_mesh_index_count, GL_UNSIGNED_SHORT, 0);
+        } else {
+          glDrawArrays(_current_mesh_primitive, 0, _current_mesh_vertex_count);
+        }
+        piu++;
     }
 }
 
 void   Renderer_initWithWindow(SDL_Window* window, const char* font_path, 
                                const char* font_name)
  {
+    // Version 
+    float version;
+    sscanf((const char*)glGetString(GL_VERSION), "%f", &version);
+    isOpenGL_3_1_ = version > 3.0;
+    printdebug("Is at least OpenGL 3.1: %s.", isOpenGL_3_1_ ? "yes ✅" : "no ⚠️");
+    if(!isOpenGL_3_1_) {
+        printwarning("Check commented glsl version in .glsl files.");
+    }
     // Shaders
     // Vertex shader
     GLint info_length;
     GLchar* info_str;
-    const char* vert_path = FileManager_getResourcePathOpt("vertex_shader", "glsl", NULL);
-    const char* vert_content = FILE_contentOpt(vert_path);
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vert_content, NULL);
-    glCompileShader(vertex_shader);
-    glGetShaderiv(vertex_shader, GL_INFO_LOG_LENGTH, &info_length);
+    const char* glsl_version = isOpenGL_3_1_ ? "\n\n#version 410\n\n" : "\n\n#version 300 es\n\n";
+    const char* shader_path = FileManager_getResourcePathOpt("vertex_shader", "glsl", NULL);
+    const char* shader_content = FILE_stringContentOptAt(shader_path);
+    const char* vertexShader_content = String_createCat(glsl_version, shader_content);
+    // printf(vertexShader_content);
+    GLuint vertexShaderId = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vertexShaderId, 1, &vertexShader_content, NULL);
+    coq_free((char*)vertexShader_content);
+    glCompileShader(vertexShaderId);
+    glGetShaderiv(vertexShaderId, GL_INFO_LOG_LENGTH, &info_length);
     if(info_length > 1) {
         info_str = calloc(1, info_length + 1);
-        glGetShaderInfoLog(vertex_shader, info_length, NULL, info_str);
+        glGetShaderInfoLog(vertexShaderId, info_length, NULL, info_str);
         printerror("Vertex shader: %s", info_str);
         free(info_str);
     } else {
         printdebug("Vertex shader OK ✅.");
     }
     // Fragment shader
-    const char* frag_path = FileManager_getResourcePathOpt("fragment_shader", "glsl", NULL);
-    const char* frag_content = FILE_contentOpt(frag_path);
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &frag_content, NULL);
-    glCompileShader(fragment_shader);
-    glGetShaderiv(fragment_shader, GL_INFO_LOG_LENGTH, &info_length);
+    shader_path = FileManager_getResourcePathOpt("fragment_shader", "glsl", NULL);
+    shader_content = FILE_stringContentOptAt(shader_path);
+    const char* fragmentShader_content = String_createCat(glsl_version, shader_content);
+    GLuint fragmentShaderId = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fragmentShaderId, 1, &fragmentShader_content, NULL);
+    coq_free((char*)fragmentShader_content);
+    glCompileShader(fragmentShaderId);
+    glGetShaderiv(fragmentShaderId, GL_INFO_LOG_LENGTH, &info_length);
     if(info_length > 1) {
         info_str = calloc(1, info_length + 1);
-        glGetShaderInfoLog(fragment_shader, info_length, NULL, info_str);
+        glGetShaderInfoLog(fragmentShaderId, info_length, NULL, info_str);
         printerror("Fragment shader: %s", info_str);
         free(info_str);
     } else {
         printdebug("Fragment shader OK ✅.");
     }
     // Program
-    _Renderer_program = glCreateProgram();
-    glAttachShader(_Renderer_program, vertex_shader);
-    glAttachShader(_Renderer_program, fragment_shader);
-    glLinkProgram(_Renderer_program);
+    GLuint programId = glCreateProgram();
+    glAttachShader(programId, vertexShaderId);
+    glAttachShader(programId, fragmentShaderId);
+    glLinkProgram(programId);
     // Juste un program... on peut le setter tout suite (pas de changement)
-    glUseProgram(_Renderer_program);
-
+    glUseProgram(programId);
+    // Blending ordinaire...
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Index des variable GLSL
-    _frame_projection = glGetUniformLocation(_Renderer_program, "frame_projection");
-    _frame_time =       glGetUniformLocation(_Renderer_program, "frame_time");
-    _inst_model =       glGetUniformLocation(_Renderer_program, "inst_model");
-    _inst_color =       glGetUniformLocation(_Renderer_program, "inst_color");
-    _inst_ij =          glGetUniformLocation(_Renderer_program, "inst_ij");
-    _inst_emph =        glGetUniformLocation(_Renderer_program, "inst_emph");
-    _inst_show =        glGetUniformLocation(_Renderer_program, "inst_show");
+    _frame_projection = glGetUniformLocation(programId, "frame_projection");
+    _frame_time =       glGetUniformLocation(programId, "frame_time");
 
-    Mesh_init(_Renderer_program);
-    Texture_init(_Renderer_program, font_path, font_name);
+    Mesh_init(programId);
+    Texture_GLinit(programId, font_path, font_name);
+    PIUsBuffer_GLinit(programId);
 }
 void   Renderer_drawView(SDL_Window* window, Root* root) {
     if(!mesh_sprite) { printerror("Mesh not init."); return; }
@@ -151,7 +182,7 @@ void   Renderer_drawView(SDL_Window* window, Root* root) {
     sq_init(&sq, &root->n, sq_scale_ones);
     do {
         Drawable* d = updateModel(sq.pos);
-        if(d) _Renderer_drawDrawable(d);
+        if(d) Renderer_drawDrawable_(d);
     } while(sq_goToNextToDisplay(&sq));
 
     // Unbind (superflu?)

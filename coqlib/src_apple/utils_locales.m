@@ -5,7 +5,8 @@
 //  Created by Corentin Faucher on 2024-02-28.
 //
 
-#include "utils/utils_locales.h"
+#include "utils_locales.h"
+
 #import <Foundation/Foundation.h>
 
 #define     coqlocale_default_countryCode_ "US"

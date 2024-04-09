@@ -5,13 +5,14 @@
 //  Created by Corentin Faucher on 2023-10-14.
 //
 
+#include "node_drawable.h"
+
+#include "node_root.h"
+#include "../graphs/graph_colors.h"
+#include "../utils/utils_base.h"
+#include "../utils/utils_languages.h"
 #include <math.h>
 #include <stdlib.h>
-#include "nodes/node_drawable.h"
-#include "nodes/node_root.h"
-#include "graphs/graph_colors.h"
-#include "utils/utils_base.h"
-#include "utils/utils_languages.h"
 
 static Drawable* drawable_last_ = NULL;
 
@@ -38,14 +39,14 @@ void     drawable_init_(Drawable* d, Texture* tex, Mesh* mesh, float twoDxOpt, f
 }
 void     drawable_updateDims_(Drawable* const d) {
     // 1. Delta Y : On a h * sy = 2*Dy.
-    float beta = texture_beta(d->_tex);
+    float beta = d->_tex->beta;
     d->n.sy = d->twoDyTarget / beta;
     d->n.h  = beta;
     
     // 2. Delta X... Ici, il faut faire un dessin...
-    float alpha = texture_alpha(d->_tex);
+    float alpha = d->_tex->alpha;
     // Largeur a priori (prise du ratio de la texture).
-    float sx = d->n.sy * texture_ratio(d->_tex);
+    float sx = d->n.sy * d->_tex->ratio;
     // Largeur supplementaire (peut être négative)
     float extra_x = d->x_margin * d->twoDyTarget;
     // Si on fixe la largeur (largeur custom avec marges)
@@ -80,8 +81,8 @@ Drawable* Drawable_createImageGeneral(Node* const refOpt,
                           float x, float y, float twoDxOpt, float twoDy, float x_margin,
                           flag_t flags, uint8_t node_place) {
     Drawable *d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flags, node_place);
-    if(!texture_isSharedPng(tex)) {
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, node_place);
+    if(!(tex->flags & tex_flag_png_shared)) {
         printerror("Not a png."); tex = Texture_sharedImageByName("coqlib_the_cat");
     }
     drawable_init_(d, tex, mesh, twoDxOpt, twoDy);
@@ -94,7 +95,7 @@ Drawable* Drawable_createString(Node* const refOpt, StringDrawable const str,
                    flag_t flags, uint8_t node_place) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
     Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flags, node_place);
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, node_place);
     drawable_init_(d, Texture_retainString(str), mesh_sprite, maxTwoDxOpt, twoDy);
     d->x_margin = str.x_margin;
     drawable_updateDims_(d);
@@ -112,7 +113,7 @@ Drawable* Drawable_createImage(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
     Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flags, 0);
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, 0);
     drawable_init_(d, Texture_sharedImage(pngId), mesh_sprite, 0, twoDy);
     drawable_updateDims_(d);
     return d;
@@ -122,7 +123,7 @@ Drawable* Drawable_createImageWithFixedWidth(Node* const refOpt, uint32_t pngId,
     if(mesh_sprite == NULL)
         printerror("Missing Mesh_init().");
     Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flags|flag_drawableDontRespectRatio, 0);
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags|flag_drawableDontRespectRatio, 0);
     drawable_init_(d, Texture_sharedImage(pngId), mesh_sprite, twoDx, twoDy);
     drawable_updateDims_(d);
     return d;
@@ -131,13 +132,13 @@ Drawable* Drawable_createImageWithName(Node* const refOpt, const char* pngName,
                           float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
     Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flags, 0);
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, 0);
     drawable_init_(d, Texture_sharedImageByName(pngName), mesh_sprite, 0, twoDy);
     drawable_updateDims_(d);
     return d;
 }
 void      drawable_updatePngId(Drawable* d, uint32_t newPngId) {
-    if(!texture_isSharedPng(d->_tex)) {
+    if(!(d->_tex->flags & tex_flag_png_shared)) {
         printerror("Not a png.");
         return;
     }
@@ -153,7 +154,7 @@ Drawable* Drawable_createImageLanguage(Node* refOpt, uint32_t pngId,
                                        float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
     Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flags, 0);
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, 0);
     drawable_init_(d, Texture_sharedImage(pngId), mesh_sprite, 0, twoDy);
     drawable_updateDims_(d);
     d->n.openOpt = drawable_open_imagelanguage_;
@@ -163,7 +164,7 @@ Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
                                float x, float y, float twoDx, float twoDy) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
     Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_leaf_drawable, flag_drawableDontRespectRatio, 0);
+    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flag_drawableDontRespectRatio, 0);
     drawable_init_(d, Texture_sharedImageByName("coqlib_white"), mesh_sprite, twoDx, twoDy);
     drawable_updateDims_(d);
     d->n._piu.color = color;
@@ -189,26 +190,22 @@ int       node_isDisplayActive(Node* const node) {
 
 /*-- Setters --------------------------------------------------------------------*/
 void      drawable_setTile(Drawable *d, uint32_t i, uint32_t j) {
-    uint32_t m = texture_m(d->_tex);
-    uint32_t n = texture_n(d->_tex);
-    d->n._piu.i = (float)(i % m);
-    d->n._piu.j = (float)((j + i / m) % n);
+    d->n._piu.i = (float)(i % d->_tex->m);
+    d->n._piu.j = (float)((j + i / d->_tex->m) % d->_tex->n);
 }
 void      drawable_setTileI(Drawable *d, uint32_t i) {
-    uint32_t m = texture_m(d->_tex);
-    d->n._piu.i = (float)(i % m);
+    d->n._piu.i = (float)(i % d->_tex->m);
 }
 void      drawable_setTileJ(Drawable *d, uint32_t j) {
-    uint32_t n = texture_n(d->_tex);
-    d->n._piu.j = (float)(j % n);
+    d->n._piu.j = (float)(j % d->_tex->n);
 }
 void      drawable_last_setTile(uint32_t i, uint32_t j) {
     if(drawable_last_ == NULL) {
         printwarning("No last drawable.");
         return;
     }
-    uint32_t m = texture_m(drawable_last_->_tex);
-    uint32_t n = texture_n(drawable_last_->_tex);
+    uint32_t m = drawable_last_->_tex->m;
+    uint32_t n = drawable_last_->_tex->n;
     drawable_last_->n._piu.i = (float)(i % m);
     drawable_last_->n._piu.j = (float)((j + i / m) % n);
 }
@@ -239,7 +236,7 @@ void   node_tryToAddTestFrame(Node* ref) {
     if(mesh_sprite == NULL) { printerror("Missing Mesh_init()."); return; }
     if(!ref) { printerror("No parent."); return; }
     Drawable *d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, ref, 0, 0, 1, 1, node_type_leaf_drawable, flag_notToAlign, 0);
+    node_init_(&d->n, ref, 0, 0, 1, 1, node_type_n_drawable, flag_notToAlign, 0);
     drawable_init_(d, Texture_sharedImageByName("coqlib_test_frame"), mesh_sprite, 1, 1);
     d->n.openOpt = drawable_open_testframe_getSizesOfParent_;
     if(ref->reshapeOpt) {
@@ -249,7 +246,7 @@ void   node_tryToAddTestFrame(Node* ref) {
 #endif
 }
 void   node_last_tryToAddTestFrame(void) {
-    node_tryToAddTestFrame(node_last_nonLeaf);
+    node_tryToAddTestFrame(node_last_nonDrawable);
 }
 
 /*-- Surface "Fan" (un rond). Utile ? -------------------------------------------------------*/
@@ -266,37 +263,3 @@ void   node_last_tryToAddTestFrame(void) {
 //    return d;
 //}
 
-Drawable* node_defaultUpdateModelAndGetAsDrawableOpt(Node* const node) {
-    // 0. Cas root
-    {
-        Root* root = node_asRootOpt(node);
-        if(root) {
-            root_updateModelMatrix(root);
-            return NULL;
-        }
-    }
-    Node* const parent = node->_parent;
-    if(parent == NULL) {
-        printerror("Non-root without parent.");
-        return NULL;
-    }
-    // 1. Cas branche
-    if(node->_firstChild != NULL) {
-        node_updateModelMatrixWithParentModel(node, &parent->_piu.model, 1.f);
-        return NULL;
-    }
-    // 3. Cas feuille
-    Drawable* d = node_asDrawableOpt(node);
-    // Laisser faire si n'est pas affichable...
-    if(!d) return NULL;
-    // Facteur d'"affichage"
-    float alpha = smtrans_setAndGetIsOnSmooth(&d->trShow, (d->n.flags & flag_show) != 0);
-    // Rien à afficher...
-    if(alpha < 0.001f)
-        return NULL;
-    d->n._piu.show = alpha;
-    if((d->n.flags & flag_poping) == 0)
-        alpha = 1.f;
-    node_updateModelMatrixWithParentModel(&d->n, &parent->_piu.model, alpha);
-    return d;
-}

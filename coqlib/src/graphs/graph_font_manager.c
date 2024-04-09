@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-26.
 //
 
-#include "graphs/graph_font_manager.h"
-#include "coq_map.h"
+#include "graph_font_manager.h"
+#include "../coq_map.h"
 
 static const CoqFontInfo fontInfo_arr_[] = {
     {"American Typewriter", "Amer. Typ.",  {{1.f, 1.2f }}},

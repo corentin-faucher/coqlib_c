@@ -4,9 +4,9 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
-#include "graphs/graph_base.h"
+#include "graph_base.h"
 
-const  PerInstanceUniforms piu_default = PIU_DEFAULT;
+const PerInstanceUniforms piu_default = PIU_DEFAULT;
 
 const PerTextureUniforms ptu_default = PTU_DEFAULT;
 

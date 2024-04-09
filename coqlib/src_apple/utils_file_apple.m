@@ -5,10 +5,10 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#include "utils/utils_file.h"
+#include "utils_file.h"
 
 #import <Foundation/Foundation.h>
-#include "utils/utils_base.h"
+#include "utils_base.h"
 
 // Espace où est stocker le dernier path demandé.
 static char  _FileManager_tmp_path[PATH_MAX];

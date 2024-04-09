@@ -1,19 +1,16 @@
 //
 //  AppDelegate.h
-//  coqlib_test
+//  xc_coqlib_test
 //
-//  Created by Corentin Faucher on 2024-01-04.
+//  Created by Corentin Faucher on 2024-04-02.
 //
 
 #import <Cocoa/Cocoa.h>
 #import "metal_view.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate> {
-    // Il faut garder une (strong) reference
-    // a la window... Sinon problem d'autorelease...
     NSWindow*     window;
     CoqMetalView* view;
 }
 
 @end
-

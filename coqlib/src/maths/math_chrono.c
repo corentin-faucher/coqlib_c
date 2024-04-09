@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-10-13.
 //
 
-#include "maths/math_chrono.h"
+#include "math_chrono.h"
 
 #include <stdio.h>
 

@@ -5,10 +5,10 @@
 //
 #import <Foundation/Foundation.h>
 
-#include "utils/utils_languages.h"
-#include "utils/utils_base.h"
-#include "utils/utils_locales.h"
-#include "utils/utils_string.h"
+#include "utils_languages.h"
+#include "utils_base.h"
+#include "utils_locales.h"
+#include "utils_string.h"
 
 #pragma mark - Langue et région
 

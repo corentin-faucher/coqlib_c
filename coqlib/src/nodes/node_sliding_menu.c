@@ -7,10 +7,10 @@
 
 #include "node_sliding_menu.h"
 
-#include "utils/utils_base.h"
-#include "nodes/node_tree.h"
-#include "nodes/node_root.h"
-#include "coq_event.h"
+#include "node_tree.h"
+#include "node_root.h"
+#include "../utils/utils_base.h"
+//#include "coq_event.h"
 
 typedef struct _ScrollBar {
     Node       n;

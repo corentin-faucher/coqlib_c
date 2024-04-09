@@ -34,7 +34,6 @@
 @implementation CoqMetalView
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device {
-    printdebug("Init CoqMetalView...");
     self = [super initWithFrame:frameRect device:device];
     [self setUpRendererAndNotifications];
     return self;

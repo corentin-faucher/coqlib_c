@@ -5,4 +5,20 @@
 //  Created by Corentin Faucher on 2024-04-09.
 //
 
-#include <stdio.h>
+#include "../utils/utils_locales.h"
+
+#define     coqlocale_default_countryCode_ "US"
+#define     coqlocale_default_languageCode_ "en"
+
+void        CoqLocale_update(void) {
+    // pass
+}
+const char* CoqLocale_getCountryCode(void) {
+    return coqlocale_default_countryCode_;
+}
+const char* CoqLocale_getLanguageCode(void) {
+    return coqlocale_default_languageCode_;
+}
+const char* CoqLocale_getScriptCode(void) {
+    return "";
+}

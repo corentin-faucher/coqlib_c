@@ -1,9 +1,8 @@
 /*-- Fragment shader -----------------*/
 /*-- Corentin Faucher, 3 fev 2019 --*/
 //#version 300 es
-#version 410
+//#version 410
 precision mediump float;
-
 
 in vec2  out_uv;
 in vec4  out_color;

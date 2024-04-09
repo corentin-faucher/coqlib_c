@@ -38,11 +38,13 @@ int main(int argc, char** argv) {
                                             600, 480,
                                             SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
     SDL_GLContext context = SDL_GL_CreateContext(window);
-
-    Texture_init(0, "res/fonts", "arial");
     
+    printdebug("Init Gl...");
+
+    Texture_GLinit(0, "res/fonts", "arial");
 
     // Boucle principale...
+    printdebug("Starting main loop");
     bool run = true;
     while (run) {
         SDL_Event event;

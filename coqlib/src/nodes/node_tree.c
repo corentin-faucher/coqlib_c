@@ -4,10 +4,11 @@
 //
 //  Created by Corentin Faucher on 2023-10-15.
 //
-#include "nodes/node_tree.h"
+#include "node_tree.h"
 
-#include "utils/utils_base.h"
-#include "nodes/node_squirrel.h"
+#include "node_squirrel.h"
+#include "../utils/utils_base.h"
+
 
 //#define DEBUG_SEARCH
 

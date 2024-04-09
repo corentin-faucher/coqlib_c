@@ -8,52 +8,7 @@
 #import <Foundation/Foundation.h>
 
 #include "graph__apple.h"
-#include "utils/utils_base.h"
-
-static id<MTLDevice> MTL_device_ = nil;
-
-#pragma mark - Testing... Metal Buffer (pour uniforms) -----------------------
-
-typedef struct UniformBuffer {
-    id<MTLBuffer> mtlBuffer;
-} UniformBuffer;
-
-UniformBuffer* UniformBuffer_create(size_t size) {
-    // A priori, on ne fait qu'écrire dans le buffer ?
-    UniformBuffer* ub = coq_calloc(1, sizeof(UniformBuffer));
-    ub->mtlBuffer = [MTL_device_ newBufferWithLength:size options:MTLResourceOptionCPUCacheModeWriteCombined];
-    return ub;
-};
-void   uniformbuffer_setDataAt(UniformBuffer* ub, const void *newData, size_t size, size_t offset) {
-    memcpy([ub->mtlBuffer contents] + offset, newData, size);
-}
-void   uniformbufferref_destroyAndNull(UniformBuffer** const ubToDeleteRef) {
-    if(*ubToDeleteRef == NULL) return;
-    (*ubToDeleteRef)->mtlBuffer = nil;
-    coq_free(*ubToDeleteRef);
-    *ubToDeleteRef = NULL;
-}
-id<MTLBuffer>  uniformbuffer_MTLBuffer(UniformBuffer* ub) {
-    return ub->mtlBuffer;
-}
-
-// Ou bien... (semble mieux...)
-
-const void* MTLBuffer_createAndGetCPointer(size_t size) {
-    return CFBridgingRetain([MTL_device_ newBufferWithLength:size options:MTLResourceOptionCPUCacheModeWriteCombined]);
-}
-void mtlbufferCptr_setDataAt(const void* mtlBufferCPtr, const void *newData, size_t size, size_t offset) {
-    id<MTLBuffer> mtlBuffer = (__bridge id<MTLBuffer>)(mtlBufferCPtr);
-    memcpy([mtlBuffer contents] + offset, newData, size);
-}
-void mtlbufferCPtrRef_releaseAndNull(const void** mtlBufferRef) {
-    if(*mtlBufferRef == NULL) return;
-    CFRelease(*mtlBufferRef);
-    *mtlBufferRef = NULL;
-}
-id<MTLBuffer> mtlbufferCPtr_asMTLBuffer(const void* mtlBufferCPtr) {
-    return (__bridge id<MTLBuffer>)mtlBufferCPtr;
-}
+#include "utils_base.h"
 
 #pragma mark - Mesh ------------------------------------------------------
 
@@ -68,24 +23,6 @@ typedef struct Mesh_ {
     id<MTLBuffer> verticesBuffer;     // (Suffisant, pas besoin d'array vertices.)
 //    Vertex        vertices[1];         // Array des vertex. A LA FIN, fait varier la taille.
 } Mesh;
-
-
-
-static Vertex _mesh_sprite_vertices[4] = {
-    {-0.5, 0.5, 0, 0,0, 0,0,1},
-    {-0.5,-0.5, 0, 0,1, 0,0,1},
-    { 0.5, 0.5, 0, 1,0, 0,0,1},
-    { 0.5,-0.5, 0, 1,1, 0,0,1},
-};
-Mesh*  mesh_sprite = NULL;
-
-void Mesh_init(id<MTLDevice> const device) {
-    MTL_device_ = device;
-    
-    // Init de la sprite.
-    mesh_sprite = Mesh_createEmpty(_mesh_sprite_vertices, 4, NULL, 0,
-          mesh_primitive_triangleStrip, mesh_cullMode_none, true);
-}
 
 Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,
                         const uint16_t* const indicesOpt, uint32_t indexCount,

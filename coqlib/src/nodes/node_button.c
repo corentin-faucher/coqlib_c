@@ -4,14 +4,15 @@
 //
 //  Created by Corentin Faucher on 2023-10-30.
 //
+#include "node_button.h"
 
-#include "nodes/node_button.h"
-#include "nodes/node_drawable.h"
-#include "nodes/node_root.h"
-#include "nodes/node_tree.h"
-#include "graphs/graph_colors.h"
+#include "node_drawable.h"
+#include "node_root.h"
+#include "node_tree.h"
+#include "../graphs/graph_colors.h"
+#include "../utils/utils_base.h"
 #include <string.h>
-#include "utils/utils_base.h"
+
 
 void   button_default_action_(Button* b) {
     printwarning("Button %p action not overrided.", b);

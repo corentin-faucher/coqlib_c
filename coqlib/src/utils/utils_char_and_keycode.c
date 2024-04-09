@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#include "utils/utils_char_and_keycode.h"
+#include "utils_char_and_keycode.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -122,8 +122,8 @@ void test_print_mkcOfKeycode_(void) {
     printf("\n🐔\n");
 }
 
-// Latin (Pas besoin de vérifier les lettre ascii...
-Character const character_latins_[] = {
+const char character_latins_[][4] = {
+    // (Cas ASCII superflu...)
 //    "A", "a", "B", "b", "C", "c", "D", "d", "E", "e", "F", "f", "G", "g", "H", "h", "I", "i", "J", "j", "K", "k", "L", "l",
 //    "M", "m", "N", "n", "O", "o", "P", "p", "Q", "q", "R", "r", "S", "s", "T", "t", "U", "u", "V", "v", "W", "w", "X", "x",
 //    "Y", "y", "Z", "z", 
@@ -145,14 +145,14 @@ Character const character_latins_[] = {
     "Ȼ", "ȼ", "Ƚ", "ƚ", "Ⱦ", "ⱦ", "Ɂ", "ɂ", "Ƀ", "ƀ", "Ʉ", "ʉ", "Ʌ", "ʌ", "Ɇ", "ɇ", "Ɉ", "ɉ", "Ɍ", "ɍ", "Ɏ", "ɏ", 
 };
 // Grec
-Character const character_greeks_[] = {
+const char character_greeks_[][4] = {
     "Ͱ", "ͱ", "Ͳ", "ͳ", "Ͷ", "ͷ", "Ά", "ά", "Έ", "έ", "Ή", "ή", "Ί", "ί", "Ό", "ό", "Ύ", "ύ", "Ώ", "ώ", "Α", "α", "Β", "β", 
     "Γ", "γ", "Δ", "δ", "Ε", "ε", "Ζ", "ζ", "Η", "η", "Θ", "θ", "Ι", "ι", "Κ", "κ", "Λ", "λ", "Μ", "μ", "Ν", "ν", "Ξ", "ξ", 
     "Ο", "ο", "Π", "π", "Ρ", "ρ", "Σ", "σ", "Τ", "τ", "Υ", "υ", "Φ", "φ", "Χ", "χ", "Ψ", "ψ", "Ω", "ω", "Ϊ", "ϊ", "Ϋ", "ϋ", 
     "Ϣ", "ϣ", "Ϥ", "ϥ", "Ϧ", "ϧ", "Ϩ", "ϩ", "Ϫ", "ϫ", "Ϭ", "ϭ", "Ϯ", "ϯ", "Ϸ", "ϸ", "Ϻ", "ϻ", "Ͻ", "ͻ", "Ͼ", "ͼ", "Ͽ", "ͽ", 
 };
 // Cyrillic
-Character const character_cyrillics_[] = {
+const char character_cyrillics_[][4] = {
     "Ѐ", "ѐ", "Ё", "ё", "Ђ", "ђ", "Ѓ", "ѓ", "Є", "є", "Ѕ", "ѕ", "І", "і", "Ї", "ї", "Ј", "ј", "Љ", "љ", "Њ", "њ", "Ћ", "ћ", 
     "Ќ", "ќ", "Ѝ", "ѝ", "Ў", "ў", "Џ", "џ", "А", "а", "Б", "б", "В", "в", "Г", "г", "Д", "д", "Е", "е", "Ж", "ж", "З", "з", 
     "И", "и", "Й", "й", "К", "к", "Л", "л", "М", "м", "Н", "н", "О", "о", "П", "п", "Р", "р", "С", "с", "Т", "т", "У", "у", 
@@ -168,7 +168,7 @@ Character const character_cyrillics_[] = {
 };
 
 // Armenian
-Character const character_armenians_[] = {
+const char character_armenians_[][4] = {
     "Ա", "ա", "Բ", "բ", "Գ", "գ", "Դ", "դ", "Ե", "ե", "Զ", "զ", "Է", "է", "Ը", "ը", "Թ", "թ", "Ժ", "ժ", "Ի", "ի", "Լ", "լ", 
     "Խ", "խ", "Ծ", "ծ", "Կ", "կ", "Հ", "հ", "Ձ", "ձ", "Ղ", "ղ", "Ճ", "ճ", "Մ", "մ", "Յ", "յ", "Ն", "ն", "Շ", "շ", "Ո", "ո", 
     "Չ", "չ", "Պ", "պ", "Ջ", "ջ", "Ռ", "ռ", "Ս", "ս", "Վ", "վ", "Տ", "տ", "Ր", "ր", "Ց", "ց", "Ւ", "ւ", "Փ", "փ", "Ք", "ք", 
@@ -187,8 +187,9 @@ Character const character_upperCased(Character c, unsigned character_type) {
         c.first = toupper(c.first);
         return c;
     }
-    Character const * p;
-    Character const * end;
+    // TODO: On pourait détecter le `character_type` à l'aide du range unicode des différentes alphabets...
+    const char (*p)[4];
+    const char (*end)[4];
     switch(character_type) {
         case character_type_greek: {
             p =    character_greeks_;
@@ -209,10 +210,10 @@ Character const character_upperCased(Character c, unsigned character_type) {
     }
     bool upper = true;
     while(p < end) {
-        if(c.c_data == p->c_data) {
+        if(c.c_data4 == *(uint32_t*)p) {
             if(upper) return c;
             p --;  // (se remet sur le upper cased)
-            return *p;
+            return (Character) { .c_data4 = *(uint32_t*)p };
         }
         p ++;
         upper = !upper;
@@ -232,8 +233,8 @@ Character const character_lowerCased(Character c, unsigned character_type) {
         c.first = tolower(c.first);
         return c;
     }
-    Character const * p;
-    Character const * end;
+    const char (*p)[4];
+    const char (*end)[4];
     switch(character_type) {
         case character_type_greek: {
             p =    character_greeks_;
@@ -254,10 +255,10 @@ Character const character_lowerCased(Character c, unsigned character_type) {
     }
     bool upper = true;
     while(p < end) {
-        if(c.c_data == p->c_data) {
+        if(c.c_data4 == *(uint32_t*)p) {
             if(!upper) return c;
             p ++;  // (se remet sur le lower cased)
-            return *p;
+            return (Character) { .c_data4 = *(uint32_t*)p };
         }
         p ++;
         upper = !upper;

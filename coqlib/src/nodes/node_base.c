@@ -4,13 +4,15 @@
 //
 //  Created by Corentin Faucher on 2023-10-12.
 //
-#include "nodes/node_base.h"
+#include "node_base.h"
 
-#include "utils/utils_base.h"
-#include "nodes/node_fluid.h"
-#include "nodes/node_squirrel.h"
-#include "coq_timer.h"
-#include "nodes/node_tree.h"
+#include "node_fluid.h"
+#include "node_squirrel.h"
+#include "node_tree.h"
+
+#include "../utils/utils_base.h"
+#include "../coq_timer.h"
+
 
 #pragma mark -- Constructors... ----------------------------------
 
@@ -32,13 +34,9 @@ void node_disconnect_(Node * const node) {
 /** Connect au parent. (Doit être fullyDeconnect.) */
 void node_connectToParent_(Node* const node, Node * const parentOpt, const bool asElder) {
     if(parentOpt == NULL) return;
-    if(parentOpt->_type & node_type_flag_leaf) {
-        printerror("Adding child to leaf node.");
-        return;
-    }
     // Dans tout les cas, on a le parent:
     node->_parent = parentOpt;
-    
+
     Node* oldParentFirstChild = parentOpt->_firstChild;
     Node* oldParentLastChild = parentOpt->_lastChild;
     // Cas parentOpt pas d'enfants
@@ -70,7 +68,7 @@ void node_connectToBro_(Node* const node, Node* const broOpt, const bool asBigbr
     Node * const parent = bro->_parent;
     if(parent == NULL) { printerror("Boucle sans parent."); return; }
     node->_parent = parent;
-    
+
     if(asBigbro) {
         // Insertion
         node->_littleBro = bro;
@@ -94,7 +92,7 @@ void node_connectToBro_(Node* const node, Node* const broOpt, const bool asBigbr
     }
 }
 
-Node* node_last_nonLeaf = NULL;
+Node* node_last_nonDrawable = NULL;
 #ifdef DEBUG
 static uint32_t Node_currentId_ = 0;
 #endif
@@ -120,8 +118,8 @@ void node_init_(Node* n, Node* const refOpt,
     } else if(!(flags & flag_noParent) && !(type & node_type_flag_root)) {
         printwarning("Node in void (non root without parent or brother ref).");
     }
-    if(!(type & node_type_flag_leaf))
-        node_last_nonLeaf = n;
+    if(!(type & node_type_flag_drawable))
+        node_last_nonDrawable = n;
 }
 /// Allocation d'un noeud de type quelconque.
 /// Obsolete : utiliser `coq_calloc` + `node_init_`...
@@ -167,7 +165,7 @@ Node* Node_create(Node* const refOpt, const float x, const float y, const float 
 //    return nd;
 //}
 
-#pragma mark - Garbage, emplacement temporaire avant d'être deallocated.
+#pragma mark - Garbage, emplacement temporaire avant d être deallocated.
 
 void node_tree_burnDown_(Node* const node) {
     if(node->_firstChild == NULL) {
@@ -304,7 +302,7 @@ Vector2 node_scales(Node *node) {
 
 #pragma mark -- Setters -------------------------------------------
 void    node_setXYrelatively(Node* node, uint32_t relative_flags, bool open) {
-    
+
     Node* parent = node->_parent;
     Fluid* f = node_asFluidOpt(node);
     float x, y;
@@ -424,7 +422,7 @@ void    node_moveWithinBro(Node* const node, bool asElder) {
         node->_littleBro->_bigBro = node->_bigBro;
     else  // Pas de petit frère -> probablement le cadet.
         parent->_lastChild = node->_bigBro;
-    
+
     if(asElder) {
         // Insertion
         node->_littleBro = parent->_firstChild;
@@ -450,7 +448,7 @@ void    node_setInReferentialOf_(Node* const n, Node* const ref) {
     while(sq_goUpPS(&sqP)) {}
     sq_init(&sqQ, ref, sq_scale_scales);
     while(sq_goUpPS(&sqQ)) {}
-    
+
     Fluid* f = node_asFluidOpt(n);
     if(f) {
         fl_newReferential(&f->x, sqP.v.x, sqQ.v.x, sqP.s.x, sqQ.s.x);
@@ -461,7 +459,7 @@ void    node_setInReferentialOf_(Node* const n, Node* const ref) {
     n->x = (sqP.v.x - sqQ.v.x) / sqQ.s.x;
     n->y = (sqP.v.y - sqQ.v.y) / sqQ.s.y;
     n->sx = n->sx * sqP.s.x / sqQ.s.x;
-    n->sy = n->sy * sqP.s.y / sqQ.s.y;    
+    n->sy = n->sy * sqP.s.y / sqQ.s.y;
 }
 /** Change de noeud de place (et ajuste sa position/scaling relatif). */
 void    node_moveToParent(Node* const n, Node* const new_parent, bool const asElder) {
@@ -519,7 +517,7 @@ Box     node_hitBoxInParentReferential(Node* n, const Node* parentOpt) {
             return (Box){ .center = sq.v, .deltas = sq.s };
         }
     } while (sq_goUpPS(&sq));
-    
+
     printerror("No parent encountered.");
     return (Box){ .center = sq.v, .deltas = sq.s };
 }
