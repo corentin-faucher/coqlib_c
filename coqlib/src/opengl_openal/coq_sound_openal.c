@@ -14,8 +14,6 @@
 #include <AL/alc.h>
 #endif
 
-
-
 static ALCdevice*   AL_device_ = NULL;
 static ALCcontext*  AL_context_ = NULL;
 static ALuint*      AL_buffer_ids_ = NULL;
