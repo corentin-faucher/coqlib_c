@@ -15,7 +15,7 @@
 /// Les informations graphiques d'un objet particulier
 /// à passer aux shaders/gpu.
 /// (Struct doit être aligned avec size multiple de 16octets : 7 * 16 = 112)
-typedef __attribute__((aligned(16)))struct {
+typedef __attribute__((aligned(16)))struct PerInstanceUniforms {
     Matrix4 model;
     Vector4 color;
     union {
@@ -30,19 +30,17 @@ typedef __attribute__((aligned(16)))struct {
 
 // Buffer vers les uniforms d'instance. Implémentation dépend de l'engine graphique.
 typedef struct PIUsBuffer {
-    size_t              size; // = piu_count * sizeof(PerInstanceUniforms)
-//    uint32_t            count;
-    PerInstanceUniforms *pius;
-    union {
-        const void*      mtlBuffer_cptr;  // Buffer Metal
-        uint32_t         glBufferId;      // Buffer OpenGL (superflu finalement ?)
-    };
+    uint32_t             max_count;
+    uint32_t             actual_count;
+    size_t               _size; // = piu_count * sizeof(PerInstanceUniforms)
+    PerInstanceUniforms* pius;
+    const void*          _mtlBuffer_cptr;  // Buffer Metal
 } PIUsBuffer;
 
 /// Création du buffer. 
-void   piusbuffer_init(PIUsBuffer* piusbuffer, size_t size);
+void   piusbuffer_init_(PIUsBuffer* piusbuffer, uint32_t count);
 /// Libère l'espace du buffer (et array de piu si nécessaire)
-void   piusbuffer_deinit(PIUsBuffer* piusbuffer);
+void   piusbuffer_deinit_(PIUsBuffer* piusbuffer);
 
 // Piu par defaut : Matrice identite, blanc, tile (0, 0), show == 1.
 #define PIU_DEFAULT \

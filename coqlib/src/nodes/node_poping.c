@@ -190,8 +190,8 @@ void              drawablemultiSparkle_updateModels_(DrawableMulti* const dm, co
     float deltaT = (float)(ChronoApp_elapsedMS() - dmsp->t0)*0.001f;
     float alpha = float_smoothOut(deltaT, 5.f);
     Vector2 const scl = {{ dm->n.sx * dm->n._piu.show, dm->n.sy * dm->n._piu.show }};
-    PerInstanceUniforms* piu = dmsp->dm.piusBuffer.pius;
-    PerInstanceUniforms* const end = &dmsp->dm.piusBuffer.pius[dmsp->dm._maxInstanceCount];
+    PerInstanceUniforms* piu =        dm->piusBuffer.pius;
+    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
     const Vector2* p0 = dmsp->p0s;
     const Vector2* p1 = dmsp->p1s;
     while(piu < end) {

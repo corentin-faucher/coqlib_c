@@ -55,8 +55,9 @@ void  texture_deinit_(void* tex_void) {
 static void (* const texture_engine_releasePartly__)(char*) = (void (*)(char*))texture_engine_releasePartly_;
 static void (* const texture_engine_setStringAsToRedraw__)(char*) = (void (*)(char*))texture_engine_setStringAsToRedraw_;
 static void (* const texture_engine_releaseAll__)(char*) = (void (*)(char*))texture_engine_releaseAll_;
-void  _texture_unsetUnusedPartly_(char* tex_char) {
+void  _texture_unsetUnusedPng_(char* tex_char) {
     Texture* tex = (Texture*)tex_char;
+    if(!(tex->flags & tex_flag_tmpDrawn_)) return;
     if(!_texture_isUnused(tex)) return;
     texture_engine_releasePartly_(tex);
 }
@@ -193,7 +194,7 @@ void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
         // liberer les png non utilises.
         checkunset_counter = (checkunset_counter + 1) % 30;
         if(checkunset_counter == 0)
-            map_applyToAll(textureOfPngName_, _texture_unsetUnusedPartly_);
+            map_applyToAll(textureOfPngName_, _texture_unsetUnusedPng_);
         if(checkunset_counter != 1) return;
         // liberer les shared strings non utilisées...
         bool notFinish = map_iterator_init(textureOfSharedString_);

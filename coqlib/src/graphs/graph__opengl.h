@@ -30,7 +30,7 @@ void   mesh_glBind(Mesh* mesh);
 
 /*-- Uniforms Buffer --*/
 void   PIUsBuffer_GLinit(GLuint program);
-void   piusbuffer_glBind(const PIUsBuffer* piusbuffer);
+void   piusbuffer_glBind(PIUsBuffer* piusbuffer);
 void   perinstanceuniform_glBind(const PerInstanceUniforms* piu);
 
 #else

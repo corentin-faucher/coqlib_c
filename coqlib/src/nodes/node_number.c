@@ -29,7 +29,7 @@ void      number_updateModels_(DrawableMulti* const dm, const Matrix4* const pm)
     float const pos_z = nb->n.z;
     Vector2 const scales = nb->n.scales;
     PerInstanceUniforms* piu = dm->piusBuffer.pius;
-    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->_maxInstanceCount];
+    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
     const float* x = nb->_xs;
     while(piu < end) {
         piu->show = show;
@@ -59,7 +59,7 @@ Number*   Number_create(Node* ref, int32_t value,
     drawable_init_(&nb->d, Number_defaultTex, mesh_sprite, 0, 1);
     // (pass drawable_updateDims_)
     drawablemulti_init_(&nb->dm, NUMBER_MAX_DIGITS_);
-    nb->dm.currentInstanceCount = 0;
+    nb->dm.piusBuffer.actual_count = 0;
     // Init as number
     nb->n.openOpt = number_open_;
     nb->dm.updateModels = number_updateModels_;
@@ -100,7 +100,7 @@ void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
 }
 void    number_setTo(Number* const nb, int32_t const newValue) {
     // Pas de changement ?
-    if((newValue == nb->value) && nb->dm.currentInstanceCount)
+    if((newValue == nb->value) && nb->dm.piusBuffer.actual_count)
         return;
     // 0. Init
     nb->value = newValue;
@@ -140,7 +140,7 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
         numberit_setAndNext_(&it, nb->extraDigitOpt, deltaX_ext);
     }
     // 5. Finaliser...
-    nb->dm.currentInstanceCount = it.i;
+    nb->dm.piusBuffer.actual_count = it.i;
     float deltaX = 0.5f*it.x1;
     nb->n.w = 2.f*deltaX;
     for(float *x = nb->_xs; x < it.xit; x++)

@@ -219,7 +219,7 @@ void              drawablemultiPP_updateModels_(DrawableMulti* const dm, const M
     // Boucle sur les particules
     Particule* p = dmpp->pp->particules;
     PerInstanceUniforms* piu = dm->piusBuffer.pius;
-    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->currentInstanceCount];
+    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
     while(piu < end) {
         Matrix4* m = &piu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.

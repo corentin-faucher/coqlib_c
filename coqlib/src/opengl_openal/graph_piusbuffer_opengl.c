@@ -32,34 +32,34 @@ void perinstanceuniform_glBind(const PerInstanceUniforms* piu) {
 }
 
 /// Création du buffer. 
-void   piusbuffer_init(PIUsBuffer* piusbuffer, size_t size) {
-    piusbuffer->pius = coq_calloc(1, size);
-    piusbuffer->size = size;
+void   piusbuffer_init_(PIUsBuffer* piusbuffer, uint32_t count) {
+    if(count > PIUB_MaxInstances) {
+        printerror("With OpenGL, the maximum number of instance is %d.", PIUB_MaxInstances);
+        count = PIUB_MaxInstances;
+    }
+    size_t size = count * sizeof(PerInstanceUniforms);
+    *piusbuffer = (PIUsBuffer) {
+        count, count, size,
+        coq_calloc(1, size), NULL
+    };
 //    glGenBuffers(1, &piusbuffer->glBufferId);
 //    glBindBuffer(GL_UNIFORM_BUFFER, piusbuffer->glBufferId);
 //    glBufferData(GL_UNIFORM_BUFFER, size, piusbuffer->pius, GL_DYNAMIC_DRAW);
 //    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 /// Libère l'espace du buffer (et array de piu si nécessaire)
-void   piusbuffer_deinit(PIUsBuffer* piusbuffer) {
-//    glDeleteBuffers(1, &piusbuffer->glBufferId);
+void   piusbuffer_deinit_(PIUsBuffer* piusbuffer) {
     coq_free(piusbuffer->pius);
-    piusbuffer->pius = NULL;
-    piusbuffer->size = 0;
+    *piusbuffer = (PIUsBuffer) { 0 };
 }
 
-void  piusbuffer_glBind(const PIUsBuffer* piusbuffer) {
-    size_t size = piusbuffer->size;
-    if(size > PIUB_MaxInstances * sizeof(PerInstanceUniforms)) {
-        size = PIUB_MaxInstances * sizeof(PerInstanceUniforms);
-        printwarning("Max instances %d.", PIUB_MaxInstances);
+void  piusbuffer_glBind(PIUsBuffer* piusbuffer) {
+    if(piusbuffer->actual_count > piusbuffer->max_count) {
+        printerror("Overflow..."); 
+        piusbuffer->actual_count = piusbuffer->max_count;
     }
+    size_t size = piusbuffer->actual_count * sizeof(PerInstanceUniforms);
     glBindBuffer(GL_UNIFORM_BUFFER, PIUB_bufferId_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, size, piusbuffer->pius);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-//    glBindBuffer(GL_UNIFORM_BUFFER, piusbuffer->glBufferId);
-//    PerInstanceUniforms* pius = glMapBuffer(GL_UNIFORM_BUFFER, GL_WRITE_ONLY);
-//    memcpy(pius, piusbuffer->pius, piusbuffer->size);
-//    glUnmapBuffer(GL_UNIFORM_BUFFER);
 }

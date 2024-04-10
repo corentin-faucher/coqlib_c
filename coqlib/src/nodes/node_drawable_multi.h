@@ -15,8 +15,6 @@ typedef struct DrawableMulti {
         Node     n;
         Drawable d;
     };
-    uint32_t             currentInstanceCount;
-    uint32_t             _maxInstanceCount;
     // Méthode pour updater les PerInstanceUniforms avant de dessiner les drawables. (Caller par Renderer)
     void (*updateModels)(DrawableMulti*, const Matrix4*);
     // Pointeur des données dans le MTLBuffer. *Éditable uniquement par `updateModels`.* (non thread-safe)

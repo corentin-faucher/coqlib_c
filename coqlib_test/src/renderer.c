@@ -39,7 +39,6 @@ void   Renderer_drawDrawable_(Drawable* d) {
         texture_glBind(_current_texture);
     }
     // 3. Cas standard (une instance)
-    uint32_t instanceCount = 1;
     DrawableMulti* dm = node_asDrawableMultiOpt(&d->n);
     if(!dm) {
       perinstanceuniform_glBind(&d->n._piu);
@@ -51,7 +50,7 @@ void   Renderer_drawDrawable_(Drawable* d) {
       return;
     }
     // 4. Cas multi-instance
-    instanceCount = dm->currentInstanceCount;
+    uint32_t instanceCount = dm->piusBuffer.actual_count;
     if(instanceCount == 0) {
         printwarning("No instance to draw.");
         return;
@@ -69,8 +68,9 @@ void   Renderer_drawDrawable_(Drawable* d) {
       return;
     }
     // Sinon boucle pour dessiner toutes les instances... :(  ??
+    // Il doit il y avoir une meilleure solution... ?
     const PerInstanceUniforms* piu =        dm->piusBuffer.pius;
-    const PerInstanceUniforms* const end = &dm->piusBuffer.pius[instanceCount];
+    const PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
     while(piu < end) {
         perinstanceuniform_glBind(piu);
         if(_current_mesh_index_count) {
@@ -86,12 +86,14 @@ void   Renderer_initWithWindow(SDL_Window* window, const char* font_path,
                                const char* font_name)
  {
     // Version 
-    float version;
-    sscanf((const char*)glGetString(GL_VERSION), "%f", &version);
-    isOpenGL_3_1_ = version > 3.0;
+    
+    const char* version_str = (const char*)glGetString(GL_VERSION);
+    float       version_float;
+    sscanf(version_str, "%f", &version_float);
+    isOpenGL_3_1_ = version_float > 3.0;
     printdebug("Is at least OpenGL 3.1: %s.", isOpenGL_3_1_ ? "yes ✅" : "no ⚠️");
     if(!isOpenGL_3_1_) {
-        printwarning("Check commented glsl version in .glsl files.");
+        printwarning("Cannot draw multiple instance with openGL %s ?", version_str);
     }
     // Shaders
     // Vertex shader

@@ -115,7 +115,7 @@
     uint32_t instanceCount = 1;
     DrawableMulti* dm = node_asDrawableMultiOpt(&d->n);
     if(dm) {
-        instanceCount = dm->currentInstanceCount;
+        instanceCount = dm->piusBuffer.actual_count;
         if(instanceCount == 0) {
             printwarning("No instance to draw.");
             return;
