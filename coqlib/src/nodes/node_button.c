@@ -10,7 +10,7 @@
 #include "node_root.h"
 #include "node_tree.h"
 #include "../graphs/graph_colors.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 #include <string.h>
 
 
@@ -248,7 +248,7 @@ void buttonsecure_letGo_(Button* but) {
     popdisk_cancel(&bt->pop);
     timer_cancel(&bt->timer);
     if(bt->didActivate) return;
-    PopMessage_spawnOver(&bt->n, 0, 0.5, 2.5, bt->spi.failPopFramePngId, bt->spi.failMessage, framedString_defPars, false);
+    PopMessage_spawnOver(&bt->n, 0, 0.5, 2.5, bt->spi.failPopFramePngId, bt->spi.failMessage, framedString_defPars, bt->spi.failPopInFrontScreen);
 }
 
 void buttonsecurehov_deinit_(Node* n) {
@@ -290,7 +290,8 @@ void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFrame
 }
 /// Juste secure pas de pop-over lors du survol.
 Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
-                            SecurePopInfo spi, float x, float y, float height, float lambda, flag_t flags) {
+                            SecurePopInfo spi, float x, float y, float height, 
+                            float lambda, flag_t flags) {
     ButtonSecureHov_ *sec = coq_calloc(1, sizeof(ButtonSecureHov_));
     node_init_(&sec->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
     fluid_init_(&sec->f, lambda);

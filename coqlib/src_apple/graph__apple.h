@@ -25,7 +25,9 @@ id<MTLBuffer>  mesh_MTLVerticesBuffer(Mesh* mesh);
 id<MTLBuffer>  piusbuffer_asMTLBuffer(const PIUsBuffer* piusbuffer);
 
 /*-- Ref au gpu pour créer buffer, texture... --*/
-extern id<MTLDevice> MTL_device_;
+extern id<MTLDevice>  MTL_device_;
+
+extern const MTLPixelFormat MTL_pixelFormat_;
 
 
 #endif /* graph_texture_apple_h */

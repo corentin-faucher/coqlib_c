@@ -1,11 +1,11 @@
 //
-//  utils_language.h
+//  util_language.h
 //  Pour la localisation des strings...
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
-#ifndef COQ_UTILS_LANGUAGE_H
-#define COQ_UTILS_LANGUAGE_H
+#ifndef COQ_UTIL_LANGUAGE_H
+#define COQ_UTIL_LANGUAGE_H
 
 typedef enum {
     language_french,

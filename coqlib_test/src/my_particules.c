@@ -6,7 +6,7 @@
 //
 #include "my_particules.h"
 #include "my_enums.h"
-#include "utils/utils_base.h"
+#include "utils/util_base.h"
 #include "graphs/graph_colors.h"
 
 #define PART_BOUNCE 0.5  // Rebond entre 0 et 1 (si > 1 -> gain d'énergie...)
@@ -210,20 +210,23 @@ typedef struct DrawableMultiPP_ {
     ParticulesPool*   pp;
 } DrawableMultiPP_;
 // Override...
-void              drawablemultiPP_updateModels_(DrawableMulti* const dm, const Matrix4* const pm) {
-    DrawableMultiPP_* dmpp = (DrawableMultiPP_*)dm;
+Drawable*   drawablemultiPP_updateModels_(Node* const n) {
+    DrawableMultiPP_* dmpp = (DrawableMultiPP_*)n;
+    const Node* const parent = n->_parent;
+    if(!parent) { printwarning("DrawableMulti without parent."); return NULL; }
+    const Matrix4* const pm = &parent->_piu.model;
     // Mode 0/1, DeltaT, w/h.
     bool zeroOne = dmpp->pp->t1 > dmpp->pp->t0;
     float deltaT = (float)(ChronoApp_elapsedMS() - (zeroOne ? dmpp->pp->t1 : dmpp->pp->t0))*0.001f;
-    Vector2 const scl = dm->n.scales;
+    Vector2 const scl = n->scales;
     // Boucle sur les particules
     Particule* p = dmpp->pp->particules;
-    PerInstanceUniforms* piu = dm->piusBuffer.pius;
-    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
+    PerInstanceUniforms* piu =        dmpp->dm.piusBuffer.pius;
+    PerInstanceUniforms* const end = &dmpp->dm.piusBuffer.pius[dmpp->dm.piusBuffer.actual_count];
     while(piu < end) {
         Matrix4* m = &piu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
-        Vector2 const pos = particule_evalPos(p, deltaT, zeroOne, piu == dm->piusBuffer.pius);
+        Vector2 const pos = particule_evalPos(p, deltaT, zeroOne, piu == dmpp->dm.piusBuffer.pius);
         if(isnan(pos.x) || isnan(pos.y)) { printerror("Nan value ..."); }
         m->v0.v = pm->v0.v * scl.x;
         m->v1.v = pm->v1.v * scl.y;
@@ -237,25 +240,26 @@ void              drawablemultiPP_updateModels_(DrawableMulti* const dm, const M
         }};
         piu++; p++;
     }
-    // Setter le Uniform buffer.
-//    mtlbufferCptr_setDataAt(dm->_piusBufferCptr, dmpp->pius, sizeof(PerInstanceUniforms)*dm->currentInstanceCount, 0);
+    return &dmpp->d;
 }
 DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     DrawableMultiPP_* dmpp = coq_calloc(1, sizeof(DrawableMultiPP_));
     node_init_(&dmpp->n, parent, 0, 0, 2.35*partpool_r0_, 2.35*partpool_r0_, node_type_nd_multi, 0, 0);
     Texture* const tex = Texture_sharedImage(png_disks);
-    drawable_init_(&dmpp->d, tex, mesh_sprite, 0, 2.35*partpool_r0_);
-    drawable_updateDims_(&dmpp->d);
+    drawable_init_(&dmpp->d, tex, mesh_sprite, 0, 2.35*partpool_r0_, 0);
     drawablemulti_init_(&dmpp->dm, partpool_count_);
-    dmpp->dm.updateModels = drawablemultiPP_updateModels_;
+    dmpp->n.updateModel = drawablemultiPP_updateModels_;
     dmpp->pp = pp;
+    float const Du = dmpp->n._piu.Du;
+    float const Dv = dmpp->n._piu.Dv;
     // Init des per instance uniforms (juste setter une tile.
     PerInstanceUniforms* piu =  dmpp->dm.piusBuffer.pius;
     PerInstanceUniforms* end = &dmpp->dm.piusBuffer.pius[partpool_count_];
     while(piu < end) {
         *piu = piu_default;
         uint32_t tile = rand() % 12;
-        piu->i = tile % tex->m;   piu->j = (tile / tex->m) % tex->n;
+        piu->u0 = (tile % tex->m) * Du;
+        piu->v0 = ((tile / tex->m) % tex->n) * Dv;
         piu++;
     }
     return dmpp;

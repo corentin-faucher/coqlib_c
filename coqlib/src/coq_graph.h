@@ -1,5 +1,5 @@
 //
-//  _utils_string.h
+//  _util_string.h
 //  Struct et fonction pour l'affichage
 //
 //  Created by Corentin Faucher on 2023-10-25.

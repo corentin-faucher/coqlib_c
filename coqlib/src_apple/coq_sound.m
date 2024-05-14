@@ -30,10 +30,10 @@ static struct Player_        players_[player_count_] = {};
 typedef struct {
     size_t            count;
     AVAudioPCMBuffer* buffers[1];
-} _BufferArray;
+} BufferArray_;
 static const char**           _wav_names = NULL;
 static uint32_t               _wav_count = 0;
-static _BufferArray*          _buffers = NULL;
+static BufferArray_*          _buffers = NULL;
 
 AVAudioPCMBuffer* _Sound_createBuffer(NSString* wavName, AVAudioFormat* expectedFormat) {
     // 1. Loader le wav.
@@ -82,7 +82,7 @@ void  Sound_resume(void) {
         printerror("No wav sound to load."); return;
     }
     // 1. Buffers
-    size_t size_buffer_array = sizeof(_BufferArray) + sizeof(AVAudioPCMBuffer*) * (_wav_count - 1);
+    size_t size_buffer_array = sizeof(BufferArray_) + sizeof(AVAudioPCMBuffer*) * (_wav_count - 1);
     _buffers = coq_calloc(1, size_buffer_array);
     _buffers->count = _wav_count;
     NSString* wavName = [NSString stringWithUTF8String:_wav_names[0]];

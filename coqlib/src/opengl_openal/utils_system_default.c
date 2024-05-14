@@ -1,11 +1,11 @@
 //
-//  utils_system_default.c
+//  util_system_default.c
 //  xc_coqlib_test
 //
 //  Created by Corentin Faucher on 2024-04-09.
 //
 
-#include "../utils/utils_system.h"
+#include "../utils/util_system.h"
 #include <stddef.h>
 
 static unsigned coqsystem_os_type_ = coqsystem_os_desktop;

@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#include "utils_char_and_keycode.h"
+#include "util_char_and_keycode.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -187,6 +187,7 @@ Character const character_upperCased(Character c, unsigned character_type) {
         c.first = toupper(c.first);
         return c;
     }
+    
     // TODO: On pourait détecter le `character_type` à l'aide du range unicode des différentes alphabets...
     const char (*p)[4];
     const char (*end)[4];

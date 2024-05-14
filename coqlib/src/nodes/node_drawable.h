@@ -13,13 +13,12 @@
 #include "../graphs/graph_texture.h"
 #include "../graphs/graph_mesh.h"
 
-
 /// Noeud affichable (image, string).
 /// Pour un drawable les dimensions sont données par scaleX et scaleY.
 /// w et h sont relatif à 1 pour donner l'overlapping/spacing.
 /// (et espace occupé est alors `deltaX = w * scaleX`.)
 /// Voir `_drawable_updateScaleXAndWidth` et `node_updateModelMatrixWithParentModel`.
-typedef struct _Drawable {
+typedef struct Coq_Drawable {
     /// Upcasting as Node.
     Node     n;
     /// La texture attaché. Peut être owned ou shared.
@@ -34,16 +33,21 @@ typedef struct _Drawable {
     SmTrans  trShow;
     /// Transition en extra ! e.g. emphasis, flip, etc.
     SmTrans  trExtra;
-    /// Marge en x. -> Ratio de deltaY.
-    ///  (peut être négatif, voir `_drawable_updateScaleXAndWidth`)
-    float    x_margin;
     /// Mémoire des dimensions `target`. Utile pour l'edition de strings.
     /// twoDxTarget == 0 => On prend le ratio de la texture...
-    float    twoDxTarget, twoDyTarget;  // twoDy superflu ?
+    float    _twoDxTarget, _twoDyTarget;
+    /// Marge en x. -> Ratio de deltaY.
+    ///  (peut être négatif, voir `_drawable_updateScaleXAndWidth`)
+    float    _xMargin;
 } Drawable;
+
+/// La fonction utilisée pour mettre à jour la matrice modèle avant l'affichage.
+/// (Peut être remplacé par un fonction custom)
+extern Drawable* (*Drawable_defaultUpdateModel)(Node*);
 
 /// Constructeur Général. Utilisez a priori les constructeurs spécifiques...
 /// (image, string, frame...).
+__attribute__((deprecated("utiliser `coq_calloc` + `node_init_` + `drawable_init_`.")))
 Drawable* Drawable_createImageGeneral(Node* const refOpt,
                           Texture* const tex, Mesh* const mesh,
                           float x, float y, float twoDxOpt, float twoDy, float x_margin,
@@ -54,11 +58,8 @@ void       drawableref_fastDestroyAndNull(Drawable** const drawableOptRef);
 /// Vérifie si c'est un noeud drawable actif ou parant de drawable actif.
 int        node_isDisplayActive(Node* const node);
 /// Init (pour sous struct). Ne fait que setter les variables et méthodes.
-/// **N'ajuste pas les dimensions** (utilisez ensuite `drawable_updateDims_`).
-void      drawable_init_(Drawable* d, Texture* tex, Mesh* mesh, float twoDxOpt, float twoDy);
-/// Mise à jours des dimensions du drawable en fonction de la texture et des deltas targets.
-/// Si twoDx (width) == 0 -> la larger se base sur le ratio w/h du png/string d'origine.
-void      drawable_updateDims_(Drawable* d);
+void      drawable_init_(Drawable* d, Texture* tex, Mesh* mesh, float twoDxOpt, float twoDy, float xMargin);
+
 
 /*-- Surface d'image (png) : tile d'un png... ------------------*/
 /// Convenience constructor : création d'une image (sprite avec png). Le ratio w/h est le même que le png d'origine.
@@ -84,12 +85,14 @@ Drawable* Drawable_createString(Node* const refOpt, StringDrawable str,
 /// Mise à jour d'une string `mutable`.
 void      drawable_updateAsMutableString(Drawable* d, const char* new_c_str, bool forceRedraw);
 /// Mise à jour d'une string `shared`/constante.
-void     drawable_updateAsSharedString(Drawable* d, StringDrawable const str);
-void      drawable_updatePngId(Drawable* d, uint32_t newPngId);
+void      drawable_updateAsSharedString(Drawable* d, StringDrawable const str);
+void      drawable_updatePngId(Drawable* d, uint32_t newPngId, bool updateDims);
+void      drawable_updateTargetDims(Drawable* d, float newTwoDxOpt, float newTwoDy, float newXMargin);
 // Convenience setters...
 void      drawable_setTile(Drawable* d, uint32_t i, uint32_t j);
 void      drawable_setTileI(Drawable* d, uint32_t i);
 void      drawable_setTileJ(Drawable* d, uint32_t j);
+void      drawable_setTileFull(Drawable *d, InstanceTile tile);
 // Modifis supplémentaires sur le dernier drawable créé.
 //extern Drawable* drawable_last_;
 void      drawable_last_setTile(uint32_t i, uint32_t j);
@@ -130,9 +133,7 @@ void   node_tryUpdatingAsFrameOfBro(Node* nodeOpt, Node* broOpt);
 void   node_tryToAddTestFrame(Node* ref);
 void   node_last_tryToAddTestFrame(void);
 
-// Deinit de drawable (free mesh ou texture si owner).
-void drawable_deinit_freeTexture_(Node* nd);
-void drawable_deinit_freeTextureAndMesh_(Node* nd);
-
+// Deinit de drawable (pour sub-struct)
+void drawable_deinit_(Node* nd);
 
 #endif /* node_surface_h */

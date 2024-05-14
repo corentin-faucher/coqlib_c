@@ -1,14 +1,14 @@
 //
-//  utils_language.m
+//  util_language.m
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
 #import <Foundation/Foundation.h>
 
-#include "utils_languages.h"
-#include "utils_base.h"
-#include "utils_locales.h"
-#include "utils_string.h"
+#include "util_language.h"
+#include "util_base.h"
+#include "util_locale.h"
+#include "util_string.h"
 
 #pragma mark - Langue et région
 

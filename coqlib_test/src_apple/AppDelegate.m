@@ -42,7 +42,7 @@
     Font_init();
     CoqGraph_MTLinit(device);
     // 2. Chargement des textures et sons du projet.
-    Texture_init(MyProject_pngInfos, png_total_pngs);    
+    Texture_init(MyProject_pngInfos, png_total_pngs, true);    
     Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds);
     Chrono_UpdateDeltaTMS = 50;
     

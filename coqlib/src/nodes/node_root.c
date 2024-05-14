@@ -9,8 +9,16 @@
 #include "node_squirrel.h"
 #include "node_sliding_menu.h"
 #include "node_drawable_multi.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 #include "../graphs/graph_colors.h"
+
+/// Mise à jour ordinaire de la matrice modèle pour une root.
+Drawable* root_updateModel_(Node* const n) {
+    Root* rt = (Root*)n;
+    float yShift = fl_pos(&rt->yShift);
+    matrix4_initAsLookAtWithCameraAndYshift(&n->_piu.model, &rt->camera, yShift);
+    return NULL;
+}
 
 void  root_init(Root* root, Root* parentRootOpt) {
     if(root->n._parent) {
@@ -29,9 +37,8 @@ void  root_init(Root* root, Root* parentRootOpt) {
     root->margins = (Margins){ 5, 5, 5, 5 };
     camera_init(&root->camera, 10.f);
     fl_array_init(root->back_RGBA, color4_gray2.f_arr, 4, 5.f);
-    
-    root->updateModelAndGetDrawable = node_defaultUpdateModelAndGetAsDrawableOpt;
-//    printdebug("Root init selected is %p.", root->buttonSelectedOpt);
+    // Override de l'update du model.
+    root->n.updateModel = root_updateModel_;
 }
 Root* node_asRootOpt(Node* n) {
     if(n->_type & node_type_flag_root) return (Root*)n;
@@ -294,10 +301,6 @@ SlidingMenu* root_searchFirstSlidingMenuOpt(Root* root) {
     }
 }
 
-void root_updateModelMatrix(Root *rt) {
-    float yShift = fl_pos(&rt->yShift);
-    matrix4_initAsLookAtWithCameraAndYshift(&rt->n._piu.model, &rt->camera, yShift);
-}
 /*-- Init d'autres struct utilisant la root. --*/
 /// Obtenir le rectangle (en pts) associé à une position (origin)
 ///  et dimensions dans le frame de la root.
@@ -339,47 +342,6 @@ Vector2   root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY) {
     float y = (invertedY ? -1.f : 1.f)*(viewPos.y / rt->viewSizePt.h - 0.5f) * fullSizeHeight + yShift;
     return (Vector2) {{ x, y }};
 }
-
-Drawable* node_defaultUpdateModelAndGetAsDrawableOpt(Node* const node) {
-    // 0. Cas root
-    {
-        Root* root = node_asRootOpt(node);
-        if(root) {
-            root_updateModelMatrix(root);
-            return NULL;
-        }
-    }
-    Node* const parent = node->_parent;
-    if(parent == NULL) {
-        printerror("Non-root without parent.");
-        return NULL;
-    }
-    // 1. Cas branche
-    if(node->_firstChild != NULL) {
-        node_updateModelMatrixWithParentModel(node, &parent->_piu.model, 1.f);
-        return NULL;
-    }
-    // 3. Cas feuille
-    Drawable* d = node_asDrawableOpt(node);
-    // Laisser faire si n'est pas affichable...
-    if(!d) return NULL;
-    // Facteur d'"affichage"
-    float alpha = smtrans_setAndGetIsOnSmooth(&d->trShow, (d->n.flags & flag_show) != 0);
-    // Rien à afficher...
-    if(alpha < 0.001f)
-        return NULL;
-    d->n._piu.show = alpha;
-    if((d->n.flags & flag_poping) == 0)
-        alpha = 1.f;
-    DrawableMulti* dm = node_asDrawableMultiOpt(node);
-    if(dm) {
-        dm->updateModels(dm, &parent->_piu.model);
-    } else {
-        node_updateModelMatrixWithParentModel(&d->n, &parent->_piu.model, alpha);
-    }
-    return d;
-}
-
 
 void      matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt) {
     float middleZ = fl_pos(&rt->camera.pos[2]);

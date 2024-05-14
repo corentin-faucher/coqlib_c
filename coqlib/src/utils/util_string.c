@@ -4,8 +4,8 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "utils_string.h"
-#include "utils_base.h"
+#include "util_string.h"
+#include "util_base.h"
 
 
 char* String_createCopy(const char* src) {

@@ -8,7 +8,7 @@
 #include "math_interpolated_angle.h"
 
 #include <string.h>
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 void intangle_init(InterpolatedAngle* ia, float pos) {
     memset(ia->vT, 0, sizeof(ia->vT));

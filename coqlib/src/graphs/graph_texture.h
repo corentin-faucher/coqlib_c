@@ -10,15 +10,16 @@
 
 #include "graph_base.h"
 #include "../maths/math_chrono.h"
-#include "../utils/utils_string.h"
+#include "../utils/util_string.h"
 
 #define TEXTURE_PNG_NAME_SIZE 32
 
 typedef struct Texture Texture;
 typedef struct Texture {
-    PerTextureUniforms ptu;
+//    PerTextureUniforms ptu;
     /// Tiling en x, y. Meme chose que ptu -> m, n.
     uint32_t         m, n;
+    uint32_t         _width, _height;
     /// Ratio sans les marges en x, y, e.g. (0.95, 0.95).
     /// Pour avoir les dimension utiles de la texture.
     float            alpha, beta;
@@ -56,7 +57,7 @@ typedef struct {
 
 #pragma mark - Texture Global
 
-void            Texture_init(PngInfo const pngInfos[], const unsigned pngCount);
+void            Texture_init(PngInfo const pngInfos[], const unsigned pngCount, bool loadCoqlibPngs);
 /// Mise en pause (libère les pixels des textures)
 void            Texture_suspend(void);
 /// Sortie de pause... ne fait pas grand chose...
@@ -79,10 +80,14 @@ double          Texture_currentFontSize(void);
 Texture*        Texture_sharedImage(uint32_t const pngId);
 Texture*        Texture_sharedImageByName(const char* pngName);
 Texture*        Texture_retainString(StringDrawable str);
+/// Texture avec array de pixels en mode brgra, i.e. en hexadecimal : 0xAARRGGBB.
+/// (Les bit/bytes plus significatifs viennent après les bits moins significatifs dans un array.)
+Texture*        Texture_createWithPixels(const void* pixelsBGRA8, uint32_t width, uint32_t height,
+                                         bool shared, bool nearest);
 /// Libérer (si besoin) la texture qui n'est plus utilisé.
 void            textureref_releaseAndNull_(Texture** const texRef);
 
-#pragma mark - String update --------------------
+#pragma mark - Update --------------------
 
 /// Change la texture constante/shared pour une autre.
 void            textureref_exchangeSharedStringFor(Texture** const texRef, StringDrawable str);
@@ -93,29 +98,36 @@ void            texture_updateMutableString(Texture* tex, const char* newString,
 #pragma mark - Engine dependant methods (Implementer avec Metal ou OpenGL) --------------
 
 void           texture_engine_tryToLoadAsPng_(Texture* tex, bool isMini);
+void           texture_engine_loadWithPixels_(Texture* tex, const void* pixelsBGRA8, uint32_t width, uint32_t height);
+void           texture_engine_updatePixels(Texture* tex, const void* pixelsBGRA8);
 void           texture_engine_tryToLoadAsString_(Texture* tex, bool isMini);
 void           texture_engine_justSetSizeAsString_(Texture* tex);
 void           texture_engine_releaseAll_(Texture* tex);
 void           texture_engine_releasePartly_(Texture* tex);
 void           texture_engine_setStringAsToRedraw_(Texture* tex);
 
+
 #pragma mark - Flags d une texture -------------------------------------
 
 enum {
     tex_flag_string_localized = string_flag_localized,
-    tex_flag_string_shared    = string_flag_shared,
+    tex_flag_shared           = string_flag_shared,   // Partagé (pas deallocated quand released)
     tex_flag_string_mutable   = string_flag_mutable,
     tex_flag_nearest          = string_flag_nearest,  // Style pixélisé (pas de smoothing linéaire des pixels)
     tex_flag_string           = 0x0010,
-    tex_flag_png_shared       = 0x0020, // (png sont toujours shared)
+    tex_flag_png              = 0x0020, // Image de png (devrait être shared aussi...)
     tex_flag_png_coqlib       = 0x0040, // (png inclus par défaut)
     
-    tex_flag_static_          = 0x0080, // Ne peut pas être dealloc.
     tex_flags_string_         = 0x000F,
     tex_flag_fullyDrawn_      = 0x0100,
     tex_flag_tmpDrawn_        = 0x0200,
     tex_flags_drawn_          = 0x0300,
+    tex_flag_static_          = 0x0400, // Ne peut pas être dealloc.
+    
 };
+
+// Texture par défaut (du blanc...), un peu comme la mesh par défaut (mesh_sprite, un carré)
+extern Texture* texture_white;
 
 // Il existe des textures pas encore dessinées...
 extern bool     Texture_needToFullyDraw_;

@@ -18,11 +18,12 @@ out vec4 out_color;
 struct PerInstanceUniforms {
   mat4  model;
   vec4  color;
-  vec2  tile;
+  vec2  uv0;
+  vec2  Duv;
   float emph;
   float show;
   int   flags;
-  int   unused1, ununsed2, unused3; // (Completion du chunk de 16B.)
+  int   unused1;
 };
 // Meilleur façon de passer un array quelconque pour les info d'instances (particules) ??
 layout(std140) uniform InstanceBufferType {
@@ -31,7 +32,7 @@ layout(std140) uniform InstanceBufferType {
 
 // Per texture uniforms
 // uniform vec2  tex_wh;
-uniform vec2  tex_mn;
+//uniform vec2  tex_mn;
 
 // Per frame uniforms
 uniform mat4  frame_projection;
@@ -44,14 +45,14 @@ void main() {
 
     vec4 posTmp;
     // // Déformation d'emphase et oscillation
-    if(pius[gl_InstanceID].emph > 0.) {
-        posTmp = in_position * (1. + pius[gl_InstanceID].emph * 0.15 * 
-            vec4(sin(frame_time*6.) + 2., sin(frame_time*6.+1.)+2., 0., 0.) );
-    } else {
+//    if(pius[gl_InstanceID].emph > 0.) {
+//        posTmp = in_position * (1. + pius[gl_InstanceID].emph * 0.15 * 
+//            vec4(sin(frame_time*6.) + 2., sin(frame_time*6.+1.)+2., 0., 0.) );
+//    } else {
         posTmp = in_position;
-    }
+//    }
     // Coord. uv en fonction de la tile. Version simple ok ?
-    out_uv = (in_uv + pius[gl_InstanceID].tile) / tex_mn;  
+    out_uv = pius[gl_InstanceID].uv0 + in_uv * pius[gl_InstanceID].Duv;  
     // Version "pixel perfect"... Obsolete ?
     // out_uv = (in_uv * (tex_wh - tex_mn) + inst_ij * tex_wh) / (tex_mn*(tex_wh - 1.));
     gl_Position = frame_projection * pius[gl_InstanceID].model * posTmp;

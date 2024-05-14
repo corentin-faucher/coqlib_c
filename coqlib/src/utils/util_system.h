@@ -6,8 +6,8 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#ifndef COQ_UTILS_SYSTEM_H
-#define COQ_UTILS_SYSTEM_H
+#ifndef COQ_UTIL_SYSTEM_H
+#define COQ_UTIL_SYSTEM_H
 
 #include <stdbool.h>
 

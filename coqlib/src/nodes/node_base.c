@@ -10,7 +10,7 @@
 #include "node_squirrel.h"
 #include "node_tree.h"
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 #include "../coq_timer.h"
 
 
@@ -109,6 +109,7 @@ void node_init_(Node* n, Node* const refOpt,
     n->flags =  flags;
 //    n->_size =  size;
     n->_type =  type;
+    n->updateModel = node_updateModelMatrixDefault;
 #ifdef DEBUG
     n->_nodeId = Node_currentId_;
     Node_currentId_ ++;
@@ -480,12 +481,22 @@ void    node_moveToBro(Node* n, Node* new_bro, bool asBigBro) {
 #pragma mark -- Vector, Matrix... --------------------------------------
 
 /// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.
-void    node_updateModelMatrixWithParentModel(Node* const n, const Matrix4* const pm, float alpha) {
+Drawable* node_updateModelMatrixDefault(Node *n) {
+    // Cas feuille, skip...
+    if(n->_firstChild == NULL) {
+//    #ifdef DEBUG
+//        printwarning("Update of leaf %s id %d without child?", node_debug_getTypeName(n), n->_nodeId);
+//    #endif 
+        return NULL;
+    }
+    const Node* const parent = n->_parent;
+    if(!parent) { printwarning("Non root without parent."); return NULL; }
+    const Matrix4* const pm = &parent->_piu.model;
     Matrix4* m = &n->_piu.model;
     Vector3 pos = node_pos(n);
     Vector2 scl = node_scales(n);
-    m->v0.v = pm->v0.v * scl.x * alpha;
-    m->v1.v = pm->v1.v * scl.y * alpha;
+    m->v0.v = pm->v0.v * scl.x;
+    m->v1.v = pm->v1.v * scl.y;
     m->v2 =   pm->v2;  // *scl.z ... si on veut un scaling en z...?
     m->v3 = (Vector4) {{
         pm->v3.x + pm->v0.x * pos.x + pm->v1.x * pos.y + pm->v2.x * pos.z,
@@ -493,6 +504,7 @@ void    node_updateModelMatrixWithParentModel(Node* const n, const Matrix4* cons
         pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y + pm->v2.z * pos.z,
         pm->v3.w,
     }};
+    return NULL;
 }
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
@@ -534,34 +546,21 @@ Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 const absPos, Node* nodeO
 
 #pragma mark - Debug...
 
-void node_printType(Node* n) {
-    if(n->_type & node_type_flag_drawable) {
-        printf("drawable");
-        return;
-    }
-    if(n->_type & node_type_flag_root) {
-        printf("root");
-        return;
-    }
-    if(n->_type & node_type_flag_view) {
-        printf("view");
-        return;
-    }
-    if(n->_type & node_type_flag_button) {
-        printf("button");
-        return;
-    }
-    if(n->_type & node_type_flag_scrollable) {
-        printf("scrollable");
-        return;
-    }
-    if(n->_type & node_type_flag_number) {
-        printf("number");
-        return;
-    }
-    if(n->_type & node_type_flag_fluid) {
-        printf("fluid");
-        return;
-    }
-    printf("node");
+const char* node_type_names_[] = {
+    "node",
+    "fluid",
+    "button",
+    "scrollable",
+    "drawable",
+    "frame",
+    "root",
+    "view",
+    "secHov",
+    "drawMulti",
+    "number",
+};
+
+const char* node_debug_getTypeName(const Node* const n) {
+    uint32_t index = 32 - __builtin_clz(n->_type & node_type_flags_defaultTypes);
+    return node_type_names_[index];
 }

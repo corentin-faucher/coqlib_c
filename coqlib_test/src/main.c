@@ -139,8 +139,9 @@ int main(int argc, char** argv) {
     Renderer_initWithWindow(window, FONT_PATH, FONT_NAME);
 
     // Chargement des resources du projet (png, wav, localized string)
-    Texture_init(MyProject_pngInfos, png_total_pngs);
+    Texture_init(MyProject_pngInfos, png_total_pngs, true);
     Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds);
+
     Language_init();
 
     // Init app structure (voir my_root.c)

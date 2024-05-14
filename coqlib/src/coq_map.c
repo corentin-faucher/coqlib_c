@@ -7,17 +7,17 @@
 
 #include "coq_map.h"
 
-#include "utils/utils_base.h"
+#include "utils/util_base.h"
 
 #define _MAP_MAX_NAME_COMPARE 64
 #define _MAP_MAX_NAME_HASH    80
 
 size_t Map_maxStringLenght = 128;
 
-typedef struct _HashSlot HashSlot;
+typedef struct HashSlot HashSlot;
 /// Contient les couples key/value.
 /// -> size_t size_slot = sizeof(HashSlot) - 1 + size_value;
-typedef struct _HashSlot {
+typedef struct HashSlot {
     HashSlot* next;
     char      key[_MAP_MAX_NAME_COMPARE];
 //    size_t    size_value;   // Ajouter ?

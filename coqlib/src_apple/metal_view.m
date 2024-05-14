@@ -8,7 +8,7 @@
 #include "coq_timer.h"
 #include "coq_event.h"
 
-#include "utils_apple.h"
+#include "util_apple.h"
 
 #import <CloudKit/CloudKit.h>
 #if TARGET_OS_OSX == 1
@@ -44,7 +44,6 @@
     [self setUpRendererAndNotifications];
 }
 -(void)setUpRendererAndNotifications {
-    [self setColorPixelFormat:MTLPixelFormatBGRA8Unorm_sRGB];
     renderer = [[Renderer alloc] initWithView:self];
     [self setDelegate:renderer];
     [self setPaused:YES];

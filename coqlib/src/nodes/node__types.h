@@ -13,6 +13,7 @@ typedef enum {
     // Flag qui definissent les grandes categories de noeuds.
     // e.g. si node->_type contient node_type_flag_smooth
     //     -> on sait que ce noeud est castable comme Fluid.
+    // node_type_flag_node =      0x0000, pass, tout les noeuds sont des noeud :P
     node_type_flag_fluid =        0x0001, // Avec smooth x, y, etc.
     node_type_flag_button =       0x0002, // Avec action, drag, etc.
     node_type_flag_scrollable =   0x0004, // Scrolling menu.
@@ -23,6 +24,7 @@ typedef enum {
     node_type_flag_secHov =       0x0080,
     node_type_flag_drawMulti =    0x0100,
     node_type_flag_number =       0x0200,
+    
 //  #warning Enlever ? Complique les choses pour rien. Tout est non copyable par defaut...
 //    node_type_flag_notCopyable =  0x0100, // Contien des refs de descendants, string, etc.
 //                                          // i.e. besoin d'une fonction clone dédié.
@@ -30,6 +32,7 @@ typedef enum {
     /// Premier "type flag" custom pour un noeud.
     /// Seulement besoin d'un "type flag" si la sous-struct de Node a besoin d'etre casté.
     node_type_firstCustomFlag = 0x001000,
+    node_type_flags_defaultTypes =0x0FFF,
     node_type_lastFlag =      0x80000000,  // (uint32_t)
     
     /*-- Les type, i.e. combinaisons de type_flag. --*/

@@ -8,8 +8,8 @@
 #define COQ_EVENT_H
 
 #include "maths/math_base.h"
-#include "utils/utils_char_and_keycode.h"
-#include "utils/utils_string.h"
+#include "utils/util_char_and_keycode.h"
+#include "utils/util_string.h"
 
 typedef struct coq_Root Root;
 typedef struct _SlidingMenu SlidingMenu;

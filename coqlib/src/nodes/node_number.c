@@ -9,7 +9,7 @@
 
 #include "node_squirrel.h"
 #include "node_tree.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 
 Texture* Number_defaultTex = NULL;
@@ -21,15 +21,20 @@ void      number_open_(Node* n) {
     Number* nb = (Number*)n;
     number_setTo(nb, nb->value);
 }
-void      number_updateModels_(DrawableMulti* const dm, const Matrix4* const pm) {
-    Number* nb = (Number*)dm;
-    float const show = nb->n._piu.show;
+Drawable* number_updateModels_(Node* const n) {
+    Number* nb = (Number*)n;
+    float const show = smtrans_setAndGetIsOnSmooth(&nb->d.trShow, (n->flags & flag_show) != 0);
+    if(show < 0.001f) return NULL;
+    const Node* const parent = n->_parent;
+    if(!parent) { printwarning("Sparkel without parent."); return NULL; }
+    const Matrix4* const pm = &parent->_piu.model;
+    
     float const pop = (nb->n.flags & flag_poping) ? show : 1.f;
     float const pos_y = nb->n.y;
     float const pos_z = nb->n.z;
     Vector2 const scales = nb->n.scales;
-    PerInstanceUniforms* piu = dm->piusBuffer.pius;
-    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
+    PerInstanceUniforms* piu =        nb->dm.piusBuffer.pius;
+    PerInstanceUniforms* const end = &nb->dm.piusBuffer.pius[nb->dm.piusBuffer.actual_count];
     const float* x = nb->_xs;
     while(piu < end) {
         piu->show = show;
@@ -47,7 +52,9 @@ void      number_updateModels_(DrawableMulti* const dm, const Matrix4* const pm)
         }};
         piu++; x++;
     }
+    return &nb->d;
 }
+Drawable* (*Number_defaultUpdateModel)(Node*) = number_updateModels_; 
 Number*   Number_create(Node* ref, int32_t value,
                       float x, float y, float height,
                       flag_t flags, uint8_t node_place) {
@@ -56,19 +63,20 @@ Number*   Number_create(Node* ref, int32_t value,
     nb->n.sx = height; nb->n.sy = height;
     if(Number_defaultTex == NULL)
         Number_defaultTex = Texture_sharedImageByName("coqlib_digits_black");
-    drawable_init_(&nb->d, Number_defaultTex, mesh_sprite, 0, 1);
+    drawable_init_(&nb->d, Number_defaultTex, mesh_sprite, 0, 1, 0);
     // (pass drawable_updateDims_)
     drawablemulti_init_(&nb->dm, NUMBER_MAX_DIGITS_);
     nb->dm.piusBuffer.actual_count = 0;
     // Init as number
-    nb->n.openOpt = number_open_;
-    nb->dm.updateModels = number_updateModels_;
+    nb->n.openOpt =     number_open_;
+    nb->n.updateModel = Number_defaultUpdateModel;
     nb->value = value;
     nb->separator = digit_dot;
     nb->digit_x_margin =     -0.25;
     nb->separator_x_margin = -0.60;
     nb->extra_x_margin =      0.25;
     nb->n.sx = height * nb->d._tex->ratio;
+    nb->n.sy = height;
     number_last_ = nb;
     
     return nb;
@@ -85,6 +93,7 @@ typedef struct NumberIt_ {
     PerInstanceUniforms* const end;
     uint32_t const             m;
     uint32_t                   i;
+    float const                Du, Dv;
 } NumberIt_; 
 void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
     if(nbit->piu >= nbit->end) {
@@ -93,8 +102,8 @@ void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
     }
     nbit->x1 += deltaX;
     *nbit->xit = nbit->x1;
-    nbit->piu->i = digit % nbit->m;
-    nbit->piu->j = digit / nbit->m;
+    nbit->piu->u0 = (digit % nbit->m) * nbit->Du;
+    nbit->piu->v0 = (digit / nbit->m) * nbit->Dv;
     nbit->piu++; nbit->xit++; nbit->i++;
     nbit->x1 += deltaX;
 }
@@ -109,7 +118,8 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
     uint32_t const maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
     float const deltaX_def = 0.5*(1.f + nb->digit_x_margin);
     NumberIt_ it = {
-        nb->_xs, 0, nb->dm.piusBuffer.pius, &nb->dm.piusBuffer.pius[NUMBER_MAX_DIGITS_], nb->d._tex->m, 0
+        nb->_xs, 0, nb->dm.piusBuffer.pius, &nb->dm.piusBuffer.pius[NUMBER_MAX_DIGITS_], nb->d._tex->m, 0,
+        nb->n._piu.Du, nb->n._piu.Dv
     };
     // 1. Signe "+/-"
     if(isNegative) {
@@ -149,7 +159,7 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
 
 void     number_last_setDigitTexture(Texture* digitTexture) {
     if(!number_last_) { printerror("No last number."); return; }
-    if(!(digitTexture->flags & tex_flag_png_shared)) { printerror("Not a png texture."); return; }
+    if(!(digitTexture->flags & tex_flag_png)) { printerror("Not a png texture."); return; }
     number_last_->d._tex = digitTexture;
     number_last_->n.sx = number_last_->n.sy * digitTexture->ratio;
 }

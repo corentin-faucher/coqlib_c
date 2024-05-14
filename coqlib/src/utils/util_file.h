@@ -1,12 +1,12 @@
 //
-//  _utils_file.h
+//  _util_file.h
 //  Fonctions de base pratiques pour 
 //  l'ecriture/lecture de fichiers.
 //
 //  Created by Corentin Faucher on 2023-12-08.
 //
-#ifndef COQ_UTILS_FILE_H
-#define COQ_UTILS_FILE_H
+#ifndef COQ_UTIL_FILE_H
+#define COQ_UTIL_FILE_H
 
 #include <stdio.h>  // printf, sprintf, file, etc.
 #include <stdbool.h>
@@ -24,7 +24,7 @@
 //    file_exist_dir,
 //};
 /// Retourne 1 si un ficher, 2 si un dossier et 0 si rien.
-/// Superflu ? Juste essayer d'ouvrir...
+/// Superflu ? On peu juste essayer d'ouvrir...
 //int         FILE_existAt(const char* path);
 
 /// Optenir le contenu d'un fichier texte (+1 à la taille pour le `\0` terminal ajouté à la string).
@@ -32,6 +32,10 @@
 const char* FILE_stringContentOptAt(const char* path);
 /// Obtenir le contenu d'un fichier binaire.
 const void* FILE_bufferContentOptAt(const char* path);
+/// Obtenir le contenu d'un bmp. On passe les emplacements où stocker width et height.
+/// Le bitmap est stocker dans le buffer dans le format BGRA, i.e. en hexadec 0xAARRGGBB
+///  (compatible avec les textures).
+const void* FILE_bitmapBGRA8ContentOptAt(const char* path,  uint32_t* widthRef, uint32_t* heightRef, bool flipY);
 /// Taille du tempon retourné par `FILE_contentOpt`.
 size_t      FILE_bufferSize(void);
 /// Libérer le tempon (facultatif).
@@ -60,4 +64,4 @@ char*        FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void);
 /// Retourne true si OK, false si échec.
 bool         FileManager_checkAndCreateDirectory(const char* dirPath_cstr);
 
-#endif /* file_utils_h */
+#endif /* file_util_h */

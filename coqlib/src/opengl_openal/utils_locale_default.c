@@ -1,11 +1,11 @@
 //
-//  utils_locales_default.c
+//  util_locales_default.c
 //  xc_coqlib_test
 //
 //  Created by Corentin Faucher on 2024-04-09.
 //
 
-#include "../utils/utils_locales.h"
+#include "../utils/util_locale.h"
 
 #define     coqlocale_default_countryCode_ "US"
 #define     coqlocale_default_languageCode_ "en"

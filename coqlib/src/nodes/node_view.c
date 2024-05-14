@@ -10,7 +10,7 @@
 #include "node_root.h"
 #include "node_tree.h"
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 void    view_open(Node* const node) {
     View* v = node_asViewOpt(node);

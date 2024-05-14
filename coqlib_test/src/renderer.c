@@ -179,11 +179,10 @@ void   Renderer_drawView(SDL_Window* window, Root* root) {
     glClear(GL_COLOR_BUFFER_BIT);
 
     // 4. Dessiner tous les objets...
-    Drawable* (*updateModel)(Node*) = root->updateModelAndGetDrawable;
     Squirrel sq;
     sq_init(&sq, &root->n, sq_scale_ones);
     do {
-        Drawable* d = updateModel(sq.pos);
+        Drawable* d = sq.pos->updateModel(sq.pos);
         if(d) Renderer_drawDrawable_(d);
     } while(sq_goToNextToDisplay(&sq));
 

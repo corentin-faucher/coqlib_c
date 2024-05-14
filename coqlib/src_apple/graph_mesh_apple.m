@@ -8,11 +8,11 @@
 #import <Foundation/Foundation.h>
 
 #include "graph__apple.h"
-#include "utils_base.h"
+#include "util_base.h"
 
 #pragma mark - Mesh ------------------------------------------------------
 
-typedef struct Mesh_ {
+typedef struct Mesh {
     size_t        vertices_size;      // La taille en bytes de l'array vertices.
     uint32_t      vertex_count;       // Le nombre de vertex.
     uint32_t      index_count;        // 0 si triangle strip (pas besoin d'indices de vertex).

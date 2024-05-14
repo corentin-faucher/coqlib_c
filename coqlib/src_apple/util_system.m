@@ -1,17 +1,17 @@
 //
-//  utils_system.c
+//  util_system.c
 //  coqlib_c_xcode_test
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "utils_system.h"
+#include "util_system.h"
 
 #import <Foundation/Foundation.h>
 #import <CloudKit/CloudKit.h>
 
-#include "utils_base.h"
-#include "utils_string.h"
+#include "util_base.h"
+#include "util_string.h"
 #include "coq_event.h"
 
 #if TARGET_OS_OSX == 1

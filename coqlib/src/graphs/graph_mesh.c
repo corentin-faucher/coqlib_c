@@ -7,7 +7,7 @@
 
 #include "graph_mesh.h"
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 static const Vertex _vertex_default_origin = {
     0.f, 0.f, 0.f,  0.5f,0.5f,  0.f,0.f,1.f

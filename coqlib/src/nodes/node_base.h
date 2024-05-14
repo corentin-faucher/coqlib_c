@@ -18,6 +18,7 @@ typedef struct coq_Node Node;
 // typedef struct coq_View View;
 // typedef struct coq_Root Root;
 // typedef struct coq_Button Button;
+typedef struct Coq_Drawable Drawable;
 
 typedef __attribute__((aligned(16))) struct coq_Node {
   PerInstanceUniforms _piu; // Mieux vaut être bien aligne pour le gpu/simd...
@@ -48,6 +49,10 @@ typedef __attribute__((aligned(16))) struct coq_Node {
   void (*reshapeOpt)(Node *);
   /// Action avant free/delete. (Liberer des resoureces attachées)
   void (*deinitOpt)(Node *);
+  /// Méthode pour updater les PerInstanceUniforms (Caller par Renderer).
+  /// Retourne le drawable à dessiner si c'est un drawable (NULL sinon). 
+  /// Par défault : `node_updateModelMatrixDefault`.
+  Drawable* (*updateModel)(Node*);
 
   Node *_parent;
   Node *_firstChild;
@@ -108,10 +113,8 @@ void node_moveToParent(Node *n, Node *new_parent, bool asElder);
 void node_moveToBro(Node *n, Node *new_bro, bool asBigBro);
 
 /*-- Maths (vecteur position et model matrix) --*/
-/// Mise à jour ordinaire de la matrice modèle pour se placer dans le
-/// référentiel du parent. Alpha est un facteur de grossisement (pour popping)
-void node_updateModelMatrixWithParentModel(Node *n, const Matrix4 *parentModel,
-                                           float alpha);
+/// Mise à jour par défaut de la matrice modèle pour se placer dans le référentiel du parent.
+Drawable* node_updateModelMatrixDefault(Node *n);
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du
 /// noeud.
@@ -180,6 +183,6 @@ Node_createOfType_Obsolete_(const uint32_t type, const size_t size,
 extern Node *node_last_nonDrawable;
 
 // Pour déboguage
-void node_printType(Node *n);
+const char* node_debug_getTypeName(const Node* const n);
 
 #endif /* node_h */

@@ -9,7 +9,7 @@
 
 #include "node_tree.h"
 #include "node_root.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 //#include "coq_event.h"
 
 typedef struct _ScrollBar {

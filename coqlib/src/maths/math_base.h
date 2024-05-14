@@ -42,6 +42,8 @@ float vector2_dot(Vector2 v1, Vector2 v2);
 /// Projection de v sur target, i.e. proj = (v • t) * t / ||t||^2.
 Vector2 vector2_projOn(Vector2 v, Vector2 target);
 float vector2_distance(Vector2 v1, Vector2 v2);
+/// Normalise le vecteur (longueur == 1).
+/// Si ~= 0 -> retourne un vecteur unitaire random (voir `rand_vector2_ofNorm,`.)
 Vector2 vector2_normalize(Vector2 v);
 Vector2 vector2_minus(Vector2 v, Vector2 toSubtract);
 Vector2 vector2_add(Vector2 v, Vector2 toAdd);
@@ -146,6 +148,7 @@ typedef __attribute__((aligned(16))) union {
   struct {
     Vector4 v0, v1, v2, v3;
   };
+  Vector4 v_arr[4];
 } Matrix4;
 // simd_float4x4 n'est pas pratique pour les init...
 // typedef simd_float4x4 Matrix4;
@@ -155,7 +158,7 @@ extern const Matrix4 matrix4_identity;
 /*-- Fonction de manipulation des matrices... --*/
 // Inits
 void matrix4_initWithAndTranslate(Matrix4 *m, const Matrix4 *ref, Vector3 t);
-void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, Matrix4 *ref,
+void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, const Matrix4 *ref,
                                            float thetaY, float ty, float tz);
 void matrix4_initAsLookAt(Matrix4 *m, Vector3 eye, Vector3 center, Vector3 up);
 void matrix4_initAsPerspective(Matrix4 *m, float theta, float ratio,

@@ -42,7 +42,7 @@ enum MeshCullMode {
 };
 
 /*-- Infos d'une mesh. (implementation partiellement cachée, depend de l'OS.) --*/
-typedef struct Mesh_ Mesh;
+typedef struct Mesh Mesh;
 
 /// La "sprite". Mesh partagée par la plupart des surfaces.
 /// Init lors du `CoqGraph_init()`.

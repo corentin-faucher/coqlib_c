@@ -1,11 +1,11 @@
 //
-//  _utils_.h
+//  _util_.h
 //  Include et fonctions de base pratiques pour le debugging.
 //
 //  Created by Corentin Faucher on 2023-10-12.
 //
-#ifndef COQ_UTILS_BASE_H
-#define COQ_UTILS_BASE_H
+#ifndef COQ_UTIL_BASE_H
+#define COQ_UTIL_BASE_H
 
 #include <stdio.h>  // printf, sprintf, file, etc.
 #include <stdlib.h> // malloc, free, etc.
@@ -66,4 +66,4 @@ void *coq_realloc_(void *__ptr, size_t __size, const char *filename,
 #define coq_realloc(ptr, size) realloc(ptr, size)
 #endif
 
-#endif /* utils_h */
+#endif /* util_h */

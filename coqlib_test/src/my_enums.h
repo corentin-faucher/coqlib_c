@@ -30,7 +30,6 @@ typedef enum {
     png_bar_gray,
     png_bar_in,
     png_country_flags,
-    png_digits_black,
     png_digits_brown,
     png_digits_green,
     png_digits_red,

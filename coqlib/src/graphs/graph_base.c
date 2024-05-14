@@ -8,7 +8,11 @@
 
 const PerInstanceUniforms piu_default = PIU_DEFAULT;
 
-const PerTextureUniforms ptu_default = PTU_DEFAULT;
+uint32_t piu_getTileI(const PerInstanceUniforms* piu) {
+    return (uint32_t)roundf(piu->u0 / piu->Du);
+}
+
+//const PerTextureUniforms ptu_default = PTU_DEFAULT;
 
 PerFrameUniforms pfu_default = {
     {{

@@ -7,7 +7,7 @@
 
 #include "node_drawable_multi.h"
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 #include "../graphs/graph_colors.h"
 
 void drawablemulti_deinit_(Node* n) {
@@ -20,13 +20,11 @@ void drawablemulti_deinit_(Node* n) {
 void drawablemulti_init_(DrawableMulti* dm, uint32_t maxInstanceCount) {
     dm->n.deinitOpt = drawablemulti_deinit_;  // (override drawable deinit)
     piusbuffer_init_(&dm->piusBuffer, maxInstanceCount);
-    dm->updateModels = drawablemulti_defaultUpdateModels_;
+    dm->n.updateModel = drawablemulti_updateModelsDefault_;
     PerInstanceUniforms* piu = dm->piusBuffer.pius;
     PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
-    // Préset des piu (visible par defaut)
     while(piu < end) {
-        piu->color = color4_white;
-        piu->show = 1.f;
+        *piu = dm->n._piu;
         piu ++;
     }
 }
@@ -39,11 +37,10 @@ DrawableMulti* DrawableMulti_create(Node* const refOpt,
     size_t size = sizeof(DrawableMulti); // + sizeof(PerInstanceUniforms) * (maxInstanceCount - 1);
     DrawableMulti* dm = coq_calloc(1, size);
     node_init_(&dm->n, refOpt, x, y, twoDy, twoDy, node_type_nd_multi, flags, node_place);
-    if(!(tex->flags & tex_flag_png_shared)) {
+    if(!(tex->flags & tex_flag_png)) {
         printerror("Not a png."); tex = Texture_sharedImageByName("coqlib_the_cat");
     }
-    drawable_init_(&dm->d, tex, mesh, 0, twoDy);
-    drawable_updateDims_(&dm->d);
+    drawable_init_(&dm->d, tex, mesh, 0, twoDy, 0);
     drawablemulti_init_(dm, maxInstanceCount);
     
     return dm;
@@ -55,10 +52,18 @@ DrawableMulti*  node_asDrawableMultiOpt(Node* n) {
 }
 
 // Fonction par défaut pour l'affichage des instances du drawable multi. -> Un tilling carré...
-void    drawablemulti_defaultUpdateModels_(DrawableMulti* const dm, const Matrix4* const pm) {
-    uint32_t const n = (uint32_t)ceilf(sqrtf(dm->piusBuffer.actual_count));
-    float const delta = 0.5*(float)(n-1);
-    float const show = dm->n._piu.show;
+// Devrait être overridée.
+Drawable* drawablemulti_updateModelsDefault_(Node* const n) {
+    DrawableMulti* const dm = (DrawableMulti*)n;
+    float const show = smtrans_setAndGetIsOnSmooth(&dm->d.trShow, (n->flags & flag_show) != 0);
+    if(show < 0.001f)  // Rien à afficher...
+        return NULL;
+    const Node* const parent = n->_parent;
+    if(!parent) { printwarning("DrawableMulti without parent."); return NULL; }
+    const Matrix4* const pm = &parent->_piu.model;
+    
+    uint32_t const count = (uint32_t)ceilf(sqrtf(dm->piusBuffer.actual_count));
+    float const delta = 0.5*(float)(count-1);
     float const pop = (dm->n.flags & flag_poping) ? show : 1.f;
     Vector2 const scl = dm->n.scales;
     Vector3 const pos0 = {{ -delta * scl.x + dm->n.x, -delta * scl.y + dm->n.y, 0 }};
@@ -66,15 +71,15 @@ void    drawablemulti_defaultUpdateModels_(DrawableMulti* const dm, const Matrix
     uint32_t tex_n = dm->d._tex->n;
     // Boucle sur les piu.
     uint32_t i = 0;
-    PerInstanceUniforms* piu = dm->piusBuffer.pius;
+    PerInstanceUniforms*       piu =  dm->piusBuffer.pius;
     PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
     while(piu < end) {
-        piu->i = i % tex_m;
-        piu->j = (i / tex_m) % tex_n;
+        piu->u0 =  (i % tex_m) * piu->Du;
+        piu->v0 = ((i / tex_m) % tex_n) * piu->Dv;
         piu->show = show;
         Matrix4* m = &piu->model;
-        float pos_x = pos0.x + scl.x*(float)(i%n);
-        float pos_y = pos0.y + scl.y*(float)(i/n);
+        float pos_x = pos0.x + scl.x*(float)(i%count);
+        float pos_y = pos0.y + scl.y*(float)(i/count);
         m->v0.v = pm->v0.v * scl.x * pop;
         m->v1.v = pm->v1.v * scl.y * pop;
         m->v2 =   pm->v2;
@@ -87,4 +92,5 @@ void    drawablemulti_defaultUpdateModels_(DrawableMulti* const dm, const Matrix
         i ++;
         piu ++;
     }
+    return &dm->d;
 }

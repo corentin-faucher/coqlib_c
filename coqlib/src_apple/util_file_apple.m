@@ -5,17 +5,17 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#include "utils_file.h"
+#include "util_file.h"
 
 #import <Foundation/Foundation.h>
-#include "utils_base.h"
+#include "util_base.h"
 
 // Espace où est stocker le dernier path demandé.
-static char  _FileManager_tmp_path[PATH_MAX];
+static char  FileManager_tmp_path_[PATH_MAX];
 
 char* FileManager_getResourcePathOpt(const char* fileNameOpt, const char* fileExtOpt,
                                    const char* subDirOpt) {
-    memset(_FileManager_tmp_path, 0, PATH_MAX);
+    memset(FileManager_tmp_path_, 0, PATH_MAX);
     NSString* fileName = fileNameOpt ? [NSString stringWithUTF8String:fileNameOpt] : nil;
     NSString* fileExt = fileExtOpt ? [NSString stringWithUTF8String:fileExtOpt] : nil;
     NSString* subDir = subDirOpt ? [NSString stringWithUTF8String:subDirOpt] : nil;
@@ -26,11 +26,11 @@ char* FileManager_getResourcePathOpt(const char* fileNameOpt, const char* fileEx
     
     // Il faut copier car url et son path seront detruit...
     const char* path = [[url path] UTF8String];
-    strcpy(_FileManager_tmp_path, path);
-    return _FileManager_tmp_path;
+    strcpy(FileManager_tmp_path_, path);
+    return FileManager_tmp_path_;
 }
 char* FileManager_getApplicationSupportDirectoryPathOpt(void) {
-    memset(_FileManager_tmp_path, 0, PATH_MAX);
+    memset(FileManager_tmp_path_, 0, PATH_MAX);
     NSError* error = nil;
     NSURL* appSupDir = [[NSFileManager defaultManager] URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:YES error:&error];
     if(error != nil) {
@@ -38,8 +38,8 @@ char* FileManager_getApplicationSupportDirectoryPathOpt(void) {
         return NULL;
     }
     const char* path = [[appSupDir path] UTF8String];
-    strcpy(_FileManager_tmp_path, path);
-    return _FileManager_tmp_path;
+    strcpy(FileManager_tmp_path_, path);
+    return FileManager_tmp_path_;
 }
 
 char* FileManager_getApplicationCloudMainDirectoryPathOpt(void) {
@@ -49,8 +49,8 @@ char* FileManager_getApplicationCloudMainDirectoryPathOpt(void) {
 //            [[[[NSFileManager defaultManager] ubiquityIdentityToken] description] UTF8String]);
 //    }
     if(icloudContainer == nil) { return NULL; }
-    strcpy(_FileManager_tmp_path, [[icloudContainer path] UTF8String]);
-    return _FileManager_tmp_path;
+    strcpy(FileManager_tmp_path_, [[icloudContainer path] UTF8String]);
+    return FileManager_tmp_path_;
 }
 char* FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void) {
     NSURL* icloudContainer = [[NSFileManager defaultManager] URLForUbiquityContainerIdentifier:NULL];
@@ -59,8 +59,8 @@ char* FileManager_getApplicationCloudDocumentsDirectoryPathOpt(void) {
     const char* icloudDocCharStr = [[icloudDocuments path] UTF8String];
     if(!FileManager_checkAndCreateDirectory(icloudDocCharStr))
         return NULL;
-    strcpy(_FileManager_tmp_path, icloudDocCharStr);
-    return _FileManager_tmp_path;
+    strcpy(FileManager_tmp_path_, icloudDocCharStr);
+    return FileManager_tmp_path_;
 }
 
 bool  FileManager_checkAndCreateDirectory(const char* dirPath_cstr) {

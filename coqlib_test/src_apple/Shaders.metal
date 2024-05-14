@@ -23,19 +23,18 @@ struct VertexOut {
 struct PerInstanceUniforms {
     float4x4 model;
     float4   color;
-    float2   tile_ij;
+    float2   uv0;
+    float2   Duv;
     float    emph;
     float    show;
     uint     flags;
     float    unused1;
-    float    unused2;
-    float    unused3;
 };
 
-struct PerTextureUniforms {
-    float2 wh;  // (width, height)
-    float2 mn;  // tiling (m, n)
-};
+//struct PerTextureUniforms {
+//    float2 wh;  // (width, height)
+//    float2 mn;  // tiling (m, n)
+//};
 
 struct PerFrameUniforms {
     float4x4 projection;
@@ -48,14 +47,15 @@ struct PerFrameUniforms {
 vertex VertexOut vertex_function(const device VertexIn        *vertices [[buffer(0)]],
                                  const device PerInstanceUniforms* pius [[buffer(1)]],
                                  const device PerFrameUniforms&    pfu  [[buffer(2)]],
-                                 const device PerTextureUniforms&  ptu  [[buffer(3)]],
+//                                 const device PerTextureUniforms&  ptu  [[buffer(3)]],
                                  unsigned int vid [[vertex_id]],
                                  unsigned int iid [[instance_id]]
 ) {
     VertexIn in = vertices[vid];
     VertexOut out;
     out.color = float4(pius[iid].color.xyz, pius[iid].color.a * pius[iid].show);
-    out.uv =    (in.uv + pius[iid].tile_ij) / ptu.mn;
+    out.uv =  pius[iid].uv0 + in.uv * pius[iid].Duv;
+//    out.uv =    (in.uv + pius[iid].tile_ij) / ptu.mn;
 //    out.uv = (in.uv * (ptu.sizes - ptu.dims) + pius[iid].tile_ij * ptu.sizes) / (ptu.dims * (ptu.sizes - 1));
     // Position des vertex
 //    out.position = float4(in.position, 1);

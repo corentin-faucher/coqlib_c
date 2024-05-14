@@ -1,16 +1,16 @@
 //
-//  _utils_file_default.c
+//  _util_file_default.c
 //  Obtenir les dossiers lecture / écriture de l'app.
 //  Utilise de préférence les versions d'un OS spécifique
-//  -> voir _utils_file_apple.m...
+//  -> voir _util_file_apple.m...
 //
 //  Created by Corentin Faucher on 2023-12-08.
 //
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <string.h>
-#include "../utils/utils_file.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_file.h"
+#include "../utils/util_base.h"
 
 // Espace où est stocker le dernier path demandé.
 static char  _FileManager_tmp_path[PATH_MAX];

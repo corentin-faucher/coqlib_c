@@ -1,12 +1,12 @@
 //
-//  utils_string.h
+//  util_string.h
 //  Struct et fonction utiles pour manipuler les strings.
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#ifndef COQ_UTILS_STRING_H
-#define COQ_UTILS_STRING_H
+#ifndef COQ_UTIL_STRING_H
+#define COQ_UTIL_STRING_H
 
 #include <string.h> // strcat, strcmp, etc.
 #include "../maths/math_base.h"
@@ -69,4 +69,4 @@ void   stringUTF8_deleteLastChar(char* c_str);
 size_t stringUTF8_lenght(const char* c_str);
 bool   stringUTF8_isSingleEmoji(const char* c_str);
 
-#endif /* string_utils_h */
+#endif /* string_util_h */

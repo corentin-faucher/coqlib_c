@@ -7,7 +7,7 @@
 
 #include "node_fluid.h"
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 float Fluid_defaultFadeInDelta = 2.2f;
 

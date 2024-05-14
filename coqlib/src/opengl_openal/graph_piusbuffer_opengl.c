@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2024-04-07.
 //
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 #include "../graphs/graph_base.h"
 #include "../graphs/graph__opengl.h"
 

@@ -9,7 +9,7 @@
 #import "metal_view.h"
 
 #include "graph__apple.h"
-#include "utils_apple.h"
+#include "util_apple.h"
 
 
 @implementation Renderer
@@ -21,8 +21,8 @@
         printerror("no device.");
         return self;
     }
-//    printdebug("Pixel format %d.", view.colorPixelFormat);
-    view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+    view.colorPixelFormat = MTL_pixelFormat_;
+//    printdebug("View Pixel format is Now %lu.", (unsigned long)view.colorPixelFormat);
     //-- Command queue --
     queue = [device newCommandQueue];
     
@@ -108,8 +108,8 @@
             [encoder setFragmentSamplerState:(current_tex_nearest ? samplerStateNearest : samplerStateLinear) atIndex:0];
         }
         [encoder setFragmentTexture:texture_MTLTexture(current_tex) atIndex:0];
-        [encoder setVertexBytes:&current_tex->ptu
-                         length:sizeof(PerTextureUniforms) atIndex:3];
+//        [encoder setVertexBytes:&current_tex->ptu
+//                         length:sizeof(PerTextureUniforms) atIndex:3];
     }
     // 3. Per instance uniforms
     uint32_t instanceCount = 1;
@@ -191,12 +191,10 @@
     [view setClearColor:MTLClearColorMake(cc.r, cc.g, cc.b, cc.a)];
     
     // Drawing
-    Drawable* (*updateModel)(Node*) = root->updateModelAndGetDrawable;
-    if(!updateModel) { printerror("No updateModel function."); return; }
     Squirrel sq;
     sq_init(&sq, (Node*)root, sq_scale_ones);
     do {
-        Drawable* d = updateModel(sq.pos);
+        Drawable* d = sq.pos->updateModel(sq.pos);
         if(d) [self drawDrawable:d withEncoder:enc];
     } while(sq_goToNextToDisplay(&sq));
     

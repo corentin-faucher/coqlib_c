@@ -147,7 +147,7 @@ id<MTLTexture>    MTLTexture_createStringWith_(NSString* const string, NSDiction
     CGContextScaleCTM(context, 1.0, -1.0);
     CGPoint drawPoint = CGPointMake(
         0.5 * strDims.width_extra,
-        (0.5 - Texture_y_string_rel_shift_) * strDims.font_xHeight
+        (0.5 - y_stringRelShift) * strDims.font_xHeight
           - strDims.height_string - strDims.font_descender
           - 0.5 * strDims.height
     );
@@ -185,9 +185,9 @@ NSString* texture_evalNSStringOpt_(Texture* const tex) {
 void      texture_updateStringSizes_(Texture* const tex, StringDimensions_ strDims) {
     tex->alpha = strDims.alpha;
     tex->beta = strDims.beta;
-    tex->ptu.width = (float)strDims.width;
-    tex->ptu.height = (float)strDims.height;
-    tex->ratio = tex->ptu.width / tex->ptu.height * tex->ptu.n / tex->ptu.m;
+//    tex->ptu.width = (float)strDims.width;
+//    tex->ptu.height = (float)strDims.height;
+    tex->ratio = (float)strDims.width / (float)strDims.height;//  *  tex->ptu.n / tex->ptu.m;
 }
 
 #pragma mark - Chargement de png en MTLTexture ---------------------
@@ -215,6 +215,15 @@ id<MTLTexture> MTLTexture_createPngImageOpt_(NSString* const pngName, bool const
         return nil;
     }
     return mtlTexture;
+}
+
+id<MTLTexture> MTLTexture_createWithPixels_(const void* pixelsBGRA8, uint32_t width, uint32_t height) {
+    MTLTextureDescriptor* descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTL_pixelFormat_
+                                                        width:width height:height mipmapped:NO];
+    id<MTLTexture> mtlTex = [MTL_device_ newTextureWithDescriptor:descr];
+    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, width, height) mipmapLevel:0 
+             withBytes:pixelsBGRA8 bytesPerRow:width * 4];
+    return mtlTex;
 }
 
 #pragma mark - Methods texture ----------------------
@@ -249,9 +258,10 @@ void  texture_engine_tryToLoadAsPng_(Texture* tex, bool const isMini) {
     *mtlCptrRef = CFBridgingRetain(mtlTex);
     tex->flags |= isMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
     // Mise à jour des dimensions
-    tex->ptu.width =  (float)[mtlTex width];
-    tex->ptu.height = (float)[mtlTex height];
-    tex->ratio = tex->ptu.width / tex->ptu.height * tex->ptu.n / tex->ptu.m;
+//    tex->ptu.width =  (float)[mtlTex width];
+//    tex->ptu.height = (float)[mtlTex height];
+    tex->ratio = (float)[mtlTex width] / (float)[mtlTex height] 
+                 * (float)tex->n / (float)tex->m;
 }
 void  texture_engine_tryToLoadAsString_(Texture* tex, bool isMini) {
     // Dessiner la string.
@@ -273,6 +283,23 @@ void  texture_engine_tryToLoadAsString_(Texture* tex, bool isMini) {
         if(tex->mtlTexTmp_cptr) { CFRelease(tex->mtlTexTmp_cptr); tex->mtlTexTmp_cptr = NULL; }
         tex->flags &= ~ tex_flag_tmpDrawn_;
     }
+}
+void  texture_engine_loadWithPixels_(Texture* tex, const void* pixelsBGRA8, uint32_t width, uint32_t height) {
+    id<MTLTexture> mtlTex = MTLTexture_createWithPixels_(pixelsBGRA8, width, height);
+    if(tex->mtlTex_cptr) { CFRelease(tex->mtlTex_cptr); tex->mtlTex_cptr = NULL; }
+    tex->mtlTex_cptr = CFBridgingRetain(mtlTex);
+    tex->flags |= tex_flag_fullyDrawn_;
+    // Mise à jour des dimensions
+    tex->_width = width;
+    tex->_height = height;
+    tex->ratio = (float)width / (float)height 
+                 * (float)tex->n / (float)tex->m;
+}
+void  texture_engine_updatePixels(Texture* tex, const void* pixelsBGRA8) {
+    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
+    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0 
+             withBytes:pixelsBGRA8 bytesPerRow:mtlTex.width * 4];
 }
 void  texture_engine_justSetSizeAsString_(Texture* tex) {
     // Obtenir ses dimensions.
@@ -322,7 +349,7 @@ void     Texture_setCurrentFont(const char* fontName) {
     Font_currentSpreading_ = [NSValue valueWithSize:CGSizeMake(spreading_v.w, spreading_v.h)];
     NSColor* black = [NSColor blackColor];
     #else
-    Font_current_spreading_ = [NSValue valueWithCGSize:CGSizeMake(spreading_v.w, spreading_v.h)];
+    Font_currentSpreading_ = [NSValue valueWithCGSize:CGSizeMake(spreading_v.w, spreading_v.h)];
     UIColor* black = [UIColor blackColor];
     #endif
     Font_currentAttributes_ = [NSMutableDictionary 
@@ -348,14 +375,18 @@ double   Texture_currentFontSize(void) {
 
 #pragma mark - Init Metal --------------------
 
-id<MTLDevice> MTL_device_ = nil;
-static Vertex _mesh_sprite_vertices[4] = {
-    {-0.5, 0.5, 0, 0,0, 0,0,1},
-    {-0.5,-0.5, 0, 0,1, 0,0,1},
-    { 0.5, 0.5, 0, 1,0, 0,0,1},
-    { 0.5,-0.5, 0, 1,1, 0,0,1},
+static Vertex mesh_sprite_vertices_[4] = {
+    {-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1},
+    {-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1},
+    { 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1},
+    { 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1},
+};
+static uint32_t transparent_texture_pixels_[4] = {
+    0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF,
 };
 Mesh*  mesh_sprite = NULL;
+id<MTLDevice>  MTL_device_ = nil;
+const MTLPixelFormat MTL_pixelFormat_ = MTLPixelFormatBGRA8Unorm;
 void      CoqGraph_MTLinit(id<MTLDevice> const device) {
     if(MTLtextureLoader_) {
         printerror("Texture already init.");
@@ -370,7 +401,7 @@ void      CoqGraph_MTLinit(id<MTLDevice> const device) {
     Font_currentSpreading_ = [NSValue valueWithSize:CGSizeMake(1.3f, 1.0f)];
     NSColor* black = [NSColor blackColor];
     #else
-    Font_current_spreading_ = [NSValue valueWithCGSize:CGSizeMake(1.3f, 1.0f)];
+    Font_currentSpreading_ = [NSValue valueWithCGSize:CGSizeMake(1.3f, 1.0f)];
     UIColor* black = [UIColor blackColor];
     #endif
     NSMutableParagraphStyle* paragraphStyle = [[NSParagraphStyle defaultParagraphStyle] mutableCopy];
@@ -384,10 +415,10 @@ void      CoqGraph_MTLinit(id<MTLDevice> const device) {
         dictionaryWithObjects:@[Font_currentMini_, Font_paragraphStyle_, black,        Font_currentSpreading_]
         forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName, CoqSpreadingAttributeName]];
     // 2. Texture par défaut
-    mtltexture_transparent_ = MTLTexture_createPngImageOpt_(@"coqlib_transparent", true, false);
+    mtltexture_transparent_ = MTLTexture_createWithPixels_(transparent_texture_pixels_, 2, 2);
     
     // 3. Mesh par défaut (sprite)
-    mesh_sprite = Mesh_createEmpty(_mesh_sprite_vertices, 4, NULL, 0,
+    mesh_sprite = Mesh_createEmpty(mesh_sprite_vertices_, 4, NULL, 0,
           mesh_primitive_triangleStrip, mesh_cullMode_none, true);
 }
 

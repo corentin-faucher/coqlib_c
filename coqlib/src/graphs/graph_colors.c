@@ -15,6 +15,14 @@ Vector4 vector4_color_toGray(Vector4 v, float level, float alpha) {
         v.a,        
     }};
 }
+PixelBGRA vector4_color_toPixelBGRA(Vector4 v) {
+    return (PixelBGRA) {
+        .b = (uint8_t)(fminf(fmaxf(v.b, 0.f), 1.f)*255.f),
+        .g = (uint8_t)(fminf(fmaxf(v.g, 0.f), 1.f)*255.f), 
+        .r = (uint8_t)(fminf(fmaxf(v.r, 0.f), 1.f)*255.f), 
+        .a = (uint8_t)(fminf(fmaxf(v.a, 0.f), 1.f)*255.f),
+    };
+}
 
 const Vector4 color4_black = {{0, 0, 0, 1 }};
 const Vector4 color4_black_back = {{0.1, 0.1, 0.05, 1 }};

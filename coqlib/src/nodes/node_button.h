@@ -9,7 +9,7 @@
 #define COQ_NODE_BUTTON_H
 
 #include "node_poping.h"
-#include "../utils/utils_string.h"
+#include "../utils/util_string.h"
 
 #pragma mark - Base de Bouton
 
@@ -94,6 +94,7 @@ typedef struct  {
     uint32_t       popTile;
     uint32_t       failPopFramePngId;
     StringDrawable failMessage;
+    bool           failPopInFrontScreen;
 } SecurePopInfo;
 
 Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),

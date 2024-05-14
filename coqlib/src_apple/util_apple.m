@@ -4,7 +4,7 @@
 //  Created by Corentin Faucher on 2023-12-16.
 //
 
-#include "utils_apple.h"
+#include "util_apple.h"
 
 CGRect  rectangle_toCGRect(Rectangle rect) {
     return (CGRect) { rect.o_x, rect.o_y, rect.w, rect.h };

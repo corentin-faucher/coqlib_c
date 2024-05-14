@@ -7,10 +7,10 @@
 
 #include "node_drawable.h"
 #include "node_fluid.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 /*-- Surface de "Bar". Un segment de taille ajustable. Version 1D de "Frame". --------------*/
-void   _bar_update(Frame* bar, Vector2 deltas) {
+void   bar_update_(Frame* bar, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, bar->inside));
     float delta = bar->delta;
     float smallDeltaX = fmaxf(0.f, deltas.x - 2*delta * inside);
@@ -25,9 +25,10 @@ void   _bar_update(Frame* bar, Vector2 deltas) {
     vertices[3].x = -xPos;
     vertices[4].x =  xPos;
     vertices[5].x =  xPos;
+    
     mesh_needToUpdateVertices(bar->d._mesh);
 }
-void   _vbar_update(Frame* vbar, Vector2 deltas) {
+void   vbar_update_(Frame* vbar, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, vbar->inside));
     float delta = vbar->delta;
     float smallDeltaY = fmaxf(0.f, deltas.y - 2.f*delta * inside);
@@ -44,7 +45,7 @@ void   _vbar_update(Frame* vbar, Vector2 deltas) {
     vertices[5].y = -yPos;
     mesh_needToUpdateVertices(vbar->d._mesh);
 }
-void   _frame_update(Frame* frame, Vector2 deltas) {
+void   frame_update_(Frame* frame, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, frame->inside));
     float delta = frame->delta;
     float smallDeltaX = fmaxf(0.f, deltas.x - delta * inside);
@@ -85,7 +86,7 @@ void   _frame_update(Frame* frame, Vector2 deltas) {
 //    if(parent_f) if(parent_f->n.flags & flags_fluidRelative)
 //        node_setXYrelatively(parent, (uint32_t)parent->flags, false);
 }
-void   _frame_open_getSizesOfParent(Node* nd) {
+void   frame_open_getSizesOfParent_(Node* nd) {
     Frame* f = (Frame*)nd;
     Node* p = nd->_parent;
     if(!p) { printerror("No parent."); return; }
@@ -99,21 +100,24 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
     // Mesh (owner) et fonction pour setter les dimensions du frame.
     if(options & frame_option_horizotalBar) {
         frame->d._mesh = Mesh_createHorizontalBar();
-        frame->setDims = _bar_update;
+        frame->setDims = bar_update_;
     } else if(options & frame_option_verticalBar) {
         frame->d._mesh = Mesh_createVerticalBar();
-        frame->setDims = _vbar_update;
+        frame->setDims = vbar_update_;
     } else {
         frame->d._mesh = Mesh_createFrame();
-        frame->setDims = _frame_update;
+        frame->setDims = frame_update_;
     }
-    frame->n.deinitOpt = drawable_deinit_freeTextureAndMesh_;
+    frame->n.updateModel = Drawable_defaultUpdateModel;
+    frame->n.deinitOpt = drawable_deinit_;
+    frame->n._piu.Du = 1.f / (float)umaxu(tex->m, 1);
+    frame->n._piu.Dv = 1.f / (float)umaxu(tex->n, 1);
     // Init as frame
     frame->delta = delta;
     frame->inside = inside;
     if(options & frame_option_getSizesFromParent) {
-        frame->n.openOpt =    _frame_open_getSizesOfParent;
-        frame->n.reshapeOpt = _frame_open_getSizesOfParent;
+        frame->n.openOpt =    frame_open_getSizesOfParent_;
+        frame->n.reshapeOpt = frame_open_getSizesOfParent_;
     }
     if(options & frame_option_giveSizesToParent)
         frame->n.flags |= flag_giveSizeToParent;

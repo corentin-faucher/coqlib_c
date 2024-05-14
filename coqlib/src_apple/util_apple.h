@@ -1,5 +1,5 @@
 //
-//  utils_apple.h
+//  util_apple.h
 //  Conversion pratique avec les structure CoreFoundation de Apple.
 //  (CG : Core Graphics)
 //  (UI : User interface)
@@ -7,8 +7,8 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#ifndef COQ_UTILS_APPLE_H
-#define COQ_UTILS_APPLE_H
+#ifndef COQ_UTIL_APPLE_H
+#define COQ_UTIL_APPLE_H
 
 #include "math_base.h"
 #import <CoreFoundation/CFCGTypes.h>
@@ -24,4 +24,4 @@ Vector2   CGSize_toVector2(CGSize size);
 Margins   UIEdgeInsets_toMargins(UIEdgeInsets m);
 #endif
 
-#endif /* bundle_utils_h */
+#endif /* bundle_util_h */

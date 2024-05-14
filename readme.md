@@ -49,11 +49,11 @@
 
 9. C'est tout. Run cmd-r.
 
-10. On peut aussi ajouter le script pour trier automatiquement les fichiers en ordre alphabétique...  Cliquer le target `xc_coqlib_test` -> `Edit Scheme...` -> `Build` -> `Post action` -> `New run script action` :
+10. On peut aussi ajouter le script pour trier automatiquement les fichiers en ordre alphabétique...
+Cliquer le target `xc_coqlib_test` -> `Edit Scheme...` -> `Build` -> `Post action` -> `New run script action` :
 ```bash
 perl "${PROJECT_DIR}/../coqlib_test/res_apple/sort_xcode_project" "${PROJECT_FILE_PATH}/project.pbxproj"
 ```
-
 
 ## Notations sur les fonctions
 
@@ -86,7 +86,7 @@ perl "${PROJECT_DIR}/../coqlib_test/res_apple/sort_xcode_project" "${PROJECT_FIL
 - `count` vs `size` : On utilise "Count" pour le nombre d'éléments et "Size" pour la taille en bytes de l'array,
 e.g. `A myArray[myArray_count]; myArray_size = myArray_count * sizeof(A);`
 
-## Notes diverses
+## Notes diverses sur le C...
 
 - Pour afficher en hexadecimal (dans une formated string), on utilise,
   e.g. "%#010x". # pour 0x, x pour hexadec, 10 pour 10 chars (en comptant 0x).
@@ -95,3 +95,14 @@ e.g. `A myArray[myArray_count]; myArray_size = myArray_count * sizeof(A);`
 ```
 __attribute__((deprecated("utiliser `coq_calloc` + `node_init_` + `drawable_init_`.")))
 ```
+
+-Attention ! Pour les array en 2D et plus... ! Il faut aller des crochets exterieur vers les crochets intérieurs...
+Ou premier crochet -> grand pas, dernier crochet -> petit pas...
+e.g. `int mat[4][3]` => `[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]`,
+ou encore `const char someSmallStrings[][4] = { "ab", "cd", "ef", "jk", "lm", "no", "pq" };`.
+On accède au "haut" niveau en premier.
+
+-Itérateur dans array multi-D: Soit `int mat[4][3];`, l'itérateur de ligne serait `int (*ligne)[3] = &mat[0];`.
+
+-Truc pour initialiser un const dans une struct (ou pour `cast away the const`): `*(uint32_t*)&my_struct->constCount = theCount;`.
+

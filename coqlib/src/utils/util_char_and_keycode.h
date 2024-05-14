@@ -5,8 +5,8 @@
 //
 //  Created by Corentin Faucher on 2023-12-08.
 //
-#ifndef COQ_UTILS_CHAR_AND_KEYCODES_H
-#define COQ_UTILS_CHAR_AND_KEYCODES_H
+#ifndef COQ_UTIL_CHAR_AND_KEYCODES_H
+#define COQ_UTIL_CHAR_AND_KEYCODES_H
 
 #include <stdint.h>
 

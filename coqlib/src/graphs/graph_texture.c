@@ -14,8 +14,8 @@
 #define TEX_UNUSED_DELTATMS_ 1000
 
 static Texture      _Texture_dummy = {
-    PTU_DEFAULT,
-    1, 1,
+//    PTU_DEFAULT,
+    1, 1, 8, 8,
     1.f, 1.f, 1.f,
     tex_flag_static_, 0,
     "dummy", NULL, NULL, {{ 1, 1, 1, 1 }}, 0,
@@ -39,15 +39,17 @@ bool  _texture_isUnused(Texture* const tex) {
 void  texture_deinit_(void* tex_void) {
     Texture* tex = tex_void;
     texture_engine_releaseAll_(tex);
-    coq_free(tex->string);
-    tex->string = NULL;
-    // Déréferencer...
-    if(tex->string_refererOpt)
-        *(tex->string_refererOpt) = (Texture*)NULL;
+    if(tex->string) {
+        coq_free(tex->string);
+        tex->string = NULL;
+    }
     if(tex->string_fontOpt) {
         coq_free(tex->string_fontOpt);
         tex->string_fontOpt = NULL;
     }
+    // Déréferencer...
+    if(tex->string_refererOpt)
+        *(tex->string_refererOpt) = (Texture*)NULL;
     Texture_total_count_ --;
 }
 
@@ -63,11 +65,11 @@ void  _texture_unsetUnusedPng_(char* tex_char) {
 }
 void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
     // Init des champs
-    tex->ptu = (PerTextureUniforms) { 8, 8, (float)info->m, (float)info->n };
+//    tex->ptu = (PerTextureUniforms) { 8, 8, (float)info->m, (float)info->n };
     tex->m =     info->m; tex->n =     info->n;
     tex->alpha = 1.f;     tex->beta =  1.f;
     tex->ratio = (float)info->n / (float)info->m;  // (temporaire)
-    tex->flags = tex_flag_png_shared|(info->isCoqlib ? tex_flag_png_coqlib : 0)
+    tex->flags = tex_flag_png|tex_flag_shared|(info->isCoqlib ? tex_flag_png_coqlib : 0)
                     |(info->nearest ? tex_flag_nearest : 0);
     tex->touchTime = CR_elapsedMS_ - TEX_UNUSED_DELTATMS_;
     
@@ -78,8 +80,7 @@ void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
     Texture_total_count_ ++;
 }
 
-
-/*-- List de textures -----------------------------------------------------*/
+#pragma mark - Listes de textures -------------------------------------------
 /// Maps des png (shared).
 static StringMap*        textureOfPngName_ = NULL; // Pngs dans une map.
 static Texture**         textureOfPngId_ = NULL;   // Pngs dans un array.
@@ -97,8 +98,6 @@ const PngInfo            coqlib_pngInfos_[] = {
     {"coqlib_switch_front", 1, 1, false, true},
     {"coqlib_test_frame", 1, 1, true, true},
     {"coqlib_the_cat", 1, 1, true, true},
-    {"coqlib_transparent", 1, 1, true, true},
-    {"coqlib_white", 1, 1, true, true},
 };
 const uint32_t           coqlib_pngCount_ = sizeof(coqlib_pngInfos_) / sizeof(PngInfo);
 /// Maps des constant strings (shared)
@@ -109,9 +108,14 @@ static Texture*          _nonCstStrTexArray[NonCstStringTexture_Count_];
 static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[NonCstStringTexture_Count_];
 static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
 
+Texture* texture_white = NULL;
+static uint32_t texture_white_pixels_[4] = {
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+};
+
 #pragma mark -- Globals ------------------------------------------------
 
-void     Texture_init(PngInfo const pngInfos[], const unsigned pngCount) {
+void     Texture_init(PngInfo const pngInfos[], const unsigned pngCount, bool loadCoqlibPngs) {
     if(_Texture_isInit) {
         printerror("Texture already init.");
         return;
@@ -121,34 +125,40 @@ void     Texture_init(PngInfo const pngInfos[], const unsigned pngCount) {
     textureOfPngId_ =    coq_calloc(pngCount, sizeof(Texture*));
     textureOfPngName_ =  Map_create(64, sizeof(Texture));
     pngCount_ = pngCount;
-    // Preload 
-    const PngInfo* info = coqlib_pngInfos_;
-    const PngInfo* end = &coqlib_pngInfos_[coqlib_pngCount_];
-    while(info < end) {
-        Texture* png_tex = (Texture*)map_put(textureOfPngName_, info->name, NULL);
-        texture_initAsPng_(png_tex, info); // (ici c'est juste vide, i.e. sans MTLTexture)
-        info ++;
-    }
-    // Preload des user pngs.
-    info = pngInfos_;
-    end = &pngInfos_[pngCount_];
-    uint32_t index = 0;
-    while(info < end) {
-        // Vérifier si existe déjà... (pourrait redéfinir un coqlib png)
-        Texture* png_tex = (Texture*)map_valueRefOptOfKey(textureOfPngName_, info->name);
-        if(!png_tex) {
-            png_tex = (Texture*)map_put(textureOfPngName_, info->name, NULL);
-            texture_initAsPng_(png_tex, info);
+    // Preload des png de coqlib.
+    if(loadCoqlibPngs) {
+        const PngInfo*       info = coqlib_pngInfos_;
+        const PngInfo* const end = &coqlib_pngInfos_[coqlib_pngCount_];
+        while(info < end) {
+            Texture* png_tex = (Texture*)map_put(textureOfPngName_, info->name, NULL);
+            texture_initAsPng_(png_tex, info); // (ici c'est juste vide, i.e. sans MTLTexture)
+            info ++;
         }
-        // Ajout a l'array de ref.
-        textureOfPngId_[index] = png_tex;
-        index ++;
-        info ++;
+    } 
+    // Preload des user pngs.
+    if(pngCount) {
+        const PngInfo*       info = pngInfos_;
+        const PngInfo* const end = &pngInfos_[pngCount_];
+        uint32_t index = 0;
+        while(info < end) {
+            // Vérifier si existe déjà... (pourrait être un coqlib png)
+            Texture* png_tex = (Texture*)map_valueRefOptOfKey(textureOfPngName_, info->name);
+            if(!png_tex) {
+                png_tex = (Texture*)map_put(textureOfPngName_, info->name, NULL);
+                texture_initAsPng_(png_tex, info);
+            }
+            // Ajout a l'array de ref.
+            textureOfPngId_[index] = png_tex;
+            index ++;
+            info ++;
+        }
     }
-    
     // 3. Strings
     textureOfSharedString_ = Map_create(64, sizeof(Texture));
     memset(_nonCstStrTexArray, 0, sizeof(Texture*) * NonCstStringTexture_Count_);
+    
+    // 4. Texture par défaut (blanc)
+    texture_white = Texture_createWithPixels(texture_white_pixels_, 2, 2, true, true);
     
     _Texture_isInit = true;
     _Texture_isLoaded = true;
@@ -184,6 +194,9 @@ void     Texture_deinit(void) {
     map_destroyAndNull(&textureOfPngName_,      texture_deinit_);
     if(textureOfPngId_)
         coq_free(textureOfPngId_);
+    textureOfPngId_ = NULL;
+    texture_deinit_(texture_white);
+    texture_white = NULL;
     pngCount_ = 0;
 }
 
@@ -301,7 +314,7 @@ Texture* Texture_retainString(StringDrawable str) {
     }
     // 0. Récuperer si la string existe.
     Texture* tex;
-    if(str.string_flags & tex_flag_string_shared) {
+    if(str.string_flags & string_flag_shared) {
         if(str.string_flags & string_flag_mutable) {
             printerror("Shared string cannot be mutable.");
             str.string_flags &= ~tex_flag_string_mutable;
@@ -319,7 +332,7 @@ Texture* Texture_retainString(StringDrawable str) {
     }
     
     // 1. Init des champs de base.
-    tex->ptu = ptu_default;
+//    tex->ptu = ptu_default;
     tex->m =     1;   tex->n =     1;
     tex->flags = tex_flag_string|(str.string_flags & tex_flags_string_);
     tex->string_ref_count = 1;
@@ -338,23 +351,37 @@ Texture* Texture_retainString(StringDrawable str) {
     Texture_total_count_ ++;
     return tex;
 }
+Texture* Texture_createWithPixels(const void* pixelsBGRA8, uint32_t width, uint32_t height, 
+                                  bool shared, bool nearest) 
+{
+    Texture* tex = coq_calloc(1, sizeof(Texture));
+    *tex = (Texture) {
+//        PTU_DEFAULT,
+        1, 1, 8, 8,
+        1.f, 1.f, 1.f,
+        (shared ? tex_flag_shared : 0)|(nearest ? tex_flag_nearest : 0), CR_elapsedMS_,
+        NULL, NULL, NULL, {{ 1, 1, 1, 1 }}, 0,
+        {{ 0, 0 }}
+    };
+    texture_engine_loadWithPixels_(tex, pixelsBGRA8, width, height);
+    return tex;
+}
+
 void    textureref_releaseAndNull_(Texture** const texRef) {
     if(*texRef == NULL) return;
     Texture* const tex = *texRef;
     *texRef = NULL;
-    // Fait rien pour les pngs... (reste en mémoire)
-    if(tex->flags & tex_flag_png_shared) return;
     if(tex->string_ref_count > 0) tex->string_ref_count --;
+    if(tex->flags & tex_flag_shared) return;
+    if(tex->flags & tex_flag_static_) { printwarning("Release de static tex ?"); return; }
     if(tex->string_ref_count > 0) return;
-    // Ne fait que décrémenter le compteur pour les shared
-    if(tex->flags & tex_flag_string_shared) return;
     
-    // Seules les non-shared sont deallocted (tout de suite)
+    // Seules les non-shared string sont deallocted (tout de suite)
     texture_deinit_(tex);
     coq_free(tex);
 }
 void    textureref_exchangeSharedStringFor(Texture** const texRef, StringDrawable str) {
-    if(((*texRef)->flags & tex_flag_string_shared) == 0 || (str.string_flags & string_flag_shared) == 0) {
+    if(((*texRef)->flags & tex_flag_shared) == 0 || (str.string_flags & string_flag_shared) == 0) {
         printerror("Not shared strings.");
         return;
     }

@@ -7,7 +7,7 @@
 
 #include "math_base.h"
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 const Vector2 vector2_ones =  {{1, 1}};
 const Vector2 vector2_zeros = {{0, 0}};
@@ -34,6 +34,8 @@ float   vector2_distance(Vector2 v1, Vector2 v2) {
 }
 Vector2 vector2_normalize(Vector2 v) {
     float n = sqrtf(v.x*v.x + v.y*v.y);
+    if(n < 0.0001)
+        return rand_vector2_ofNorm(1.f);
     return (Vector2) {{ v.x / n, v.y / n }};
 }
 Vector2 vector2_minus(Vector2 v, Vector2 toSubtract) {
@@ -112,7 +114,7 @@ void matrix4_initWithAndTranslate(Matrix4 *m, const Matrix4* const ref, Vector3 
 }
 
 
-void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, Matrix4 *ref,
+void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, const Matrix4* const ref,
                                            float thetaY, float ty, float tz) {
     float c = cosf(thetaY);
     float s = sinf(thetaY);
@@ -126,8 +128,6 @@ void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, Matrix4 *ref,
         ref->v3.w,
     }};
 }
-
-
 
 void matrix4_initAsLookAt(Matrix4 *m, Vector3 eye, Vector3 center, Vector3 up) {
     

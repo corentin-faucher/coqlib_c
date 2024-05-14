@@ -1,11 +1,11 @@
 //
-//  utils_locales.m
+//  util_locales.m
 //  AnimalCounting
 //
 //  Created by Corentin Faucher on 2024-02-28.
 //
 
-#include "utils_locales.h"
+#include "util_locale.h"
 
 #import <Foundation/Foundation.h>
 

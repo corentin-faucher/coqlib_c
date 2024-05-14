@@ -7,7 +7,7 @@
 
 
 #include "../graphs/graph__opengl.h"
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 
 // #include <stddef.h>
 // #include <stdint.h>
@@ -15,7 +15,7 @@
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
-typedef struct Mesh_ {
+typedef struct Mesh {
     uint32_t  vertex_count;       // Le nombre de vertex.
     size_t    vertices_size;      // La taille en bytes de l'array vertices.
     uint32_t  index_count;        // 0 si triangle strip (pas besoin d'indices de vertex).
@@ -33,11 +33,17 @@ typedef struct Mesh_ {
 } Mesh;
 
 static Vertex mesh_sprite_vertices_[4] = {
-    {-0.5, 0.5, 0, 0,0, 0,0,1},
-    {-0.5,-0.5, 0, 0,1, 0,0,1},
-    { 0.5, 0.5, 0, 1,0, 0,0,1},
-    { 0.5,-0.5, 0, 1,1, 0,0,1},
+    {-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1},
+    {-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1},
+    { 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1},
+    { 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1},
 };
+//static Vertex mesh_sprite_vertices_[4] = {
+//    {-0.5, 0.5, 0, 0,0, 0,0,1},
+//    {-0.5,-0.5, 0, 0,1, 0,0,1},
+//    { 0.5, 0.5, 0, 1,0, 0,0,1},
+//    { 0.5,-0.5, 0, 1,1, 0,0,1},
+//};
 Mesh*  mesh_sprite = NULL;
 
 static GLuint Mesh_in_position_id_ = 0;
@@ -52,6 +58,7 @@ void Mesh_init(GLuint program) {
     // Init de la sprite.
     mesh_sprite = Mesh_createEmpty(mesh_sprite_vertices_, 4, NULL, 0,
                             mesh_primitive_triangleStrip, mesh_cullMode_none, true);
+    mesh_sprite->need_to_update_vertices = true;
 }
 
 Mesh*  Mesh_createEmpty(const Vertex* const verticesOpt, uint32_t vertexCount,

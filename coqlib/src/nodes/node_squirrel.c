@@ -7,7 +7,7 @@
 #include "node_squirrel.h"
 #include <stdio.h>
 
-#include "../utils/utils_base.h"
+#include "../utils/util_base.h"
 #include "node_drawable.h"
 
 void sq_init(Squirrel *const sq, Node *const ref,

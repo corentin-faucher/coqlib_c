@@ -154,8 +154,10 @@ void   PopDisk_spawn(Node* const refOpt, PopDisk** const refererOpt,
     pop->referer = refererOpt;
     if(refererOpt) *refererOpt = pop;
     // Structure
-    pop->fan = Drawable_createImageGeneral(&pop->n, Texture_sharedImage(pngId), Mesh_createFan(), 0, 0, 0, twoDy, 0, 0, 0);
-    drawable_setTile(pop->fan, tile, 0);
+    pop->fan = coq_calloc(1, sizeof(Drawable));
+    node_init_(&pop->fan->n, &pop->n, 0, 0, twoDy, twoDy, node_type_n_drawable, 0, 0);
+    drawable_init_(pop->fan, Texture_sharedImage(pngId), Mesh_createFan(), 0, twoDy, 0);
+//    drawable_setTile(pop->fan, tile, 0);
     // Open
     node_tree_openAndShow(&pop->n);
 }
@@ -184,17 +186,24 @@ typedef struct DrawableMultiSparkles_ {
     Vector2             p1s[SPARKLES_N_];
 } DrawableMultiSparkles_;
 // Override...
-void              drawablemultiSparkle_updateModels_(DrawableMulti* const dm, const Matrix4* const pm) {
-    DrawableMultiSparkles_* dmsp = (DrawableMultiSparkles_*)dm;
+Drawable* drawablemultiSparkle_updateModels_(Node* const n) {
+    DrawableMultiSparkles_* dmsp = (DrawableMultiSparkles_*)n;
+    float show = smtrans_setAndGetIsOnSmooth(&dmsp->d.trShow, (n->flags & flag_show) != 0);
+    if(show < 0.001f)  // Rien à afficher...
+        return NULL;
+    const Node* const parent = n->_parent;
+    if(!parent) { printwarning("Sparkel without parent."); return NULL; }
+    const Matrix4* const pm = &parent->_piu.model;
     
     float deltaT = (float)(ChronoApp_elapsedMS() - dmsp->t0)*0.001f;
     float alpha = float_smoothOut(deltaT, 5.f);
-    Vector2 const scl = {{ dm->n.sx * dm->n._piu.show, dm->n.sy * dm->n._piu.show }};
-    PerInstanceUniforms* piu =        dm->piusBuffer.pius;
-    PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
+    Vector2 const scl = {{ dmsp->n.sx * show, dmsp->n.sy * show }};
+    PerInstanceUniforms* piu =        dmsp->dm.piusBuffer.pius;
+    PerInstanceUniforms* const end = &dmsp->dm.piusBuffer.pius[dmsp->dm.piusBuffer.actual_count];
     const Vector2* p0 = dmsp->p0s;
     const Vector2* p1 = dmsp->p1s;
     while(piu < end) {
+        piu->show = show;
         Matrix4* m = &piu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
         Vector2 const pos = vector2_add(vector2_times(*p0, alpha), vector2_times(*p1, 1.f - alpha));
@@ -209,24 +218,27 @@ void              drawablemultiSparkle_updateModels_(DrawableMulti* const dm, co
         }};
         piu++; p0++; p1++;
     }
+    return &dmsp->d;
 }
 DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const height, Texture* tex) {
     DrawableMultiSparkles_* dmsp = coq_calloc(1, sizeof(DrawableMultiSparkles_));
     node_init_(&dmsp->n, parent, 0, 0, height, height, node_type_nd_multi, 0, 0);
-    drawable_init_(&dmsp->d, tex, mesh_sprite, 0, height);
-    drawable_updateDims_(&dmsp->d);
+    drawable_init_(&dmsp->d, tex, mesh_sprite, 0, height, 0);
     drawablemulti_init_(&dmsp->dm, SPARKLES_N_);
-    dmsp->dm.updateModels = drawablemultiSparkle_updateModels_;
+    dmsp->n.updateModel = drawablemultiSparkle_updateModels_;
     dmsp->t0 = ChronoApp_elapsedMS();
     // Init des per instance uniforms
     PerInstanceUniforms* piu = dmsp->dm.piusBuffer.pius;
     Vector2* p0 = dmsp->p0s;
     Vector2* p1 = dmsp->p1s;
+    float const Du = dmsp->n._piu.Du;
+    float const Dv = dmsp->n._piu.Dv;
     PerInstanceUniforms* end = &dmsp->dm.piusBuffer.pius[SPARKLES_N_];
     while(piu < end) {
-        *piu = piu_default;
-        uint32_t tile = rand() % tex->m*tex->n;
-        piu->i = tile % tex->m;   piu->j = (tile / tex->m);
+        *piu = dmsp->n._piu;
+        uint32_t tile = rand() % (tex->m*tex->n);
+        piu->u0 = (tile % tex->m) * Du;   
+        piu->v0 = (tile / tex->m) * Dv;
         *p0 = (Vector2) {{ rand_floatAt(0, 0.25f*height), rand_floatAt(0, 0.25f*height) }};
         *p1 = (Vector2) {{ rand_floatAt(0, 3.00f*height), rand_floatAt(0, 3.00f*height) }};
         piu++; p0++; p1++;

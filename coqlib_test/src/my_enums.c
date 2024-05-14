@@ -31,7 +31,6 @@ const PngInfo MyProject_pngInfos[] = {
     {"bar_gray", 1, 1, false},
     {"bar_in", 1, 1, false},
     {"country_flags", 8, 4, false},
-    {"digits_black", 12, 2, false},
     {"digits_brown", 12, 2, false},
     {"digits_green", 12, 2, false},
     {"digits_red", 12, 2, false},

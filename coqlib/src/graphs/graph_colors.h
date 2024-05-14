@@ -1,23 +1,22 @@
 //
 //  colors.h
-//  demo_xcode
+//  Liste de constantes pour les couleurs utiles.
 //
 //  Created by Corentin Faucher on 2023-10-30.
-//
-
 #ifndef COQ_GRAPH_COLORS_H
 #define COQ_GRAPH_COLORS_H
 
 #include "../maths/math_base.h"
+#include "../graphs/graph_base.h"
 
 /// Transforme la couleur vers le gris de niveau `level`.
-/// alpha ration de grisification.
+/// alpha : ratio de `grisification`.
 /// e.g. si level = 0.5, alpha = 0 -> pas de changement.
 /// level = 0.5, alpha = 1 -> completement gris (0.5, 0.5, 0.5).
-Vector4 vector4_color_toGray(Vector4 v, float level, float alpha);
-// Superflu ?
-//Vector4 vector4_color_toDark(float intensity);
-//Vector4 vector4_color_toLight(float intensity);
+Vector4   vector4_color_toGray(Vector4 v, float level, float alpha);
+/// Conversion de vecteur 4 vers un pixel en BGRA uint8,
+/// e.g. (1, 0.25, 0, 0.5) -> 0x7F003FFF
+PixelBGRA vector4_color_toPixelBGRA(Vector4 v);
 
 extern const Vector4 color4_black;
 extern const Vector4 color4_black_back;

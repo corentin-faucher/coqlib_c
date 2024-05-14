@@ -55,10 +55,6 @@ typedef struct coq_Root {
 
   /// Events... ? Juste shouldTerminate pour l'instant.
   bool shouldTerminate;
-
-  /// Fonction utilisee pour mise a jour de la matrice model d'un noeud avant
-  /// l'affichage. Par défaut `node_defaultUpdateModelAndGetAsDrawableOpt`.
-  Drawable *(*updateModelAndGetDrawable)(Node *);
   // Actions optionnelles à definir pour differents events...
   /// Action à faire à chaque changement de vue, e.g. faire un bruit.
   void (*changeViewOpt)(Root *);
@@ -78,7 +74,6 @@ void root_changeViewActiveTo(Root *rt, View *newViewOpt);
 /// Resize de la window.view.
 void root_viewResized(Root *rt, ResizeInfo info);
 void root_justSetFrameSize_(Root *r, Vector2 frameSizePt);
-void root_updateModelMatrix(Root *rt);
 
 Button *root_searchActiveButtonOptWithPos(Root *const root,
                                           Vector2 const absPos,
@@ -102,12 +97,6 @@ Rectangle node_windowRectangle(Node *n, bool invertedY);
 /// 640).
 Vector2 root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY);
 
-/// Mise a jour de la matrice model d'un noeud avant l'affichage.
-/// Retourne un drawable si le noeud peut etre downcaster en drawable.
-/// (On peut choisir la fonction que l'on veut pour la mise a jour de la matrice
-/// model,
-///  voir `_node_root.h` -> `node_updateModelAndGetDrawableOpt`.)
-Drawable *node_defaultUpdateModelAndGetAsDrawableOpt(Node *node);
 /// Init/update la matrice de projection avec le frame de la root (perspective
 /// matrix).
 void matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt);
