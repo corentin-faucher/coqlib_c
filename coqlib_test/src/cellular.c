@@ -24,9 +24,9 @@ enum {
     
 // Mathieu: Style diagonales avec petites "contraction"/"extensions" locales
 // ↖︎ ↗︎ ↘︎ ↙︎       ↘︎ ↙︎ ↖︎ ↗︎
-// ↙︎ ↘︎ ↙︎ ↖︎  <->  ↗︎ ↖︎ ↙︎ ↘︎  propagation / flickering
-// ↖︎ ↗︎ ↘︎ ↙︎       ↘︎ ↙︎ ↖︎ ↗︎
-// ↙︎ ↘︎ ↙︎ ↖︎       ↗︎ ↖︎ ↙︎ ↘︎
+// ↙︎ ↘︎ ↗︎ ↖︎  <->  ↗︎ ↖︎ ↙︎ ↘︎  propagation / flickering
+// ↘︎ ↙︎ ↖︎ ↗︎       ↖︎ ↗︎ ↘︎ ↙︎
+// ↗︎ ↖︎ ↙︎ ↘︎       ↙︎ ↘︎ ↗︎ ↖︎
     cgm_dr =     0x0000,
     cgm_dl =     0x0001,
     cgm_ul =     0x0002,
