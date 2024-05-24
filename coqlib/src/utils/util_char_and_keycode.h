@@ -58,7 +58,8 @@ extern const Character spchar_dodo; // = "🦤"
 Character const character_upperCased(Character c, unsigned character_type);
 Character const character_lowerCased(Character c, unsigned character_type);
 
-/*-- Keycodes ---------------------------------------------------*/
+#pragma mark -- Keycodes (dépend du système)--------------------------------
+
 // Voir Carbon / HiToolbox / event.h...
 //#include <Carbon/Carbon.h> // -> e.g. `kVK_Command`...
 #if __APPLE__
@@ -194,6 +195,7 @@ enum {
     modifiers_optionShift = modifier_shift|modifier_option,
 };
 
+#pragma mark - "My Keycode"
 /*-- "MyKeyCode" : Des "keycodes" indépendant du système. ----------*/
 enum {
     // 0 ...11 -> ligne de 1 à +
@@ -261,5 +263,25 @@ extern const uint16_t MKC_prefered_order_mkcs[];
 
 
 void test_print_mkcOfKeycode_(void);
+
+#pragma mark - GamePad buttons (style Nintendo)
+
+enum {
+    // Down/up input (comme keyboard keys)
+    gamepad_A,
+    gamepad_B,
+    gamepad_X,
+    gamepad_Y,
+    gamepad_L,
+    gamepad_R,
+    gamepad_ZL,
+    gamepad_ZR,
+    gamepad_Plus,
+    gamepad_Minus,
+    // -> Value input ~analogiques
+    gamepad_dpad,
+    gamepad_JoystickLeft,
+    gamepad_JoystickRight,
+};
 
 #endif /* char_and_keycode_h */

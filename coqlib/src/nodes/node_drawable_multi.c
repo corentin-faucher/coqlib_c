@@ -74,8 +74,8 @@ Drawable* drawablemulti_updateModelsDefault_(Node* const n) {
     PerInstanceUniforms*       piu =  dm->piusBuffer.pius;
     PerInstanceUniforms* const end = &dm->piusBuffer.pius[dm->piusBuffer.actual_count];
     while(piu < end) {
-        piu->u0 =  (i % tex_m) * piu->Du;
-        piu->v0 = ((i / tex_m) % tex_n) * piu->Dv;
+        piu->uvRect.o_x =  (i % tex_m) * piu->uvRect.w;
+        piu->uvRect.o_y = ((i / tex_m) % tex_n) * piu->uvRect.h;
         piu->show = show;
         Matrix4* m = &piu->model;
         float pos_x = pos0.x + scl.x*(float)(i%count);

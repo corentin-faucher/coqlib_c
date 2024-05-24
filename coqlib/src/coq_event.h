@@ -17,7 +17,7 @@ typedef struct _SlidingMenu SlidingMenu;
 enum EventFlag {
     event_type_null =                           0x000,
     // Event de la window vers la root.
-    event_type_touch_hovering =                 0x001,
+    event_type_touch_hovering =                 0x001, // Touch / mouse...
     event_type_touch_down =                     0x002,
     event_type_touch_drag =                     0x004,
     event_type_touch_up =                       0x008,
@@ -27,6 +27,9 @@ enum EventFlag {
     event_type_key_mod =                        0x080,
     event_type_resize =                       0x00100,
     event_type_systemChanged =                0x00200,
+    event_type_gamePad_down =                 0x00400,
+    event_type_gamePad_value =                0x00800, // Changement analogique de valeur... un peu comme touch_hovering/drag...
+    event_type_gamePad_up =                   0x01000,
     
     // Event de la root vers la window.
     event_type_win_mac_resize =             0x00010000,
@@ -80,6 +83,13 @@ typedef struct {
     Character typed;
 } KeyboardInput;
 
+/// Structure pour un gamePad event
+typedef struct GamePadInput {
+    uint16_t buttonId;
+    float    buttonValue;
+    Vector2  vector;
+} GamePadInput;
+
 /// Structure pour un event de resize de la window.
 typedef struct {
     /// Marge "inactive" en pts.
@@ -127,7 +137,8 @@ typedef struct CoqEvent {
         ResizeInfo    resize_info;
         // System change (layout, language, theme)
         SystemChange  system_change;
-        
+        // Gamepad
+        GamePadInput  gamepadInput;
     };
     bool _todo;
 } CoqEvent;

@@ -11,6 +11,8 @@
 
 #include "../maths/math_base.h"
 
+typedef struct Texture Texture;
+
 /*-- Per instance uniforms --------------------------------*/
 /// Les informations graphiques d'un objet particulier
 /// à passer aux shaders/gpu.
@@ -18,14 +20,7 @@
 typedef __attribute__((aligned(16))) struct PerInstanceUniforms {
     Matrix4 model;
     Vector4 color;
-    union {
-        float uv0[2];
-        struct { float u0, v0; };
-    };
-    union {
-        float Duv[2];
-        struct { float Du, Dv; };
-    };
+    Rectangle uvRect;
     float    emph;
     float    show;
     uint32_t flags;
@@ -48,6 +43,8 @@ typedef struct InstanceTile {
     };
 } InstanceTile;
 
+Rectangle instancetile_toUVRectangle(InstanceTile const it, uint32_t m, uint32_t n);
+
 // Buffer vers les uniforms d'instance. Implémentation dépend de l'engine graphique.
 typedef struct PIUsBuffer {
     uint32_t             max_count;
@@ -69,7 +66,7 @@ void   piusbuffer_deinit_(PIUsBuffer* piusbuffer);
    0.f, 0.f, 1.f, 0.f, \
    0.f, 0.f, 0.f, 1.f }}, \
  {{ 1.f, 1.f, 1.f, 1.f }}, \
- {{ 0.f, 0.f }}, {{ 1.f, 1.f}}, \
+ {{ 0.f, 0.f, 1.f, 1.f }}, \
    0.f, 1.f, 0u, 0.f }
 extern const PerInstanceUniforms piu_default;
 

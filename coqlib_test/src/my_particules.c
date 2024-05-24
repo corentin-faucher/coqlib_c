@@ -250,16 +250,16 @@ DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     drawablemulti_init_(&dmpp->dm, partpool_count_);
     dmpp->n.updateModel = drawablemultiPP_updateModels_;
     dmpp->pp = pp;
-    float const Du = dmpp->n._piu.Du;
-    float const Dv = dmpp->n._piu.Dv;
+    float const Du = dmpp->n._piu.uvRect.w;
+    float const Dv = dmpp->n._piu.uvRect.h;
     // Init des per instance uniforms (juste setter une tile.
     PerInstanceUniforms* piu =  dmpp->dm.piusBuffer.pius;
     PerInstanceUniforms* end = &dmpp->dm.piusBuffer.pius[partpool_count_];
     while(piu < end) {
         *piu = piu_default;
         uint32_t tile = rand() % 12;
-        piu->u0 = (tile % tex->m) * Du;
-        piu->v0 = ((tile / tex->m) % tex->n) * Dv;
+        piu->uvRect.o_x =  (tile % tex->m) * Du;
+        piu->uvRect.o_y = ((tile / tex->m) % tex->n) * Dv;
         piu++;
     }
     return dmpp;

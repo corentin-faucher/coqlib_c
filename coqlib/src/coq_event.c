@@ -42,69 +42,24 @@ void  CoqEvent_processEvents(Root* root) {
     while (event_todo_->_todo) {
         switch (event_todo_->type & event_types_root_) {
             case event_type_touch_hovering: {
-                Button* const hovered = root_searchActiveButtonOptWithPos(root, event_todo_->touch_pos, NULL);
-                Button* const lastHovered = root->buttonSelectedOpt;
-                if(lastHovered == hovered) break;
-                if(lastHovered) if(lastHovered->stopHoveringOpt)
-                    lastHovered->stopHoveringOpt(lastHovered);
-                root->buttonSelectedOpt = hovered;
-                if(hovered) if(hovered->startHoveringOpt)
-                    hovered->startHoveringOpt(hovered);
-                break;
-            }
+                View* viewActive = root->viewActiveOpt;
+                if(viewActive) viewActive->touchHovering(viewActive, event_todo_->touch_pos);
+            } break;
             case event_type_touch_down: {
-                root->lastTouchedPos = event_todo_->touch_pos;
-                Button* const lastSelected = root->buttonSelectedOpt;
-                if(lastSelected) if(lastSelected->stopHoveringOpt)
-                    lastSelected->stopHoveringOpt(lastSelected);
-                root->buttonSelectedOpt = NULL;
-                // 0. Trouver un bouton sélectionable
-                Button* const toTouch = root_searchActiveButtonOptWithPos(root, event_todo_->touch_pos, NULL);
-                if(toTouch == NULL) break;
-                // 1. Grab le noeud draggable (si on drag on n'active pas)
-                if(toTouch->grabOpt) {
-                    // Désactiver un scrollview quand un noeud est grabbé
-                    #if TARGET_OS_OSX != 1
-                    CoqEvent_addToWindowEvent((CoqEventWin) {
-                        .type = event_type_win_ios_scrollviewDisable_
-                    });
-                    #endif
-                    root->buttonSelectedOpt = toTouch;
-                    Vector2 relpos = vector2_absPosToPosInReferentialOfNode(
-                                                                            event_todo_->touch_pos, &toTouch->n);
-                    toTouch->grabOpt(toTouch, relpos);
-                    break;
-                }
-                // 2. Sinon activer le noeud sélectionné (non grabbable)
-                if(toTouch->action)
-                    toTouch->action(toTouch);
-                break;
-            }
+                View* viewActive = root->viewActiveOpt;
+                if(viewActive) viewActive->touchDown(viewActive, event_todo_->touch_pos); 
+            } break;
             case event_type_touch_drag: {
-                Button* const grabbed = root->buttonSelectedOpt;
-                if(grabbed == NULL) break;
-                if(grabbed->dragOpt == NULL) {
-                    printwarning("Grabbed node without drag function.");
-                    break;
-                }
-                Vector2 relpos = vector2_absPosToPosInReferentialOfNode(
-                                                                        event_todo_->touch_pos, &grabbed->n);
-                grabbed->dragOpt(root->buttonSelectedOpt, relpos);
-                break;
-            }
+                View* viewActive = root->viewActiveOpt;
+                if(viewActive) viewActive->touchDrag(viewActive, event_todo_->touch_pos);
+            } break;
             case event_type_touch_up: {
-                Button* const grabbed = root->buttonSelectedOpt;
-                if(grabbed == NULL) break;
-                if(grabbed->letGoOpt) {
-                    grabbed->letGoOpt(root->buttonSelectedOpt);
-                } else {
-                    printwarning("Grabbed node without letGo function.");
-                }
-                root->buttonSelectedOpt = NULL;
-                break;
-            }
+                View* viewActive = root->viewActiveOpt;
+                if(viewActive) viewActive->touchUp(viewActive);
+            } break;
             case event_type_scroll: {
-                SlidingMenu* sm = root_searchFirstSlidingMenuOpt(root);
+                SlidingMenu* sm = (SlidingMenu*)node_tree_searchFirstOfTypeInBranchOpt(&root->n, 
+                                             node_type_flag_scrollable, flag_parentOfScrollable);
                 if(sm == NULL) break;
                 ScrollInfo info = event_todo_->scroll_info;
                 switch(event_todo_->scroll_info.scrollType) {
@@ -120,13 +75,11 @@ void  CoqEvent_processEvents(Root* root) {
                         slidingmenu_setOffsetRatio(sm, info.offset_ratio, info.offset_letGo); break;
                     default: printerror("Bad scroll type %d.", event_todo_->scroll_info.scrollType);
                 }
-                break;
-            }
+            } break;
             case event_type_key_down: {
                 View* viewActive = root->viewActiveOpt;
                 if(!viewActive) break;
                 KeyboardInput key = event_todo_->key;
-                
                 // Touche spéciales de `navigation` (enter, escape, flèches)
                 if((key.keycode == keycode_escape) && viewActive->escapeOpt) {
                     viewActive->escapeOpt(viewActive);
@@ -139,30 +92,43 @@ void  CoqEvent_processEvents(Root* root) {
                     break;
                 }
                 if((key.keycode == keycode_arrowUp) || (key.keycode == keycode_arrowDown)) {
-                    SlidingMenu* sm = root_searchFirstSlidingMenuOpt(root);
+                    SlidingMenu* sm = (SlidingMenu*)node_tree_searchFirstOfTypeInBranchOpt(&root->n, 
+                                             node_type_flag_scrollable, flag_parentOfScrollable);
                     if(sm) {
                         slidingmenu_scroll(sm, key.keycode == keycode_arrowUp);
                         break;
                     }
                 }
-                
                 // Touche quelconque
                 if(!viewActive->keyDownOpt) break;
                 viewActive->keyDownOpt(viewActive, key);
-                break;
-            }
+            } break;
             case event_type_key_up: {
                 View* viewActive = root->viewActiveOpt;
-                if(!viewActive) break;
-                if(!viewActive->keyUpOpt) break;
-                viewActive->keyUpOpt(viewActive, event_todo_->key);
-                break;
-            }
+                if(!viewActive) break; if(!viewActive->keyUpOpt) break;
+                viewActive->keyUpOpt(viewActive, event_todo_->key); 
+            } break;
             case event_type_key_mod: {
                 View* viewActive = root->viewActiveOpt;
-                if(!viewActive) break;
-                if(!viewActive->modifiersChangedToOpt) break;
+                if(!viewActive) break; if(!viewActive->modifiersChangedToOpt) break;
                 viewActive->modifiersChangedToOpt(viewActive, event_todo_->key.modifiers);
+            } break;
+            case event_type_gamePad_up: {
+                View* viewActive = root->viewActiveOpt;
+                if(!viewActive) break; if(!viewActive->gamePadUpOpt) break;
+                viewActive->gamePadUpOpt(viewActive, event_todo_->gamepadInput);
+                break;
+            }
+            case event_type_gamePad_down: {
+                View* viewActive = root->viewActiveOpt;
+                if(!viewActive) break; if(!viewActive->gamePadDownOpt) break;
+                viewActive->gamePadDownOpt(viewActive, event_todo_->gamepadInput);
+                break;
+            }
+            case event_type_gamePad_value: {
+                View* viewActive = root->viewActiveOpt;
+                if(!viewActive) break; if(!viewActive->gamePadValueOpt) break;
+                viewActive->gamePadValueOpt(viewActive, event_todo_->gamepadInput);
                 break;
             }
             case event_type_resize: {
@@ -174,12 +140,10 @@ void  CoqEvent_processEvents(Root* root) {
                 if(!viewActive) break;
                 if(!viewActive->systemChangedOpt) break;
                 viewActive->systemChangedOpt(viewActive, event_todo_->system_change);
-//                if(root->systemDidChangedActionOpt) root->systemDidChangedActionOpt(root, event_todo_->system_change);
                 break;
             }
             default: printwarning("Event %x not defined.", event_todo_->type & event_types_root_); break;
         }
-        
         event_todo_->_todo = false;
         event_todo_ ++;
         if(event_todo_ >= event_poll_end_)

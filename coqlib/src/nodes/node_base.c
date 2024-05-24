@@ -533,6 +533,13 @@ Box     node_hitBoxInParentReferential(Node* n, const Node* parentOpt) {
     printerror("No parent encountered.");
     return (Box){ .center = sq.v, .deltas = sq.s };
 }
+/// Hitbox absolue (i.e. remonté à la root) d'une box dans le même référentiel que nRef (i.e. dans le ref de nRef->parent.)
+Box  box_toAbsolute(Box box, Node* nRef) {
+    Squirrel sq;
+    sq_initWithRelPos(&sq, nRef, box.center, sq_scale_ones);
+    while(sq_goUpPS(&sq)) {}
+    return (Box){ .center = sq.v, .deltas = { sq.s.x * box.Dx, sq.s.y * box.Dy } };
+}
 /// Convertie une position absolue (au niveau de la root) en une position
 ///  dans le réferentiel de nodeOpt (si NULL -> reste absPos).
 Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 const absPos, Node* nodeOpt) {

@@ -102,8 +102,8 @@ void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
     }
     nbit->x1 += deltaX;
     *nbit->xit = nbit->x1;
-    nbit->piu->u0 = (digit % nbit->m) * nbit->Du;
-    nbit->piu->v0 = (digit / nbit->m) * nbit->Dv;
+    nbit->piu->uvRect.o_x = (digit % nbit->m) * nbit->Du;
+    nbit->piu->uvRect.o_y = (digit / nbit->m) * nbit->Dv;
     nbit->piu++; nbit->xit++; nbit->i++;
     nbit->x1 += deltaX;
 }
@@ -119,7 +119,7 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
     float const deltaX_def = 0.5*(1.f + nb->digit_x_margin);
     NumberIt_ it = {
         nb->_xs, 0, nb->dm.piusBuffer.pius, &nb->dm.piusBuffer.pius[NUMBER_MAX_DIGITS_], nb->d._tex->m, 0,
-        nb->n._piu.Du, nb->n._piu.Dv
+        nb->n._piu.uvRect.w, nb->n._piu.uvRect.h
     };
     // 1. Signe "+/-"
     if(isNegative) {

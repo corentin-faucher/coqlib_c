@@ -103,8 +103,8 @@ void     drawable_init_(Drawable* const d, Texture* const tex, Mesh* const mesh,
     // Override de l'update de la matrice model.
     d->n.updateModel = Drawable_defaultUpdateModel;
     d->n.deinitOpt =   drawable_deinit_;
-    d->n._piu.Du = 1.f / (float)umaxu(tex->m, 1);
-    d->n._piu.Dv = 1.f / (float)umaxu(tex->n, 1);
+    d->n._piu.uvRect = (Rectangle) { 0.f, 0.f, 
+        1.f / (float)umaxu(tex->m, 1), 1.f / (float)umaxu(tex->n, 1)};
     drawable_last_ = d;
     // Set des dimensions...
     drawable_updateDims__(d);
@@ -177,8 +177,8 @@ void      drawable_updatePngId(Drawable* d, uint32_t newPngId, bool updateDims) 
     }
     // (Pour les png c'est safe de changer d'un coup. L'ancienne comme la nouvelle texture sont valide.)
     d->_tex = Texture_sharedImage(newPngId);
-    d->n._piu.Du = 1.f / (float)umaxu(d->_tex->m, 1);
-    d->n._piu.Dv = 1.f / (float)umaxu(d->_tex->n, 1);
+    d->n._piu.uvRect.size = (Vector2) { 1.f / (float)umaxu(d->_tex->m, 1),
+                                        1.f / (float)umaxu(d->_tex->n, 1) };
     if(updateDims)
         drawable_updateDims__(d);
 }
@@ -225,22 +225,19 @@ int       node_isDisplayActive(Node* const node) {
 
 /*-- Setters --------------------------------------------------------------------*/
 void      drawable_setTile(Drawable *d, uint32_t i, uint32_t j) {
-    d->n._piu.u0 = (float)( i % d->_tex->m)                   * d->n._piu.Du;
-    d->n._piu.v0 = (float)((j + i / d->_tex->m) % d->_tex->n) * d->n._piu.Dv;
+    d->n._piu.uvRect.origin = (Vector2) {
+        (float)( i % d->_tex->m)                   * d->n._piu.uvRect.size.w,
+        (float)((j + i / d->_tex->m) % d->_tex->n) * d->n._piu.uvRect.size.h
+    };
 }
 void      drawable_setTileI(Drawable *d, uint32_t i) {
-    d->n._piu.u0 = (float)( i % d->_tex->m) * d->n._piu.Du;
+    d->n._piu.uvRect.o_x = (float)( i % d->_tex->m) * d->n._piu.uvRect.size.w;
 }
 void      drawable_setTileJ(Drawable *d, uint32_t j) {
-    d->n._piu.v0 = (float)( j % d->_tex->n) * d->n._piu.Dv;
+    d->n._piu.uvRect.o_y = (float)( j % d->_tex->n) * d->n._piu.uvRect.size.h;
 }
 void      drawable_setTileFull(Drawable *d, InstanceTile const tile) {
-    float du0 = 1.f / (float)umaxu(d->_tex->m, 1);
-    float dv0 = 1.f / (float)umaxu(d->_tex->n, 1);
-    d->n._piu.Du = (float)tile.Di * du0;
-    d->n._piu.Dv = (float)tile.Dj * dv0;
-    d->n._piu.u0 = (float)( tile.i % d->_tex->m)                        * du0;
-    d->n._piu.v0 = (float)((tile.j + tile.i / d->_tex->m) % d->_tex->n) * dv0;
+    d->n._piu.uvRect = instancetile_toUVRectangle(tile, d->_tex->m, d->_tex->n);
 }
 void      drawable_last_setTile(uint32_t i, uint32_t j) {
     if(drawable_last_ == NULL) {
@@ -249,8 +246,10 @@ void      drawable_last_setTile(uint32_t i, uint32_t j) {
     }
     uint32_t m = drawable_last_->_tex->m;
     uint32_t n = drawable_last_->_tex->n;
-    drawable_last_->n._piu.u0 = (float)( i % m)          * drawable_last_->n._piu.Du;
-    drawable_last_->n._piu.v0 = (float)((j + i / m) % n) * drawable_last_->n._piu.Dv;
+    drawable_last_->n._piu.uvRect.origin = (Vector2) {
+        (float)( i % m)          * drawable_last_->n._piu.uvRect.size.w,
+        (float)((j + i / m) % n) * drawable_last_->n._piu.uvRect.size.h
+    };
 }
 void      drawable_last_setEmph(float emph) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }

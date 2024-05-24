@@ -110,8 +110,8 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
     }
     frame->n.updateModel = Drawable_defaultUpdateModel;
     frame->n.deinitOpt = drawable_deinit_;
-    frame->n._piu.Du = 1.f / (float)umaxu(tex->m, 1);
-    frame->n._piu.Dv = 1.f / (float)umaxu(tex->n, 1);
+    frame->n._piu.uvRect.w = 1.f / (float)umaxu(tex->m, 1);
+    frame->n._piu.uvRect.h = 1.f / (float)umaxu(tex->n, 1);
     // Init as frame
     frame->delta = delta;
     frame->inside = inside;

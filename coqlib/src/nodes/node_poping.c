@@ -231,14 +231,14 @@ DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const 
     PerInstanceUniforms* piu = dmsp->dm.piusBuffer.pius;
     Vector2* p0 = dmsp->p0s;
     Vector2* p1 = dmsp->p1s;
-    float const Du = dmsp->n._piu.Du;
-    float const Dv = dmsp->n._piu.Dv;
+    float const Du = dmsp->n._piu.uvRect.w;
+    float const Dv = dmsp->n._piu.uvRect.h;
     PerInstanceUniforms* end = &dmsp->dm.piusBuffer.pius[SPARKLES_N_];
     while(piu < end) {
         *piu = dmsp->n._piu;
         uint32_t tile = rand() % (tex->m*tex->n);
-        piu->u0 = (tile % tex->m) * Du;   
-        piu->v0 = (tile / tex->m) * Dv;
+        piu->uvRect.o_x = (tile % tex->m) * Du;   
+        piu->uvRect.o_y = (tile / tex->m) * Dv;
         *p0 = (Vector2) {{ rand_floatAt(0, 0.25f*height), rand_floatAt(0, 0.25f*height) }};
         *p1 = (Vector2) {{ rand_floatAt(0, 3.00f*height), rand_floatAt(0, 3.00f*height) }};
         piu++; p0++; p1++;

@@ -117,7 +117,7 @@
     if(dm) {
         instanceCount = dm->piusBuffer.actual_count;
         if(instanceCount == 0) {
-            printwarning("No instance to draw.");
+//            printwarning("No instance to draw.");
             return;
         }
         id<MTLBuffer> mtlBuf = piusbuffer_asMTLBuffer(&dm->piusBuffer);

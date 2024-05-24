@@ -39,11 +39,6 @@ typedef struct coq_Root {
   Camera camera;
   /// Couleur du fond (clearColor)
   FluidPos back_RGBA[4];
-  /// La derniére position clické/touché.
-  Vector2 lastTouchedPos;
-  // References
-  /// Le bouton présentement grabbé.
-  Button *buttonSelectedOpt;
   /// Les vues importantes : la vue présentement active, le "backscreen" et le
   /// "frontscreen".
   View *viewActiveOpt;
@@ -74,13 +69,6 @@ void root_changeViewActiveTo(Root *rt, View *newViewOpt);
 /// Resize de la window.view.
 void root_viewResized(Root *rt, ResizeInfo info);
 void root_justSetFrameSize_(Root *r, Vector2 frameSizePt);
-
-Button *root_searchActiveButtonOptWithPos(Root *const root,
-                                          Vector2 const absPos,
-                                          Node *const nodeToAvoidOpt);
-Button *root_searchFirstButtonOptWithData(Root *root, uint32_t typeOpt,
-                                          uint32_t data0);
-SlidingMenu *root_searchFirstSlidingMenuOpt(Root *root);
 
 bool root_isLandscape(Root *r);
 

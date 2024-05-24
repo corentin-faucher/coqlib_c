@@ -162,7 +162,8 @@ View* View_createTest2(void) {
     /// Par defaut les premiers enfants du screen (les "blocs") sont alignes.
     View* v = View_create(&my_root, flag_viewDontAlignElements, 0);
     // Test cellular
-    CelGridNode_create(&v->n, 0, 0, 2, 256, 256);
+    CelGrid_create(&v->n, 0,  0.5, 0.9, 128, 64, false);
+    CelGrid_create(&v->n, 0, -0.5, 0.9, 128, 64, true);
      
     return v;
 }
@@ -186,7 +187,7 @@ Root* Root_initAndGetProjectRoot(void) {
     PopingNode_init(my_root.viewFrontOpt, "coqlib_sparkle_stars", sound_fireworks);
     
     // Ouvrir la view de test.
-    root_changeViewActiveTo(&my_root, View_createTest());
+    root_changeViewActiveTo(&my_root, View_createTest2());
     
 //    printdebug("selected %p", root->buttonSelectedOpt);
     

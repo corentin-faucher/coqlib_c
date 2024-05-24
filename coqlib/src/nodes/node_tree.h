@@ -24,6 +24,14 @@ void  node_tree_close(Node* nd);
 void  node_tree_hideAndTryToClose(Node* nd);
 void  node_tree_reshape(Node* nd);
 
+#pragma mark - Recherche de noeud dans une branche.
+
+Button* node_tree_searchActiveButtonWithPosOpt(Node* const n, Vector2 const pos, Node* const nodeToAvoidOpt);
+Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typeOpt, uint32_t const data0);
+Node*   node_tree_searchFirstOfTypeInBranchOpt(Node* const n, uint32_t const type_flag, flag_t parentFlag);
+
+#pragma mark - Aligement des enfants
+
 // Les options pour l'alignement de noeuds.
 typedef enum {
     node_align_vertically =      0x0001,

@@ -124,6 +124,8 @@ Vector2 node_posInParentReferential(Node *n, const Node *parentOpt);
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du
 /// noeud.
 Box node_hitBoxInParentReferential(Node *n, const Node *parentOpt);
+/// Hitbox absolue (i.e. remonté à la root) d'une box dans le même référentiel que nRef (i.e. dans le ref de nRef->parent.)
+Box box_toAbsolute(Box box, Node* nRef);
 /// Convertie une position absolue (au niveau de la root) en une position
 ///  dans le réferentiel de nodeOpt (si NULL -> reste absPos).
 Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 absPos, Node *nodeOpt);

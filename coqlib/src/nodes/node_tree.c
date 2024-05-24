@@ -246,37 +246,126 @@ void  node_tree_reshape(Node* nd) {
     }
 }
 
-//Button* node_tree_searchFirstSelectableOptUsing(Node* const nd, bool (*testIsValid)(Button*)) {
-//    if(!(nd->flags & flag_show)) return NULL;
-//    if(nd->_type & _node_type_selectable) {
-//        Button* sel=(Button*)nd;
-//        if(testIsValid(sel))
-//            return sel;
-//    }
-//    if(!(nd->flags & flag_parentOfButton)) return NULL;
-//    Node *firstChild = nd->firstChild;
-//    if(firstChild == NULL) return NULL;
-//    Squirrel sq;
-//    sq_init(&sq, firstChild, sq_scale_ones);
-//    while(true) {
-//        if(sq.pos->flags & flag_show) {
-//            if(sq.pos->_type & _node_type_selectable) {
-//                Button* sel=(Button*)sq.pos;
-//                if(testIsValid(sel))
-//                    return sel;
-//            }
-//            if(sq.pos->flags & flag_parentOfSelectable)
-//                if(sq_goDown(&sq))
-//                    continue;
-//        }
-//        // 3. Remonter, si plus de petit-frère
-//        while(!sq_goRight(&sq)) {
-//            if(!sq_goUp(&sq)) {
-//                printerror("Pas de root."); return NULL;
-//            } else if(sq.pos == nd) return NULL;
-//        }
-//    }
-//}
+Button* node_tree_searchActiveButtonWithPosOpt(Node* const n, Vector2 const pos, Node* const nodeToAvoidOpt) {
+    if(n == nodeToAvoidOpt) return NULL;
+//    vector2_absPosToPosInReferentialOfNode(absPos, root);
+    Squirrel sq;
+    sq_initWithRelPos(&sq, n, pos, sq_scale_ones);
+    if(!sq_isIn(&sq)) return NULL;
+    if(!(sq.pos->flags & flag_show)) return NULL;
+    Button* b = NULL;
+    // 2. Se placer au premier child
+    if(!sq_goDownP(&sq))
+        return NULL;
+    while (true) {
+#ifdef DEBUG_SEARCH
+        printf("🐰 sq at %f, %f in ", sq.v.x, sq.v.y);
+        node_print_type(sq.pos);
+        printf(" pos %f, %f, in %d, show %lu, ", sq.pos->pos.x, sq.pos->pos.y, sq_isIn(&sq), (sq.pos->flags & flag_show));
+#endif
+        if(sq_isIn(&sq) && (sq.pos->flags & flag_show)
+           && (sq.pos != nodeToAvoidOpt))
+        {
+#ifdef DEBUG_SEARCH
+            printf("In...");
+#endif
+            // 1. Possibilité trouvé
+            b = node_asActiveButtonOpt(sq.pos);
+            if(b) {
+#ifdef DEBUG_SEARCH
+                printf("button !\n");
+#endif
+                return b;
+            }
+            // 2. Aller en profondeur
+            if(sq.pos->flags & flag_parentOfButton) {
+                if(sq_goDownP(&sq)) {
+#ifdef DEBUG_SEARCH
+                    printf(" Go Down!\n");
+#endif
+                    continue;
+                }
+            }
+        }
+        // 3. Remonter, si plus de petit-frère
+#ifdef DEBUG_SEARCH
+        printf(" out, next...");
+#endif
+        while(!sq_goRight(&sq)) {
+#ifdef DEBUG_SEARCH
+            printf(" up ");
+#endif
+            if(!sq_goUpP(&sq)) {
+                printerror("Pas de root."); return NULL;
+            } else if(sq.pos == n) {
+#ifdef DEBUG_SEARCH
+                printf("\n");
+#endif
+                return NULL;
+            }
+        }
+#ifdef DEBUG_SEARCH
+        printf("\n");
+#endif
+    }
+}
+Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typeOpt, uint32_t const data0) {
+    Squirrel sq;
+    sq_init(&sq, n, sq_scale_ones);
+    // Se placer au premier child
+    if(!sq_goDown(&sq))
+        return NULL;
+    while(true) {
+        if(sq.pos->flags & flag_show) {
+            Button* b = node_asButtonOpt(sq.pos);
+            if(b) if(b->data.uint0 == data0) {
+                if(!typeOpt) return b;
+                if(b->n._type & typeOpt)
+                    return b;
+            }
+            if(sq.pos->flags & flag_parentOfButton)
+                if(sq_goDown(&sq)) continue;
+        }
+        // 3. Remonter, si plus de petit-frère
+        while(!sq_goRight(&sq)) {
+            if(!sq_goUp(&sq)) {
+                printerror("Pas de root."); return NULL;
+            } else if(sq.pos == n) return NULL;
+        }
+    }
+}
+Node*   node_tree_searchFirstOfTypeInBranchOpt(Node* const n, uint32_t const type_flag, flag_t parentFlag) {
+    if(!type_flag || !parentFlag) { printerror("No parent branch flag or no type flag."); return NULL; }
+    // Cas trivial...
+    if(n->_type & type_flag) return n;
+    if(!(n->flags & parentFlag)) return NULL;
+    Squirrel sq;
+    sq_init(&sq, n, sq_scale_ones);
+    // Se placer au premier child
+    if(!sq_goDown(&sq))
+        return NULL;
+    while(true) {
+        if(sq.pos->flags & flag_show) {
+            if(sq.pos->_type & type_flag)
+                return sq.pos;
+            if(sq.pos->flags & parentFlag)
+                if(sq_goDown(&sq)) continue;
+        }
+        // 3. Remonter, si plus de petit-frère
+        while(!sq_goRight(&sq)) {
+            if(!sq_goUp(&sq)) {
+                printerror("Pas de root."); return NULL;
+            } else if(sq.pos == n) return NULL;
+        }
+    }
+}
+
+
+
+
+
+
+
 
 int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float ratio, float spacingRef) {
     Squirrel sq;

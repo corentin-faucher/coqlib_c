@@ -14,7 +14,6 @@
 
 #define TEXTURE_PNG_NAME_SIZE 32
 
-typedef struct Texture Texture;
 typedef struct Texture {
 //    PerTextureUniforms ptu;
     /// Tiling en x, y. Meme chose que ptu -> m, n.

@@ -4,10 +4,10 @@
 //
 //  Created by Corentin Faucher on 2023-10-15.
 //
-#include "node_tree.h"
 #include "node_root.h"
+
+#include "node_tree.h"
 #include "node_squirrel.h"
-#include "node_sliding_menu.h"
 #include "node_drawable_multi.h"
 #include "../utils/util_base.h"
 #include "../graphs/graph_colors.h"
@@ -52,7 +52,6 @@ void   root_releaseActiveView_(Root* rt) {
         timer_scheduled(NULL, 600, false, &viewLast->n, node_tree_throwToGarbage);
     
     rt->viewActiveOpt =     NULL;
-    rt->buttonSelectedOpt = NULL;
 }
 void   root_setActiveView_(Root* rt, View* newView) {
     rt->viewActiveOpt = newView;
@@ -186,119 +185,6 @@ root_resize_end:
 
 bool    root_isLandscape(Root* r) {
     return r->n.w > r->n.h;
-}
-
-Button* root_searchActiveButtonOptWithPos(Root* const root, Vector2 const absPos,
-                                 Node* const nodeToAvoidOpt) {
-    if(&root->n == nodeToAvoidOpt) return NULL;
-    // Superflu... besoin d'une rechere a partir d'un non-root ?
-//    vector2_absPosToPosInReferentialOfNode(absPos, root);
-    Squirrel sq;
-    sq_initWithRelPos(&sq, &root->n, absPos, sq_scale_ones);
-    if(!sq_isIn(&sq)) return NULL;
-    if(!(sq.pos->flags & flag_show)) return NULL;
-    Button* b = NULL;
-    // 2. Se placer au premier child
-    if(!sq_goDownP(&sq))
-        return NULL;
-    while (true) {
-#ifdef DEBUG_SEARCH
-        printf("🐰 sq at %f, %f in ", sq.v.x, sq.v.y);
-        node_print_type(sq.pos);
-        printf(" pos %f, %f, in %d, show %lu, ", sq.pos->pos.x, sq.pos->pos.y, sq_isIn(&sq), (sq.pos->flags & flag_show));
-#endif
-        if(sq_isIn(&sq) && (sq.pos->flags & flag_show)
-           && (sq.pos != nodeToAvoidOpt))
-        {
-#ifdef DEBUG_SEARCH
-            printf("In...");
-#endif
-            // 1. Possibilité trouvé
-            b = node_asActiveButtonOpt(sq.pos);
-            if(b) {
-#ifdef DEBUG_SEARCH
-                printf("button !\n");
-#endif
-                return b;
-            }
-            // 2. Aller en profondeur
-            if(sq.pos->flags & flag_parentOfButton) {
-                if(sq_goDownP(&sq)) {
-#ifdef DEBUG_SEARCH
-                    printf(" Go Down!\n");
-#endif
-                    continue;
-                }
-            }
-        }
-        // 3. Remonter, si plus de petit-frère
-#ifdef DEBUG_SEARCH
-        printf(" out, next...");
-#endif
-        while(!sq_goRight(&sq)) {
-#ifdef DEBUG_SEARCH
-            printf(" up ");
-#endif
-            if(!sq_goUpP(&sq)) {
-                printerror("Pas de root."); return NULL;
-            } else if(sq.pos == &root->n) {
-#ifdef DEBUG_SEARCH
-                printf("\n");
-#endif
-                return NULL;
-            }
-        }
-#ifdef DEBUG_SEARCH
-        printf("\n");
-#endif
-    }
-}
-Button* root_searchFirstButtonOptWithData(Root* root, uint32_t typeOpt, uint32_t data0) {
-    Squirrel sq;
-    sq_init(&sq, &root->n, sq_scale_ones);
-    // Se placer au premier child
-    if(!sq_goDown(&sq))
-        return NULL;
-    while(true) {
-        if(sq.pos->flags & flag_show) {
-            Button* b = node_asButtonOpt(sq.pos);
-            if(b) if(b->data.uint0 == data0) {
-                if(!typeOpt) return b;
-                if(b->n._type & typeOpt)
-                    return b;
-            }
-            if(sq.pos->flags & flag_parentOfButton)
-                if(sq_goDown(&sq)) continue;
-        }
-        // 3. Remonter, si plus de petit-frère
-        while(!sq_goRight(&sq)) {
-            if(!sq_goUp(&sq)) {
-                printerror("Pas de root."); return NULL;
-            } else if(sq.pos == &root->n) return NULL;
-        }
-    }
-}
-SlidingMenu* root_searchFirstSlidingMenuOpt(Root* root) {
-//    if(!root) return NULL;
-    Squirrel sq;
-    sq_init(&sq, &root->n, sq_scale_ones);
-    // Se placer au premier child
-    if(!sq_goDown(&sq))
-        return NULL;
-    while(true) {
-        if(sq.pos->flags & flag_show) {
-            SlidingMenu* sm = node_asSlidingMenuOpt(sq.pos);
-            if(sm) return sm;
-            if(sq.pos->flags & flag_parentOfScrollable)
-                if(sq_goDown(&sq)) continue;
-        }
-        // 3. Remonter, si plus de petit-frère
-        while(!sq_goRight(&sq)) {
-            if(!sq_goUp(&sq)) {
-                printerror("Pas de root."); return NULL;
-            } else if(sq.pos == &root->n) return NULL;
-        }
-    }
 }
 
 /*-- Init d'autres struct utilisant la root. --*/

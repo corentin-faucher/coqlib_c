@@ -11,6 +11,7 @@
 #include "util_apple.h"
 
 #import <CloudKit/CloudKit.h>
+#import <GameController/GameController.h>
 #if TARGET_OS_OSX == 1
 #import <Carbon/Carbon.h>
 //@interface CoqMetalView()
@@ -104,6 +105,71 @@
             Language_checkSystemLanguage();
             CoqEvent_addToRootEvent((CoqEvent) { event_type_systemChanged, .system_change = { .languageRegionDidChange = true }});
         }];
+        // Game Controller
+        if (@available(macOS 11.0, *)) {
+            [[NSNotificationCenter defaultCenter] addObserverForName:GCControllerDidBecomeCurrentNotification 
+                                                    object:nil queue:nil usingBlock:^(NSNotification * _Nonnull notification) {
+                GCController* controller = [GCController current];
+                if(!controller) return;
+                GCExtendedGamepad* gamePad = [controller extendedGamepad];
+                if(!gamePad) { printwarning("No gamepad in controller."); return; }
+                [[gamePad dpad] setValueChangedHandler:^(GCControllerDirectionPad * _Nonnull dpad, float xValue, float yValue) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_dpad, .vector = { xValue, yValue }};
+                    CoqEvent_addToRootEvent((CoqEvent) { event_type_gamePad_value, .gamepadInput = input });
+                }];
+                [[gamePad leftThumbstick] setValueChangedHandler:^(GCControllerDirectionPad * _Nonnull dpad, float xValue, float yValue) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_JoystickLeft, .buttonValue = gamePad.leftThumbstickButton.value, .vector = { xValue, yValue }};
+                    CoqEvent_addToRootEvent((CoqEvent) { event_type_gamePad_value, .gamepadInput = input });
+                }];
+                [[gamePad rightThumbstick] setValueChangedHandler:^(GCControllerDirectionPad * _Nonnull dpad, float xValue, float yValue) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_JoystickRight, .buttonValue = gamePad.rightThumbstickButton.value, .vector = { xValue, yValue }};
+                    CoqEvent_addToRootEvent((CoqEvent) { event_type_gamePad_value, .gamepadInput = input });
+                }];
+                [[gamePad buttonA] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_A, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad buttonB] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_B, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad buttonX] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_X, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad buttonY] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_Y, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad rightTrigger] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_ZR, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad leftTrigger] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_ZL, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad buttonMenu] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_Plus, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad buttonOptions] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_Minus, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+            }];
+        }
     }
 #else
     bool ios13available = false;
