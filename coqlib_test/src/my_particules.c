@@ -34,7 +34,7 @@ Vector2 particule_evalPos(Particule* p, float dT, bool zeroOne, bool print) {
 
 ParticulesPool* ParticulesPool_create(uint32_t count, float twoDx, float twoDy,
                                       float r0, float brownian, float repulsion) {
-    ParticulesPool* const pp = coq_calloc(1, sizeof(ParticulesPool) + sizeof(Particule) * (count - 1));
+    ParticulesPool* const pp = coq_callocArray(ParticulesPool, Particule, count);
     pp->count = count;
     pp->deltaX = 0.5f*twoDx;
     pp->deltaY = 0.5f*twoDy;
@@ -210,23 +210,22 @@ typedef struct DrawableMultiPP_ {
     ParticulesPool*   pp;
 } DrawableMultiPP_;
 // Override...
-Drawable*   drawablemultiPP_updateModels_(Node* const n) {
+void   drawablemultiPP_updateModels_(Node* const n) {
     DrawableMultiPP_* dmpp = (DrawableMultiPP_*)n;
-    const Node* const parent = n->_parent;
-    if(!parent) { printwarning("DrawableMulti without parent."); return NULL; }
-    const Matrix4* const pm = &parent->_piu.model;
+    const Matrix4* const pm = node_parentModel(n);
     // Mode 0/1, DeltaT, w/h.
     bool zeroOne = dmpp->pp->t1 > dmpp->pp->t0;
+    #warning flag_drawableActive ?
     float deltaT = (float)(ChronoApp_elapsedMS() - (zeroOne ? dmpp->pp->t1 : dmpp->pp->t0))*0.001f;
     Vector2 const scl = n->scales;
     // Boucle sur les particules
     Particule* p = dmpp->pp->particules;
-    PerInstanceUniforms* piu =        dmpp->dm.piusBuffer.pius;
-    PerInstanceUniforms* const end = &dmpp->dm.piusBuffer.pius[dmpp->dm.piusBuffer.actual_count];
-    while(piu < end) {
-        Matrix4* m = &piu->model;
+    InstanceUniforms* iu =        dmpp->dm.iusBuffer.ius;
+    InstanceUniforms* const end = &dmpp->dm.iusBuffer.ius[dmpp->dm.iusBuffer.actual_count];
+    while(iu < end) {
+        Matrix4* m = &iu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
-        Vector2 const pos = particule_evalPos(p, deltaT, zeroOne, piu == dmpp->dm.piusBuffer.pius);
+        Vector2 const pos = particule_evalPos(p, deltaT, zeroOne, iu == dmpp->dm.iusBuffer.ius);
         if(isnan(pos.x) || isnan(pos.y)) { printerror("Nan value ..."); }
         m->v0.v = pm->v0.v * scl.x;
         m->v1.v = pm->v1.v * scl.y;
@@ -238,29 +237,27 @@ Drawable*   drawablemultiPP_updateModels_(Node* const n) {
             pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y,
             pm->v3.w,
         }};
-        piu++; p++;
+        iu++; p++;
     }
-    return &dmpp->d;
 }
 DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
-    DrawableMultiPP_* dmpp = coq_calloc(1, sizeof(DrawableMultiPP_));
-    node_init_(&dmpp->n, parent, 0, 0, 2.35*partpool_r0_, 2.35*partpool_r0_, node_type_nd_multi, 0, 0);
+    DrawableMultiPP_* dmpp = coq_callocTyped(DrawableMultiPP_);
+    node_init(&dmpp->n, parent, 0, 0, 2.35*partpool_r0_, 2.35*partpool_r0_, node_type_nd_multi, 0, 0);
     Texture* const tex = Texture_sharedImage(png_disks);
-    drawable_init_(&dmpp->d, tex, mesh_sprite, 0, 2.35*partpool_r0_, 0);
+    drawable_init(&dmpp->d, tex, mesh_sprite, 0, 2.35*partpool_r0_);
     drawablemulti_init_(&dmpp->dm, partpool_count_);
     dmpp->n.updateModel = drawablemultiPP_updateModels_;
     dmpp->pp = pp;
-    float const Du = dmpp->n._piu.uvRect.w;
-    float const Dv = dmpp->n._piu.uvRect.h;
+    Vector2 const Duv = texture_tileDuDv(tex);
     // Init des per instance uniforms (juste setter une tile.
-    PerInstanceUniforms* piu =  dmpp->dm.piusBuffer.pius;
-    PerInstanceUniforms* end = &dmpp->dm.piusBuffer.pius[partpool_count_];
-    while(piu < end) {
-        *piu = piu_default;
+    InstanceUniforms* end = &dmpp->dm.iusBuffer.ius[partpool_count_];
+    for(InstanceUniforms* iu = dmpp->dm.iusBuffer.ius; iu < end; iu++) {
+        *iu = InstanceUnifoms_default;
         uint32_t tile = rand() % 12;
-        piu->uvRect.o_x =  (tile % tex->m) * Du;
-        piu->uvRect.o_y = ((tile / tex->m) % tex->n) * Dv;
-        piu++;
+        iu->uvRect = (Rectangle) { 
+            .origin = {(tile % tex->m) * Duv.w, ((tile / tex->m) % tex->n) * Duv.h},
+            .size = Duv,
+        };
     }
     return dmpp;
 }
@@ -268,14 +265,14 @@ DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
 
 #pragma mark - Particule pool node --------------
 
-void ppnode_callback_(Node* nd) {
-    PPNode* ppn = (PPNode*)nd;
+void ppnode_callback_(void* ppnIn) {
+    PPNode* ppn = (PPNode*)ppnIn;
     
     particulespool_update(ppn->pp);
 }
 void ppnode_open_(Node* nd) {
     PPNode* ppn = (PPNode*)nd;
-    timer_scheduled(&ppn->timer, 1, true, nd, ppnode_callback_);
+    timer_scheduled(&ppn->timer, 1, true, ppn, ppnode_callback_);
 }
 void ppnode_close_(Node* nd) {
     PPNode* ppn = (PPNode*)nd;
@@ -287,8 +284,8 @@ void ppnode_deinit_(Node* nd) {
 }
 
 PPNode* PPNode_create(Node* ref) {
-    PPNode* ppn = coq_calloc(1, sizeof(PPNode));
-    node_init_(&ppn->n, ref, 0, 0,  partpool_width_, partpool_height_, node_type_node, 0, 0);
+    PPNode* ppn = coq_callocTyped(PPNode);
+    node_init(&ppn->n, ref, 0, 0,  partpool_width_, partpool_height_, node_type_node, 0, 0);
     // Init as ParticulePool
     ppn->pp = ParticulesPool_create(partpool_count_, partpool_width_, partpool_height_,
                                     partpool_r0_, partpool_brownian_, partpool_repuls_);
@@ -296,7 +293,7 @@ PPNode* PPNode_create(Node* ref) {
     ppn->n.closeOpt =  ppnode_close_;
     ppn->n.deinitOpt = ppnode_deinit_;
     // Struct
-    Frame_create(&ppn->n, 0.5f, 0.1f*partpool_height_, 0.f, 0.f, png_frame_gray_back, frame_option_getSizesFromParent);
+    Frame_create(&ppn->n, 0.5f, 0.1f*partpool_height_, 0.f, 0.f, Texture_sharedImage(png_frame_gray_back), frame_option_getSizesFromParent);
     DrawableMultiPP_create(&ppn->n, ppn->pp);
 
     return ppn;

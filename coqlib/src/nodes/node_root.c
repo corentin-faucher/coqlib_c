@@ -13,13 +13,28 @@
 #include "../graphs/graph_colors.h"
 
 /// Mise à jour ordinaire de la matrice modèle pour une root.
-Drawable* root_updateModel_(Node* const n) {
+void root_updateModel_(Node* const n) {
     Root* rt = (Root*)n;
+    // Positionnement par rapport à la caméra
+    Camera* const c = &rt->camera;
     float yShift = fl_pos(&rt->yShift);
-    matrix4_initAsLookAtWithCameraAndYshift(&n->_piu.model, &rt->camera, yShift);
-    return NULL;
+    Vector3 eye = fl_array_toVec3(c->pos);
+    eye.y += yShift;
+    Vector3 center = fl_array_toVec3(c->center);
+    center.y += yShift;
+    Vector3 up =     fl_array_toVec3(c->up);
+    // Projection ordinaire (pyramide de perspective...)
+    float middleZ = fl_pos(&rt->camera.pos[2]);
+    float deltaX = 0.5*fl_pos(&rt->fullSizeWidth);
+    float deltaY = 0.5*fl_pos(&rt->fullSizeHeight);
+    
+//    matrix4_initAsLookAt(&n->model, eye, center, up);
+    matrix4_initAsPerspectiveAndLookAt(&n->model, eye, center, up, 0.1, 50, middleZ, deltaX, deltaY);
 }
 
+void  root_deinit_(Node* n) {
+    timer_cancel(&((Root*)n)->_timer);
+}
 void  root_init(Root* root, Root* parentRootOpt) {
     if(root->n._parent) {
         if(parentRootOpt == NULL) printerror("Non absolute root without parent root.");
@@ -28,6 +43,7 @@ void  root_init(Root* root, Root* parentRootOpt) {
         if(parentRootOpt) printerror("Absolute root have no need for parentRoot.");
         root->rootParentOpt = NULL;
     }
+    root->n.deinitOpt = root_deinit_;
 //    root->fullSize =   (Vector2){{ 2.2f, 2.2f }};
 //    root->_yShift = 0;
     fl_init(&root->fullSizeWidth, 2.2f, 20.f, false);
@@ -37,35 +53,34 @@ void  root_init(Root* root, Root* parentRootOpt) {
     root->margins = (Margins){ 5, 5, 5, 5 };
     camera_init(&root->camera, 10.f);
     fl_array_init(root->back_RGBA, color4_gray2.f_arr, 4, 5.f);
+    fl_init(&root->ambiantLight, 0, 5, false);
     // Override de l'update du model.
     root->n.updateModel = root_updateModel_;
 }
-Root* node_asRootOpt(Node* n) {
-    if(n->_type & node_type_flag_root) return (Root*)n;
+Root* node_asRootOpt(Node* const nOpt) {
+    if(!nOpt) return NULL;
+    if(nOpt->_type & node_type_flag_root) return (Root*)nOpt;
     return NULL;
 }
 void   root_releaseActiveView_(Root* rt) {
-    View* viewLast = rt->viewActiveOpt;
-    if(viewLast == NULL) return;
-    node_tree_close(&viewLast->n);
-    if((viewLast->n.flags & flag_viewPersistent) == 0)
-        timer_scheduled(NULL, 600, false, &viewLast->n, node_tree_throwToGarbage);
-    
-    rt->viewActiveOpt =     NULL;
+    Node* n = &(rt->viewActiveOpt->n);
+    rt->viewActiveOpt = NULL;
+    if(!n) return;
+    noderef_slowDestroyAndNull(&n, 600);
 }
-void   root_setActiveView_(Root* rt, View* newView) {
+void   root_setActiveView_(Root* rt, View* const newView) {
     rt->viewActiveOpt = newView;
     node_tree_openAndShow(&newView->n);
     if(rt->changeViewOpt)
         rt->changeViewOpt(rt);
 }
-void   _root_callback_terminate(Node* node) {
-    Root* rt = (Root*)node;
+void   root_callback_terminate_(void* rtIn) {
+    Root* rt = (Root*)rtIn;
 //    if(rt->willTerminateOpt)
 //        rt->willTerminateOpt(rt);
     rt->shouldTerminate = true;
 }
-void  root_changeViewActiveTo(Root* rt, View* const newViewOpt) {
+void  root_changeViewActiveTo(Root* const rt, View* const newViewOpt) {
     // Pas le droit de quitter si iOS
 #ifdef __APPLE__
 #if TARGET_OS_OSX != 1
@@ -85,7 +100,7 @@ void  root_changeViewActiveTo(Root* rt, View* const newViewOpt) {
     // 2. Si null -> fermeture de l'app.
     if(newViewOpt == NULL) {
         rt->viewActiveOpt = NULL;
-        timer_scheduled(NULL, 800, false, &rt->n, _root_callback_terminate);
+        timer_scheduled(&rt->_timer, 800, false, rt, root_callback_terminate_);
         return;
     }
     // 3. Ouverture du nouvel écran.
@@ -170,12 +185,12 @@ void root_viewResized(Root *rt, ResizeInfo info)
     
     
     // 4. Changement de taille des fonts ?
-    double fontSize = Texture_currentFontSize();
-    double targetFontSize = fmaxf(16.f, fminf(144.f,
-                    0.06f*fminf(info.sizesPix.x, info.sizesPix.y)));
-    if(targetFontSize > fontSize * 1.2f || targetFontSize < 0.8f*fontSize) {
-        Texture_setCurrentFontSize(targetFontSize);
-    }
+//    double fontSize = Texture_currentFontSize();
+//    double targetFontSize = fmaxf(16.f, fminf(144.f,
+//                    0.06f*fminf(info.sizesPix.x, info.sizesPix.y)));
+//    if(targetFontSize > fontSize * 1.2f || targetFontSize < 0.8f*fontSize) {
+//        Texture_setCurrentFontSize(targetFontSize);
+//    }
     // 5. Reshape de la structure
     node_tree_reshape(&rt->n);
     // 6. Action supplementaire au resize ?
@@ -229,9 +244,9 @@ Vector2   root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY) {
     return (Vector2) {{ x, y }};
 }
 
-void      matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt) {
-    float middleZ = fl_pos(&rt->camera.pos[2]);
-    float fullSizeWidth = fl_pos(&rt->fullSizeWidth);
-    float fullSizeHeight = fl_pos(&rt->fullSizeHeight);
-    matrix4_initAsPerspectiveDeltas(m, 0.1f, 50.f, middleZ, fullSizeWidth, fullSizeHeight);
-}
+//void      matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt) {
+//    float middleZ = fl_pos(&rt->camera.pos[2]);
+//    float fullSizeWidth = fl_pos(&rt->fullSizeWidth);
+//    float fullSizeHeight = fl_pos(&rt->fullSizeHeight);
+//    matrix4_initAsPerspectiveDeltas(m, 0.1f, 50.f, middleZ, fullSizeWidth, fullSizeHeight);
+//}

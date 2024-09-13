@@ -9,6 +9,8 @@
 
 #include "../utils/util_base.h"
 
+#pragma mark - Vecteur 2D -------------------------
+
 const Vector2 vector2_ones =  {{1, 1}};
 const Vector2 vector2_zeros = {{0, 0}};
 
@@ -17,9 +19,6 @@ float   vector2_norm(Vector2 v) {
 }
 float   vector2_norm2(Vector2 v) {
     return v.x*v.x + v.y*v.y;
-}
-float   vector2_dot(Vector2 v1, Vector2 v2) {
-    return v1.x*v2.x + v1.y*v2.y;
 }
 Vector2 vector2_projOn(Vector2 v, Vector2 target) {
     float dot = v.x*target.x + v.y*target.y;
@@ -57,6 +56,27 @@ Vector2 vector2_opposite(Vector2 v) {
 Vector2 vector2_cross(Vector2 v) {
     return (Vector2) {{ v.y, -v.x }};
 }
+float   vector2_dot(Vector2 v1, Vector2 v2) {
+    return v1.x*v2.x + v1.y*v2.y;
+}
+Vector2 vector2_product(Vector2 v1, Vector2 v2) {
+    return (Vector2) {v1.x * v2.x, v1.y * v2.y };
+}
+
+Vector2   vector2_polarToCartesian(Vector2 v) {
+    return (Vector2) { v.radial*cos(v.theta), v.radial*sin(v.theta) };
+}
+Vector2   vector2_cartesianToPolar(Vector2 v) {
+    return (Vector2) { .theta = atan2f(v.y, v.x), .radial = sqrtf(v.x*v.x + v.y*v.y) };
+}
+
+static char  tmp_vector_c_str_[30];
+const char* vector2_toString(Vector2 const v) {
+    sprintf(tmp_vector_c_str_, "[ %5.2f, %5.2f ]", v.x, v.y);
+    return tmp_vector_c_str_;
+}
+
+#pragma mark - Vecteur 3D -------------------------
 
 Vector3 vector3_normalize(Vector3 v) {
     float n = sqrtf(v.x*v.x + v.y*v.y + v.z*v.z);
@@ -78,23 +98,33 @@ Vector3 vector3_cross(Vector3 v1, Vector3 v2) {
 float    vector3_dot(Vector3 v1, Vector3 v2) {
     return v1.x*v2.x + v1.y*v2.y + v1.z*v2.z;
 }
-
+Vector3 vector3_product(Vector3 v1, Vector3 v2) {
+    return (Vector3) { v1.x*v2.x, v1.y*v2.y, v1.z*v2.z };
+}
 
 const Vector3 vector3_ones =  {{1, 1, 1}};
 const Vector3 vector3_zeros = {{0, 0, 0}};
 
-void vector3_print(Vector3 *v) {
-    printf("[ %f, %f, %f ]\n", v->x, v->y, v->z);
+const char* vector3_toString(Vector3 v) {
+    sprintf(tmp_vector_c_str_, "[ %5.2f, %5.2f, %5.2f ]", v.x, v.y, v.z);
+    return tmp_vector_c_str_;
 }
 
+#pragma mark - Vecteur 4 -------------------------
+
+const Vector4 vector4_ones = {{1, 1, 1, 1 }};
+const Vector4 vector4_zeros = {{0, 0, 0, 0 }};
+
+#pragma mark - Matrices 4x4 -------------------------
+
 const Matrix4 matrix4_identity = {{
-    1., 0., 0., 0.,
-    0., 1., 0., 0.,
-    0., 0., 1., 0.,
-    0., 0., 0., 1.,
+    1., 0., 0., 0., // v0, colonne de x, i.e. ce que devient (1, 0, 0, 0).
+    0., 1., 0., 0., // v1
+    0., 0., 1., 0., // v2
+    0., 0., 0., 1., // v3
 }};
 
-void matrix4_print(Matrix4 *m) {
+void matrix4_print(const Matrix4 *m) {
     for(int j = 0; j < 4; j++) {
         if(j == 0) printf("[ "); else printf("  ");
         for(int i = 0; i< 4; i++)
@@ -102,7 +132,6 @@ void matrix4_print(Matrix4 *m) {
         if(j == 3) printf("\b ]\n"); else printf("\n");
     }
 }
-
 void matrix4_initWithAndTranslate(Matrix4 *m, const Matrix4* const ref, Vector3 t) {
     m->v0 = ref->v0; m->v1 = ref->v1; m->v2 = ref->v2;
     m->v3 = (Vector4) {{
@@ -112,8 +141,6 @@ void matrix4_initWithAndTranslate(Matrix4 *m, const Matrix4* const ref, Vector3 
         ref->v3.w,
     }};
 }
-
-
 void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, const Matrix4* const ref,
                                            float thetaY, float ty, float tz) {
     float c = cosf(thetaY);
@@ -128,7 +155,6 @@ void matrix4_initWithRotateYAndTranslateYZ(Matrix4 *m, const Matrix4* const ref,
         ref->v3.w,
     }};
 }
-
 void matrix4_initAsLookAt(Matrix4 *m, Vector3 eye, Vector3 center, Vector3 up) {
     
     Vector3 n = vector3_normalize(vector3_minus(eye, center));
@@ -143,6 +169,7 @@ void matrix4_initAsLookAt(Matrix4 *m, Vector3 eye, Vector3 center, Vector3 up) {
 }
 void matrix4_initAsPerspective(Matrix4 *m, float theta, float ratio,
                                float nearZ, float farZ) {
+    // Bonne ref pour la théorie : http://www.songho.ca/opengl/gl_projectionmatrix.html
     float cotan = 1.f / tanf(theta / 2.f);
     *m = (Matrix4) {{
         cotan / ratio, 0, 0, 0,
@@ -152,27 +179,59 @@ void matrix4_initAsPerspective(Matrix4 *m, float theta, float ratio,
     }};
 }
 void matrix4_initAsPerspectiveDeltas(Matrix4 *m, float nearZ, float farZ, float middleZ,
-                                     float deltaX, float deltaY) {
+                                     float twoDeltaX, float twoDeltaY) {
+    // Ici, on utilise l'astuce du w = -1 dans v2 pour faire un 1/z...
+    // z sont négatif car on regarde vers les z négatifs...
+    // Bonne ref pour la théorie : http://www.songho.ca/opengl/gl_projectionmatrix.html
     *m = (Matrix4) {{
-        2.f * middleZ / deltaX, 0, 0, 0,
-        0, 2.f * middleZ / deltaY, 0, 0,
-        0, 0, (farZ + nearZ) / (nearZ - farZ), -1.f,
-        0, 0, (2 * farZ * nearZ) / (nearZ - farZ), 0.f,
+        2.f * middleZ / twoDeltaX, 0.0, 0.0,        0.0,
+        0.0,   2.f*middleZ/twoDeltaY,   0.0,        0.0,
+        0.0,   0.0, (farZ + nearZ)/(nearZ - farZ), -1.0,
+        0.0,   0.0, (2*farZ*nearZ)/(nearZ - farZ),  0.0,
     }};
 }
+
+void matrix4_initAsPerspectiveAndLookAt(Matrix4* m,
+        Vector3 eye, Vector3 center, Vector3 up,
+        float nearZ, float farZ, float middleZ, float deltaX, float deltaY) {
+    // Direction vers eye.
+    Vector3 direc = vector3_normalize(vector3_minus(eye, center)); // n->dir
+    Vector3 right = vector3_normalize(vector3_cross(up, direc)); // u -> right
+    // Up pour la camera
+    up = vector3_cross(direc, right); // v-> up
+    float r_e = vector3_dot(right, eye), u_e = vector3_dot(up, eye), d_e = vector3_dot(direc, eye);
+    // Pour la projection... (voir matrix4_initAsPerspectiveDeltas)
+    float sx = middleZ / deltaX;
+    float sy = middleZ / deltaY;
+    float sz = (farZ + nearZ)/(nearZ - farZ);
+    float wz = (2*farZ*nearZ)/(nearZ - farZ);
+    *m = (Matrix4) {{
+        sx*right.x, sy*up.x, sz*direc.x, -direc.x,
+        sx*right.y, sy*up.y, sz*direc.y, -direc.y,
+        sx*right.z, sy*up.z, sz*direc.z, -direc.z,
+        -sx*r_e,    -sy*u_e, -sz*d_e+wz,  d_e,   
+    }};
+}
+
+Matrix4 matrix4_product(const Matrix4* a, const Matrix4* b) {
+    Matrix4 c;
+    c.v0.v = a->v0.v * b->v0.x + a->v1.v * b->v0.y + a->v2.v * b->v0.z + a->v3.v * b->v0.w;
+    c.v1.v = a->v0.v * b->v1.x + a->v1.v * b->v1.y + a->v2.v * b->v1.z + a->v3.v * b->v1.w;
+    c.v2.v = a->v0.v * b->v2.x + a->v1.v * b->v2.y + a->v2.v * b->v2.z + a->v3.v * b->v2.w;
+    c.v3.v = a->v0.v * b->v3.x + a->v1.v * b->v3.y + a->v2.v * b->v3.z + a->v3.v * b->v3.w;
+    return c;
+}
+
 void matrix4_scale(Matrix4 *m, float sx, float sy, float sz) {
     m->v0.v *= sx;
     m->v1.v *= sy;
     m->v2.v *= sz;
-    // Revient au meme ?
-//    m->v0.x *= s.x; m->v0.y *= s.x; m->v0.z *= s.x; m->v0.w *= s.x;
-//    m->v1.x *= s.y; m->v1.y *= s.y; m->v1.z *= s.y; m->v1.w *= s.y;
-//    m->v2.x *= s.z; m->v2.y *= s.z; m->v2.z *= s.z; m->v2.w *= s.z;
 }
 void matrix4_translate(Matrix4 *m, Vector3 t) {
-    m->v3.x += m->v0.x * t.x + m->v1.x * t.y + m->v2.x * t.z;
-    m->v3.y += m->v0.y * t.x + m->v1.y * t.y + m->v2.y * t.z;
-    m->v3.z += m->v0.z * t.x + m->v1.z * t.y + m->v2.z * t.z;
+    m->v3.v += m->v0.v * t.x + m->v1.v * t.y + m->v2.v * t.z;
+//    m->v3.x += m->v0.x * t.x + m->v1.x * t.y + m->v2.x * t.z;
+//    m->v3.y += m->v0.y * t.x + m->v1.y * t.y + m->v2.y * t.z;
+//    m->v3.z += m->v0.z * t.x + m->v1.z * t.y + m->v2.z * t.z;
 }
 void matrix4_rotateX(Matrix4 *m, float theta) {
     float c = cosf(theta);
@@ -195,8 +254,8 @@ void matrix4_rotateZ(Matrix4 *m, float theta) {
     float s = sinf(theta);
     Vector4 v0 = m->v0;
     Vector4 v1 = m->v1;
-    m->v0.v = c*v0.v - s*v1.v;
-    m->v1.v = s*v0.v + c*v1.v;
+    m->v0.v =  c*v0.v + s*v1.v;
+    m->v1.v = -s*v0.v + c*v1.v;
 }
 void matrix4_rotateYandTranslateYZ(Matrix4 *m, float thetaY, float ty, float tz) {
     float c = cosf(thetaY);
@@ -209,6 +268,9 @@ void matrix4_rotateYandTranslateYZ(Matrix4 *m, float thetaY, float ty, float tz)
     m->v3.y += m->v1.y * ty + m->v2.y * tz;
     m->v3.z += m->v1.z * ty + m->v2.z * tz;
 }
+
+
+#pragma mark - Générateurs de nombres aléatoires -------------------------
 
 /// Nombre aléatoire (distr. lin.) dans l'interval [min, max] (inclusivement).
 float rand_floatIn(float min, float max) {
@@ -259,7 +321,15 @@ Vector2 rand_vector2_inBox(Box box) {
     }};
 }
 
-/*-- Extensions de uint. -------------------------------*/
+#pragma mark -- Extension de bool --
+
+const char* bool_toString(bool b) {
+    return b ? "true" : "false";
+}
+
+
+#pragma mark - Fonctions utiles sur les unsigneds ---------------------
+
 static const uint32_t _pow10s[] = {
     1,       10,       100,
     1000,    10000,    100000,
@@ -294,6 +364,9 @@ uint32_t  umaxu(uint32_t a, uint32_t b) {
 uint32_t  uminu(uint32_t a, uint32_t b) {
     return a < b ? a : b;
 }
+uint32_t ubetweenu(uint32_t min, uint32_t a, uint32_t max) {
+    return a < min ? min : (a > max ? max : a);
+}
 
 void  uintarr_linspace(uint32_t* const u_arr, uint32_t const u_arr_count,
                        uint32_t first, uint32_t const delta) {
@@ -305,9 +378,9 @@ void  uintarr_linspace(uint32_t* const u_arr, uint32_t const u_arr_count,
         p++;
     }
 }
-void  uintarr_print(uint32_t* u_arr, uint32_t u_arr_count) {
-    uint32_t* p = u_arr;
-    uint32_t* const end = &u_arr[u_arr_count];
+void  uintarr_print(const uint32_t* u_arr, uint32_t u_arr_count) {
+    const uint32_t* p = u_arr;
+    const uint32_t* const end = &u_arr[u_arr_count];
     printf("[ ");
     while(p < end) {
         printf("%5u, ", *p);
@@ -315,6 +388,22 @@ void  uintarr_print(uint32_t* u_arr, uint32_t u_arr_count) {
     }
     printf("]\n");
 }
+
+void  uint_initConst(const uint32_t* f, uint32_t const initValue) {
+    *(uint32_t*)f = initValue;
+}
+void  size_initConst(const size_t* s, size_t initValue) {
+    *(size_t*)s = initValue;
+}
+
+#pragma mark - Fonctions utiles sur les entiers ---------------------
+
+int32_t imaxi(int32_t a, int32_t b) {
+    return a > b ? a : b;
+}
+
+
+#pragma mark - Fonctions utiles sur les floats ---------------------
 
 /// Retourne une angle dans l'interval [-pi, pi].
 float float_toNormalizedAngle(float f) {
@@ -341,7 +430,19 @@ float float_truncated(float f, float delta) {
         return fminf(0.f, f + delta);
     }
 }
-
+float float_appearing(float x, float x0, float deltaX) {
+    if(x < x0) return 0.f;
+    if(x > x0 + deltaX) return 1.f;
+    return (x - x0) / deltaX;
+}
 float float_smoothOut(float x, float lambda) {
     return lambda * (x + 1.f / lambda) * expf(-lambda*x);
+}
+
+void  float_initConst(const float* f, float initValue) {
+    *(float*)f = initValue;
+}
+
+float fbetweenf(float min, float a, float max) {
+    return a < min ? min : (a > max ? max : a);
 }

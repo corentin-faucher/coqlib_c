@@ -10,26 +10,9 @@
 
 #include "node_poping.h"
 #include "../utils/util_string.h"
+#include "node_string.h"
 
 #pragma mark - Base de Bouton
-
-/// Donnée par defaut pour un bouton : 16 bytes/4 float a utiliser comme on veut.
-/// (évite de faire des sous-struct pour de simple boutons.)
-typedef union ButtonData {
-    char     char_arr[16];
-    uint32_t uint_arr[4];
-    struct {
-        uint32_t uint0, uint1, uint2, uint3;
-    };
-    float    float_arr[4];
-    struct {
-        float    float0, float1, float2, float3;
-    };
-    struct {
-        Node* node0;
-        Node* node1;
-    };
-} ButtonData;
 
 // Boutons, slider, objet deplacable...
 typedef struct coq_Button Button;
@@ -39,20 +22,17 @@ typedef struct coq_Button {
         Fluid  f;  // A priori, un bouton est "fluide", peut bouger de façon smooth.
     };
     /*-- Activation! --*/
-    void (*action)(Button*);         // Doit etre definie/override.
-    /// Donnée par defaut pour un bouton : 16 bytes/4 float a utiliser comme on veut.
-    /// (évite de faire des sous-struct pour de simple boutons.)
-    union ButtonData data;
-    
+    /// Doit être definie/overridé.
+    void (*action)(Button* b);
+    // (les autres méthodes sont optionnelles)
     /*-- Deplacement --*/
     // Le vecteur est la position relative au button, i.e. dans le ref du bouton.
-    void (*grabOpt)(Button*, Vector2);  // (NULL par defaut)
-    void (*dragOpt)(Button*, Vector2);
-    void (*letGoOpt)(Button*);
+    void (*grabOpt)(Button* b, Vector2 relPos);
+    void (*dragOpt)(Button* b, Vector2 relPos);
+    void (*letGoOpt)(Button* b);
     /*--Survole --*/
-    void (*startHoveringOpt)(Button*);  // (NULL par defaut,
-    void (*stopHoveringOpt)(Button*);   //  voir ButtonHov pour exemple.)
-//    void (*showPop)
+    void (*startHoveringOpt)(Button* b);
+    void (*stopHoveringOpt)(Button* b);
 } Button;
 
 Button* Button_create(Node* refOpt, void (*action)(Button*),
@@ -68,7 +48,7 @@ Button* node_asActiveButtonOpt(Node* n);
 Button* node_asButtonOpt(Node* n);
 
 // Convenience setters
-void    button_last_setData(union ButtonData data);
+//void    button_last_setData(union ButtonData data);
 void    button_last_setDataUint0(uint32_t data_uint0);
 
 #pragma mark - Switch ON/OFF et Slider
@@ -93,12 +73,11 @@ typedef struct  {
     uint32_t       popPngId;
     uint32_t       popTile;
     uint32_t       failPopFramePngId;
-    StringDrawable failMessage;
-    bool           failPopInFrontScreen;
+    StringGlyphedInit failMessage;
 } SecurePopInfo;
 
 Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
-                SecurePopInfo spi, uint32_t popFramePngId, StringDrawable popMessage,
+                SecurePopInfo spi, uint32_t popFramePngId, StringGlyphedInit popMessage,
                 float x, float y, float height, float lambda, flag_t flags);
 
 /// Juste secure pas de pop-over lors du survol.
@@ -106,9 +85,9 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
                 SecurePopInfo spi, float x, float y, float height, float lambda, flag_t flags);
 /// Juste hoverable (pop-over) pas de secure (hold to activate).
 Button* ButtonHoverable_create(Node* refOpt, void (*action)(Button*),
-                uint32_t popFramePngId, StringDrawable popMessage,
+                uint32_t popFramePngId, StringGlyphedInit popMessage,
                 float x, float y, float height, float lambda, flag_t flags);
-void    buttonhoverable_last_setToPopInFrontView(void);
+//void    buttonhoverable_last_setToPopInFrontView(void);
 
 
 
@@ -122,17 +101,35 @@ typedef struct ButtonSecureHov_ {
     Timer*        timer;
     // Hoverable
     uint32_t       popFramePngId;
-    StringDrawable popMessage;
-    bool           popInFrontView;
+    StringGlyphedInit popMessage;
     // Secure
     SecurePopInfo spi; // Info supplementaire pour un bouton secure. (plus commode en un packet)
-    PopDisk*      pop;
+    PopingNode_*  poping;
     bool          didActivate;
 } ButtonSecureHov_;
 
 void buttonsecurehov_initJustSecure_(ButtonSecureHov_* bsh, SecurePopInfo spi);
-void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFramePngId, StringDrawable popMessage);
+void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFramePngId, 
+                                        StringGlyphedInit popMessage);
 
 //extern Button* button_last_;
+// Finalement superflu -> inclus dans Node.
+/// Donnée par defaut pour un bouton : 16 bytes/4 float a utiliser comme on veut.
+/// (évite de faire des sous-struct pour de simple boutons.)
+//typedef union ButtonData {
+//    char     char_arr[16];
+//    uint32_t uint_arr[4];
+//    struct {
+//        uint32_t uint0, uint1, uint2, uint3;
+//    };
+//    float    float_arr[4];
+//    struct {
+//        float    float0, float1, float2, float3;
+//    };
+//    struct {
+//        Node* node0;
+//        Node* node1;
+//    };
+//} ButtonData;
 
 #endif /* button_icon_h */

@@ -63,7 +63,8 @@ void  view_touchHoveringDefault_(View* const v, Vector2 const pos) {
     if(hovered) if(hovered->startHoveringOpt)
         hovered->startHoveringOpt(hovered);
 } 
-void  view_touchDownDefault_(View* const v, Vector2 pos) {
+void  view_touchDownDefault_(View* const v, Vector2 pos, uint32_t id) {
+    if(id != 0) return; // Action par defaut juste pour clique gauche.
     v->lastTouchedPos = pos;
     Button* const lastSelected = v->buttonSelectedOpt;
     if(lastSelected) if(lastSelected->stopHoveringOpt)
@@ -88,7 +89,8 @@ void  view_touchDownDefault_(View* const v, Vector2 pos) {
     // 2. Sinon activer le noeud sélectionné (non grabbable)
     if(toTouch->action) toTouch->action(toTouch);
 }
-void  view_touchDragDefault_(View* const v, Vector2 pos) {
+void  view_touchDragDefault_(View* const v, Vector2 pos, uint32_t touchId) {
+    if(touchId != 0) return;
     Button* const grabbed = v->buttonSelectedOpt;
     if(grabbed == NULL) return;
     if(grabbed->dragOpt == NULL) {
@@ -98,7 +100,8 @@ void  view_touchDragDefault_(View* const v, Vector2 pos) {
     Vector2 relpos = vector2_absPosToPosInReferentialOfNode(pos, &grabbed->n);
     grabbed->dragOpt(grabbed, relpos);
 }
-void  view_touchUpDefault_(View* v) {
+void  view_touchUpDefault_(View* v, uint32_t touchId) {
+    if(touchId != 0) return;
     Button* const grabbed = v->buttonSelectedOpt;
     if(grabbed == NULL) return;
     if(grabbed->letGoOpt) {
@@ -109,28 +112,26 @@ void  view_touchUpDefault_(View* v) {
     v->buttonSelectedOpt = NULL;
 }
 
-View* View_create(Root* const root, flag_t flags, size_t sizeOpt) {
+void  view_initWithSuper(View* const v, Root* const root, flag_t const flags) {
     /** Les écrans sont toujours ajoutés juste après l'ainé.
     * add back : root->back,  add front : root->{back,front},
     * add 3 : root->{back,3,front},  add 4 : root->{back,4,3,front}, ...
     * i.e. les deux premiers écrans sont le back et le front respectivement,
     * les autres sont au milieu. */
-    Node* bigBro = root->n._firstChild;
-    View* v = coq_calloc(1, sizeOpt > sizeof(View) ? sizeOpt : sizeof(View));
-    node_init_(&v->n, bigBro ? bigBro : &root->n, 0, 0, 4, 4, node_type_nf_view, 
+    Node* const bigBro = root->n._firstChild;
+    node_init(&v->n, bigBro ? bigBro : &root->n, 0, 0, 4, 4, node_type_nf_view, 
                flags|flag_parentOfReshapable, bigBro ? node_place_asBro : 0);
-    // Init as Smooth.
+    // Init as Smooth (avec lambda = 10)
     fluid_init_(&v->f, 10.f);
-    // Init as View
+    // Init as View (avec méthodes par défault)
     v->n.openOpt =     view_open_;
     v->n.reshapeOpt =  view_reshape_;
     v->touchHovering = view_touchHoveringDefault_;
     v->touchDown =     view_touchDownDefault_;
     v->touchDrag =     view_touchDragDefault_;
     v->touchUp =       view_touchUpDefault_;
-    // (Les autres methodes sont laissee a NULL par defaut.)
-    return v;
 }
+
 View* node_asViewOpt(Node* n) {
     if(n->_type & node_type_flag_view)
         return (View*)n;

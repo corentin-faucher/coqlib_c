@@ -9,6 +9,7 @@
 #define COQ_UTIL_CHAR_AND_KEYCODES_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define CHARACTER_MAX_SIZE 7
 /// Structure (union) pour mini-string, i.e. typiquement un char utf8.
@@ -35,11 +36,14 @@ enum {
 };
 
 /** Les char spéciaux et "importans" */
+extern const Character spchar_null; // = {0}
 extern const Character spchar_delete; // = "\u{8}"
 extern const Character spchar_deleteSymbol; // = "␈"
+extern const Character spchar_questionMark; // "?" 
 extern const Character spchar_tab; // = "\t"
 extern const Character spchar_tabSymbol; // = "␉"
 extern const Character spchar_return_; // = "\r"
+extern const Character spchar_newline_;// = "\n"
 extern const Character spchar_returnSymbol; // = "␍"
 extern const Character spchar_space; // = " "
 extern const Character spchar_spaceSymbol; // = "␠"
@@ -48,6 +52,7 @@ extern const Character spchar_spaceIdeographic; // = "　"
 extern const Character spchar_spaceThin; // = "\u{2009}"
 extern const Character spchar_bottomBracket; // = "⎵"
 extern const Character spchar_underscore; // = "_"
+extern const Character spchar_overline;//  = "‾" 
 extern const Character spchar_openBox; // = "␣"
 extern const Character spchar_interpunct; // = "·"
 extern const Character spchar_dot; // = "•"
@@ -57,6 +62,20 @@ extern const Character spchar_dodo; // = "🦤"
 // Pour le upper/lower, on ne fait que scanner la liste pour l'instant. (Besoin de hash map ?)
 Character const character_upperCased(Character c, unsigned character_type);
 Character const character_lowerCased(Character c, unsigned character_type);
+
+bool character_isSpace(Character c);
+bool character_isPunct(Character c);
+/// Character qui termine un mot (pour détection de fin de ligne)
+bool character_isWordFinal(Character c);
+bool character_isEndLine(Character c);
+
+#pragma mark -- Liste de caractères --------------------------------
+typedef struct  CharacterArray CharacterArray;
+CharacterArray* CharacterArray_createFromString(const char* string);
+size_t          characterarray_count(const CharacterArray* charArr);
+Character const* characterarray_first(const CharacterArray* charArray);
+Character const* characterarray_end(const CharacterArray* charArray);
+
 
 #pragma mark -- Keycodes (dépend du système)--------------------------------
 
@@ -203,10 +222,23 @@ enum {
     // 24...34 -> ligne de A à '
     // 35...44 -> ligne de Z à /
     // 45...51 -> ANSI_Grave, ISO_Section, JIS_Underscore, JIS_Yen, ANSI_Backslash, ISO_Backslash, Space.
+    // Touches usuelles (racourcis...) :
+    mkc_Q = 12,
+    mkc_W = 13,
+    mkc_E = 14,
+    mkc_R = 15,
+    mkc_A = 24,
+    mkc_S = 25,
+    mkc_D = 26,
+    mkc_F = 27,
+    mkc_Z = 35,
+    mkc_X = 36,
+    mkc_C = 37,
+    mkc_V = 38,
     mkc_space = 51,  // Dernier keycode "standard".
     
     // Keycodes spéciaux ayant une string associable
-    mkc_delete = 52,
+    mkc_backspace = 52,
     mkc_return_ = 53,
     mkc_tab = 54,
     

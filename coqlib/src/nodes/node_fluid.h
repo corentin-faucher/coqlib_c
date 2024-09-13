@@ -61,6 +61,9 @@ typedef struct PopingInfo {
     float gammaPos,   kPos;
     float gammaScale, kScale;
 } PopingInfo;
+/// PopingInfo par défaut, grossi et va vers le haut de +1.
+extern const PopingInfo popinginfo_default;
+extern const PopingInfo popinginfo_zeros;
 
 /// Applique un effet d'apparition. *Non compatible avec les `flags_fluidOpen` et `flags_fluidClose`*,
 /// i.e. Soit on utilise le fluid pour setter relativement, soint on l'utilies pour l'effet `poping`.

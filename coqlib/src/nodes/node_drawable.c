@@ -19,19 +19,20 @@
 static Drawable* drawable_last_ = NULL;
 
 /// Mise à jour ordinaire de la matrice modèle pour un drawable.
-Drawable* drawable_updateModel_(Node* const n) {
+void drawable_updateModel_(Node* const n) {
     Drawable* d = (Drawable*)n;
-    float show = smtrans_setAndGetIsOnSmooth(&d->trShow, (d->n.flags & flag_show) != 0);
+    float show = smtrans_setAndGetValue(&d->trShow, (d->n.flags & flag_show) != 0);
     // Rien à afficher...
-    if(show < 0.001f)
-        return NULL;
-    const Node* const parent = n->_parent;
-    if(!parent) { printwarning("Drawable without parent."); return NULL; }
-    const Matrix4* const pm = &parent->_piu.model;
-    d->n._piu.show = show;
+    if(show < 0.001f) {
+        n->flags &= ~flag_drawableActive;
+        return;
+    }
+    n->flags |= flag_drawableActive; 
+    const Matrix4* const pm = node_parentModel(n);
+    d->n._iu.show = show;
     if((d->n.flags & flag_poping) == 0)
         show = 1.f;
-    Matrix4* m = &n->_piu.model;
+    Matrix4* m = &n->model; // même chose que d->n._iu.model...
     Vector3 pos = node_pos(n);
     Vector2 scl = node_scales(n);
     m->v0.v = pm->v0.v * scl.x * show;
@@ -43,146 +44,68 @@ Drawable* drawable_updateModel_(Node* const n) {
         pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y + pm->v2.z * pos.z,
         pm->v3.w,
     }};
-    return d;
 }
+void (*Drawable_defaultUpdateModel)(Node*) = drawable_updateModel_; 
 
-Drawable* (*Drawable_defaultUpdateModel)(Node*) = drawable_updateModel_; 
-
-void     drawable_deinit_(Node* nd){
+#pragma mark -- Init/constructors ---------------------------------------
+void      drawable_deinit_(Node* nd){
     Drawable* d = (Drawable*)nd;
-    if(!mesh_isShared(d->_mesh))
-        mesh_destroyAndNull(&d->_mesh);
+    if(!d->_mesh->isShared) {
+        mesh_deinit(d->_mesh);
+        coq_free(d->_mesh);
+        d->_mesh = NULL;
+    }
     textureref_releaseAndNull_(&d->_tex);
 }
-void     drawable_updateDims__(Drawable* const d) {
-    // 1. Delta Y : On a h * sy = 2*Dy.
-    float beta = d->_tex->beta;
-    d->n.sy = d->_twoDyTarget / beta;
-    d->n.h  = beta;
-    
-    // 2. Delta X... Ici, il faut faire un dessin...
-    float alpha = d->_tex->alpha;
-    // Largeur a priori (prise du ratio de la texture).
-    float sx = d->n.sy * d->_tex->ratio;
-    // Largeur supplementaire (peut être négative)
-    float extra_x = d->_xMargin * d->_twoDyTarget;
-    // Si on fixe la largeur (largeur custom avec marges)
-    if(d->_twoDxTarget > 0.f) {
-        float sxCustom = fmaxf((d->_twoDxTarget - extra_x) / alpha, 0.f);
-        if(d->n.flags & flag_drawableDontRespectRatio)
-            sx = sxCustom; // Fixer direct sans tenir compte du ratio.
-        else if((sxCustom > 0.01f*d->_twoDyTarget) && (sxCustom < sx))
-            sx = sxCustom; // Fixer pour plafonner la largeur a priori.
-    }
-    d->n.sx = sx;
-    d->n.w = fmaxf(alpha + extra_x/sx, 0.01f);
-    // (car 2dx = w*sx, sx = (2dx - e)/alpha... voir dessin.)
-    
-    // 3. Ajuster le bigbro frame (si besoin)
-    Node* bigbro = d->n._bigBro;
-    if((d->n.flags & flag_giveSizeToBigbroFrame) && bigbro)
-        node_tryUpdatingAsFrameOfBro(bigbro, &d->n);
-    // 4. Donner les dimensions au parent (si besoin)
-    Node* parent = d->n._parent;
-    if((d->n.flags & flag_giveSizeToParent) && parent) {
-        parent->w = node_deltaX(&d->n) * 2.f; // A été ajusté...
-        parent->h = d->_twoDyTarget;           // (Constant)
-        if(parent->reshapeOpt)
-            parent->reshapeOpt(parent);
-    }
-}
-void     drawable_init_(Drawable* const d, Texture* const tex, Mesh* const mesh, 
-                        float const twoDxOpt, float const twoDy, float const xMargin) {
+void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh, 
+                        float const twoDxOpt, float const twoDy) {
+    if(tex == NULL) {printerror("No texture."); tex = Texture_white; }
+    if(mesh == NULL) { printwarning("No mesh."); mesh = mesh_sprite; }
     // Init
     smtrans_init(&d->trShow);
     smtrans_init(&d->trExtra);
     d->_tex = tex;
     d->_mesh = mesh;
-    d->_twoDxTarget = twoDxOpt; d->_twoDyTarget = twoDy;
-    d->_xMargin = xMargin;
     // Override de l'update de la matrice model.
     d->n.updateModel = Drawable_defaultUpdateModel;
     d->n.deinitOpt =   drawable_deinit_;
-    d->n._piu.uvRect = (Rectangle) { 0.f, 0.f, 
-        1.f / (float)umaxu(tex->m, 1), 1.f / (float)umaxu(tex->n, 1)};
+    d->n._iu.color =   color4_white;
+    d->n._iu.uvRect = (Rectangle) { .size = texture_tileDuDv(tex) };
     drawable_last_ = d;
     // Set des dimensions...
-    drawable_updateDims__(d);
-}
-__attribute__((deprecated("utiliser `coq_calloc` + `node_init_` + `drawable_init_`.")))
-Drawable* Drawable_createImageGeneral(Node* const refOpt,
-                          Texture* tex, Mesh* const mesh,
-                          float x, float y, float twoDxOpt, float twoDy, float x_margin,
-                          flag_t flags, uint8_t node_place) {
-    Drawable *d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, node_place);
-    if(!(tex->flags & tex_flag_png)) {
-        printerror("Not a png."); tex = Texture_sharedImageByName("coqlib_the_cat");
-    }
-    drawable_init_(d, tex, mesh, twoDxOpt, twoDy, x_margin);
-    return d;
-}
-Drawable* Drawable_createString(Node* const refOpt, StringDrawable const str,
-                   float x, float y, float maxTwoDxOpt, float twoDy,
-                   flag_t flags, uint8_t node_place) {
-    if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
-    Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, node_place);
-    drawable_init_(d, Texture_retainString(str), mesh_sprite, maxTwoDxOpt, twoDy, str.x_margin);
-    return d;
-}
-void     drawable_updateAsMutableString(Drawable* d, const char* new_c_str, bool forceRedraw) {
-    texture_updateMutableString(d->_tex, new_c_str, forceRedraw);
-    drawable_updateDims__(d);
-}
-void     drawable_updateAsSharedString(Drawable* d, StringDrawable const str) {
-    textureref_exchangeSharedStringFor(&d->_tex, str);
-    drawable_updateDims__(d);
-}
-void      drawable_updateTargetDims(Drawable* d, float newTwoDxOpt, float newTwoDy, float newXMargin) {
-    d->_twoDxTarget = newTwoDxOpt;
-    d->_twoDyTarget = newTwoDy;
-    d->_xMargin = newXMargin;
-    drawable_updateDims__(d);
+    d->n.w = 1; d->n.h = 1;
+    d->n.sy = twoDy;
+    if(twoDxOpt)
+        d->n.sx = twoDxOpt;
+    else {
+        d->n.sx = twoDy * texture_tileRatio(tex);
+   }
 }
 Drawable* Drawable_createImage(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
-    Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, 0);
-    drawable_init_(d, Texture_sharedImage(pngId), mesh_sprite, 0, twoDy, 0);
+    Drawable* d = coq_callocTyped(Drawable);
+    node_init(&d->n, refOpt, x, y, 1, 1, node_type_n_drawable, flags, 0);
+    drawable_init(d, Texture_sharedImage(pngId), mesh_sprite, 0, twoDy);
     return d;
 }
-Drawable* Drawable_createImageWithFixedWidth(Node* const refOpt, uint32_t pngId,
+Drawable* Drawable_createImageWithWidth(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDx, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL)
         printerror("Missing Mesh_init().");
-    Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags|flag_drawableDontRespectRatio, 0);
-    drawable_init_(d, Texture_sharedImage(pngId), mesh_sprite, twoDx, twoDy, 0);
+    Drawable* d = coq_callocTyped(Drawable);
+    node_init(&d->n, refOpt, x, y, 1, 1, node_type_n_drawable, flags, 0);
+    drawable_init(d, Texture_sharedImage(pngId), mesh_sprite, twoDx, twoDy);
     return d;
 }
 Drawable* Drawable_createImageWithName(Node* const refOpt, const char* pngName,
                           float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
-    Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, 0);
-    drawable_init_(d, Texture_sharedImageByName(pngName), mesh_sprite, 0, twoDy, 0);
+    Drawable* d = coq_callocTyped(Drawable);
+    node_init(&d->n, refOpt, x, y, 1, 1, node_type_n_drawable, flags, 0);
+    drawable_init(d, Texture_sharedImageByName(pngName), mesh_sprite, 0, twoDy);
     return d;
 }
-void      drawable_updatePngId(Drawable* d, uint32_t newPngId, bool updateDims) {
-    if(!(d->_tex->flags & tex_flag_png)) {
-        printerror("Not a png.");
-        return;
-    }
-    // (Pour les png c'est safe de changer d'un coup. L'ancienne comme la nouvelle texture sont valide.)
-    d->_tex = Texture_sharedImage(newPngId);
-    d->n._piu.uvRect.size = (Vector2) { 1.f / (float)umaxu(d->_tex->m, 1),
-                                        1.f / (float)umaxu(d->_tex->n, 1) };
-    if(updateDims)
-        drawable_updateDims__(d);
-}
-
 void      drawable_open_imagelanguage_(Node* nd) {
     Drawable* d = (Drawable*)nd;
     drawable_setTile(d, Language_current(), 0);
@@ -190,54 +113,103 @@ void      drawable_open_imagelanguage_(Node* nd) {
 Drawable* Drawable_createImageLanguage(Node* refOpt, uint32_t pngId,
                                        float x, float y, float twoDy, flag_t flags) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
-    Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, 0);
-    drawable_init_(d, Texture_sharedImage(pngId), mesh_sprite, 0, twoDy, 0);
+    Drawable* d = coq_callocTyped(Drawable);
+    node_init(&d->n, refOpt, x, y, 1, 1, node_type_n_drawable, flags, 0);
+    drawable_init(d, Texture_sharedImage(pngId), mesh_sprite, 0, twoDy);
     d->n.openOpt = drawable_open_imagelanguage_;
     return d;
 }
 Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
                                float x, float y, float twoDx, float twoDy) {
     if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
-    Drawable* d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flag_drawableDontRespectRatio, 0);
-    drawable_init_(d, texture_white, mesh_sprite, twoDx, twoDy, 0);
-    d->n._piu.color = color;
+    Drawable* d = coq_callocTyped(Drawable);
+    node_init(&d->n, refOpt, x, y, 1, 1, node_type_n_drawable, 0, 0);
+    drawable_init(d, Texture_white, mesh_sprite, twoDx, twoDy);
+    d->n._iu.color = color;
     return d;
 }
+Drawable* Drawable_createTestFrame(Node* parent, float x, float y, float twoDx, float twoDy) {
+    if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
+    Drawable *d = coq_callocTyped(Drawable);
+    node_init(&d->n, parent, x, y, 1, 1, node_type_n_drawable, 0, 0);
+    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), mesh_sprite, twoDx, twoDy);
+    return d;
+}
+void      drawable_open_testframe_getSizesOfParent_(Node* nd) {
+    Drawable* d = (Drawable*)nd;
+    Node* p = nd->_parent;
+    if(!p) { printerror("No parent."); return; }
+    d->n.w = 1.f;   d->n.h = 1.f;
+    d->n.sx = p->w; d->n.sy = p->h;
+}
+void      node_tryToAddTestFrame(Node* ref) {
+#ifdef DEBUG
+    if(mesh_sprite == NULL) { printerror("Missing Mesh_init()."); return; }
+    if(!ref) { printerror("No parent."); return; }
+    Drawable *d = coq_callocTyped(Drawable);
+    node_init(&d->n, ref, 0, 0, 1, 1, node_type_n_drawable, flag_notToAlign, 0);
+    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), mesh_sprite, 1, 1);
+    d->n.openOpt = drawable_open_testframe_getSizesOfParent_;
+    if(ref->reshapeOpt) {
+        ref->flags |= flag_parentOfReshapable;
+        d->n.reshapeOpt = drawable_open_testframe_getSizesOfParent_;
+    }
+#endif
+}
+void      node_last_tryToAddTestFrame(void) {
+    node_tryToAddTestFrame(node_last_nonDrawable);
+}
 
-Drawable* node_asDrawableOpt(Node* nd) {
-    if(nd->_type & node_type_flag_drawable) return (Drawable*)nd;
+#pragma mark - Methods ----------------------------
+void      drawable_changeMeshTo(Drawable* d, Mesh* newMesh) {
+    if(!d->_mesh->isShared) {
+        mesh_deinit(d->_mesh);
+        coq_free(d->_mesh);
+    }
+    d->_mesh = newMesh;
+}
+void      drawable_updatePngId(Drawable* const d, uint32_t const newPngId, bool const updateDims) {
+    textureref_releaseAndNull_(&d->_tex);
+    d->_tex = Texture_sharedImage(newPngId);
+    if(updateDims) {
+        d->n._iu.uvRect.size = texture_tileDuDv(d->_tex);
+        d->n.sx = d->n.sy * texture_tileRatio(d->_tex);;
+    }
+}
+Drawable* node_asDrawableOpt(Node* const nOpt) {
+    if(!nOpt) return NULL;
+    if(nOpt->_type & node_type_flag_drawable) return (Drawable*)nOpt;
     return NULL;
 }
-void  drawableref_fastDestroyAndNull(Drawable** const drawableOptRef) {
-    if(*drawableOptRef == NULL) return;
-    node_tree_throwToGarbage(&(*drawableOptRef)->n);
+void      drawableref_fastDestroyAndNull(Drawable** const drawableOptRef) {
+    Drawable* const toDelete = *drawableOptRef;
+    if(toDelete == NULL) return;
     *drawableOptRef = NULL;
-}
-int       node_isDisplayActive(Node* const node) {
-    if(node->_type & node_type_flag_drawable) {
-        return smtrans_isActive(((Drawable*)node)->trShow);
+    if(toDelete->n.flags & (flag_toDelete_|flag_toDeleteScheduled_)) {
+        printwarning("Already to delete."); 
+        return;
     }
-    return node->flags & (flag_show|flag_parentOfToDisplay);
+    node_throwToGarbage_callback_(toDelete);
 }
 
-
-/*-- Setters --------------------------------------------------------------------*/
+#pragma mark -- Setters -----------------------------------------------
 void      drawable_setTile(Drawable *d, uint32_t i, uint32_t j) {
-    d->n._piu.uvRect.origin = (Vector2) {
-        (float)( i % d->_tex->m)                   * d->n._piu.uvRect.size.w,
-        (float)((j + i / d->_tex->m) % d->_tex->n) * d->n._piu.uvRect.size.h
+    d->n._iu.uvRect.origin = (Vector2) {
+        (float)( i % d->_tex->m)                   * d->n._iu.uvRect.w,
+        (float)((j + i / d->_tex->m) % d->_tex->n) * d->n._iu.uvRect.h
     };
 }
 void      drawable_setTileI(Drawable *d, uint32_t i) {
-    d->n._piu.uvRect.o_x = (float)( i % d->_tex->m) * d->n._piu.uvRect.size.w;
+    d->n._iu.uvRect.o_x = (float)( i % d->_tex->m) * d->n._iu.uvRect.w;
 }
 void      drawable_setTileJ(Drawable *d, uint32_t j) {
-    d->n._piu.uvRect.o_y = (float)( j % d->_tex->n) * d->n._piu.uvRect.size.h;
+    d->n._iu.uvRect.o_y = (float)( j % d->_tex->n) * d->n._iu.uvRect.h;
 }
-void      drawable_setTileFull(Drawable *d, InstanceTile const tile) {
-    d->n._piu.uvRect = instancetile_toUVRectangle(tile, d->_tex->m, d->_tex->n);
+void      drawable_setUVRect(Drawable* d, Rectangle const uvrect, bool checkRatio) {
+    d->n._iu.uvRect = uvrect;
+    if(checkRatio) {
+        d->n.sx = d->n.sy * d->_tex->width / d->_tex->height * uvrect.w / uvrect.h;
+    }
 }
 void      drawable_last_setTile(uint32_t i, uint32_t j) {
     if(drawable_last_ == NULL) {
@@ -246,14 +218,14 @@ void      drawable_last_setTile(uint32_t i, uint32_t j) {
     }
     uint32_t m = drawable_last_->_tex->m;
     uint32_t n = drawable_last_->_tex->n;
-    drawable_last_->n._piu.uvRect.origin = (Vector2) {
-        (float)( i % m)          * drawable_last_->n._piu.uvRect.size.w,
-        (float)((j + i / m) % n) * drawable_last_->n._piu.uvRect.size.h
+    drawable_last_->n._iu.uvRect.origin = (Vector2) {
+        (float)( i % m)          * drawable_last_->n._iu.uvRect.w,
+        (float)((j + i / m) % n) * drawable_last_->n._iu.uvRect.h
     };
 }
 void      drawable_last_setEmph(float emph) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }
-    drawable_last_->n._piu.emph = emph;
+    drawable_last_->n._iu.extra1 = emph;
 }
 void      drawable_last_setShowOptions(bool isHard, bool isPoping) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }
@@ -261,37 +233,81 @@ void      drawable_last_setShowOptions(bool isHard, bool isPoping) {
 }
 void      drawable_last_setColor(Vector4 color) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }
-    drawable_last_->n._piu.color = color;
+    drawable_last_->n._iu.color = color;
 }
 
 
-/*-- Surface pour visualiser les dimension d'un noeud. (debug only) --*/
-void   drawable_open_testframe_getSizesOfParent_(Node* nd) {
-    Drawable* d = (Drawable*)nd;
-    Node* p = nd->_parent;
-    if(!p) { printerror("No parent."); return; }
-    d->n.w = 1.f;   d->n.h = 1.f;
-    d->n.sx = p->w; d->n.sy = p->h;
-}
-void   node_tryToAddTestFrame(Node* ref) {
-#ifdef DEBUG
-    if(mesh_sprite == NULL) { printerror("Missing Mesh_init()."); return; }
-    if(!ref) { printerror("No parent."); return; }
-    Drawable *d = coq_calloc(1, sizeof(Drawable));
-    node_init_(&d->n, ref, 0, 0, 1, 1, node_type_n_drawable, flag_notToAlign, 0);
-    drawable_init_(d, Texture_sharedImageByName("coqlib_test_frame"), mesh_sprite, 1, 1, 0);
-    d->n.openOpt = drawable_open_testframe_getSizesOfParent_;
-    if(ref->reshapeOpt) {
-        ref->flags |= flag_parentOfReshapable;
-        d->n.reshapeOpt = drawable_open_testframe_getSizesOfParent_;
-    }
-#endif
-}
-void   node_last_tryToAddTestFrame(void) {
-    node_tryToAddTestFrame(node_last_nonDrawable);
-}
-
-/*-- Surface "Fan" (un rond). Utile ? -------------------------------------------------------*/
+// GARBAGE
+//Drawable* Drawable_createString(Node* const refOpt, StringDrawable const str,
+//                   float x, float y, float maxTwoDxOpt, float twoDy,
+//                   flag_t flags, uint8_t node_place) {
+//    if(mesh_sprite == NULL) printerror("Missing Mesh_init().");
+//    Drawable* d = coq_callocTyped(Drawable);
+//    node_init(&d->n, refOpt, x, y, twoDy, twoDy, node_type_n_drawable, flags, node_place);
+//    drawable_init_(d, Texture_retainString(str), mesh_sprite, maxTwoDxOpt, twoDy, str.x_margin);
+//    return d;
+//}
+//void     drawable_updateAsMutableString(Drawable* d, const char* new_c_str, bool forceRedraw) {
+//    texture_updateMutableString(d->_tex, new_c_str, forceRedraw);
+//    drawable_string_setDims_(d);
+//}
+//void     drawable_updateAsSharedString(Drawable* d, StringDrawable const str) {
+//    textureref_exchangeSharedStringFor(&d->_tex, str);
+//    drawable_string_setDims_(d);
+//}
+//void     drawable_string_setDims_(Drawable* const d) {
+//    if(!(d->_tex->flags & tex_flag_string)) { printerror("Not a string drawable."); return; }
+//    // 1. Delta Y : On a h * sy = 2*Dy.
+//    float const beta = d->_tex->beta;
+//    d->n.sy = d->_twoDyTarget / beta;
+//    d->n.h  = beta;
+//    
+//    // 2. Delta X... Ici, il faut faire un dessin...
+//    float const alpha = d->_tex->alpha;
+//    // Largeur a priori (prise du ratio de la texture).
+//    float sx = d->n.sy * d->_tex->ratio;
+//    // Si on fixe la largeur (largeur custom avec marges)
+//    if(d->_twoDxTarget > 0.f) {
+//        float sxCustom = fmaxf((d->_twoDxTarget) / alpha, 0.f);
+//        if((sxCustom > 0.01f*d->_twoDyTarget) && (sxCustom < sx))
+//            sx = sxCustom; // (Fixer pour plafonner à la largeur a priori.)
+//    }
+//    d->n.sx = sx;
+//    d->n.w = fmaxf(alpha, 0.01f);
+//    // (car 2dx = w*sx, sx = (2dx - e)/alpha... voir dessin.)
+//    
+//    // 3. Ajuster le bigbro frame (si besoin)
+//    Node* bigbro = d->n._bigBro;
+//    if((d->n.flags & flag_giveSizeToBigbroFrame) && bigbro)
+//        node_tryUpdatingAsFrameOfBro(bigbro, &d->n);
+//    // 4. Donner les dimensions au parent (si besoin)
+//    Node* parent = d->n._parent;
+//    if((d->n.flags & flag_giveSizeToParent) && parent) {
+//        parent->w = node_deltaX(&d->n) * 2.f; // A été ajusté...
+//        parent->h = d->_twoDyTarget;           // (Constant)
+//        if(parent->reshapeOpt)
+//            parent->reshapeOpt(parent);
+//    }
+//} 
+//void     drawable_image_setDims_(Drawable* const d) {
+//    if(!(d->_tex->flags & tex_flag_png)) { printerror("Not a png image."); return; }
+//    d->n.sy = d->_twoDyTarget;
+//    d->n.w = 1; d->n.h = 1;
+//    if(d->_twoDxTarget)
+//        d->n.sx = d->_twoDxTarget;
+//    else {
+//        d->n.sx = d->_tex->ratio * d->n._iu.uvRect.w / d->n._iu.uvRect.h * d->_twoDyTarget;
+//   }
+//}
+//void      drawable_updateTargetDims(Drawable* d, float newTwoDxOpt, float newTwoDy, float newXMargin) {
+//    d->_twoDxTarget = newTwoDxOpt;
+//    d->_twoDyTarget = newTwoDy;
+//    d->_xMargin = newXMargin;
+//    if(d->_tex->flags & tex_flag_png)
+//        drawable_image_setDims_(d);
+//    else if(d->_tex->flags & tex_flag_string)
+//        drawable_string_setDims_(d);
+//}
 //Drawable* Drawable_createFan(Node* const refOpt, uint32_t pngId,
 //                             float x, float y, float twoDy,
 //                             flag_t flags, uint8_t node_place) {
@@ -304,4 +320,3 @@ void   node_last_tryToAddTestFrame(void) {
 //    d->n.sx = twoDy;   d->n.sy = twoDy;
 //    return d;
 //}
-

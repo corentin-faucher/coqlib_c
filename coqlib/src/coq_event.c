@@ -47,15 +47,15 @@ void  CoqEvent_processEvents(Root* root) {
             } break;
             case event_type_touch_down: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchDown(viewActive, event_todo_->touch_pos); 
+                if(viewActive) viewActive->touchDown(viewActive, event_todo_->touch_pos, event_todo_->touch_id); 
             } break;
             case event_type_touch_drag: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchDrag(viewActive, event_todo_->touch_pos);
+                if(viewActive) viewActive->touchDrag(viewActive, event_todo_->touch_pos, event_todo_->touch_id);
             } break;
             case event_type_touch_up: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchUp(viewActive);
+                if(viewActive) viewActive->touchUp(viewActive, event_todo_->touch_id);
             } break;
             case event_type_scroll: {
                 SlidingMenu* sm = (SlidingMenu*)node_tree_searchFirstOfTypeInBranchOpt(&root->n, 
@@ -64,7 +64,7 @@ void  CoqEvent_processEvents(Root* root) {
                 ScrollInfo info = event_todo_->scroll_info;
                 switch(event_todo_->scroll_info.scrollType) {
                     case scroll_type_scroll:
-                        slidingmenu_scroll(sm, info.scroll_deltas.y > 0); break;
+                        slidingmenu_scroll(sm, info.scroll_deltas.y > 0 ? 1 : -1); break;
                     case scroll_type_trackBegin:
                         slidingmenu_trackPadScrollBegan(sm); break;
                     case scroll_type_track:
@@ -95,7 +95,7 @@ void  CoqEvent_processEvents(Root* root) {
                     SlidingMenu* sm = (SlidingMenu*)node_tree_searchFirstOfTypeInBranchOpt(&root->n, 
                                              node_type_flag_scrollable, flag_parentOfScrollable);
                     if(sm) {
-                        slidingmenu_scroll(sm, key.keycode == keycode_arrowUp);
+                        slidingmenu_scroll(sm, key.keycode == keycode_arrowUp ? 1 : -1);
                         break;
                     }
                 }

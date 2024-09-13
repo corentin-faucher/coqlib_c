@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-15.
 //
 
-#ifndef _coq_node_root_h
-#define _coq_node_root_h
+#ifndef coq_node_root_h
+#define coq_node_root_h
 
 #include "../coq_event.h"
 #include "../maths/math_camera.h"
@@ -39,6 +39,8 @@ typedef struct coq_Root {
   Camera camera;
   /// Couleur du fond (clearColor)
   FluidPos back_RGBA[4];
+  /// Lumière ambiante (entre 0 et 1)
+  FluidPos ambiantLight;
   /// Les vues importantes : la vue présentement active, le "backscreen" et le
   /// "frontscreen".
   View *viewActiveOpt;
@@ -56,6 +58,7 @@ typedef struct coq_Root {
   void (*resizeOpt)(Root *, ResizeInfo);
   void (*resumeAfterMSOpt)(Root *, int64_t);
   //    void        (*willTerminateOpt)(Root*);  // Utile ?
+  Timer* _timer;
 } Root;
 
 /// A priori une root est à `parent = NULL`, pas de parents.
@@ -63,7 +66,7 @@ typedef struct coq_Root {
 /// dans ce cas il faut fournir la root absolue `parentRoot`.
 void root_init(Root *root, Root *parentRootOpt);
 /// Downcasting.
-Root *node_asRootOpt(Node *n);
+Root *node_asRootOpt(Node *nOpt);
 
 void root_changeViewActiveTo(Root *rt, View *newViewOpt);
 /// Resize de la window.view.
@@ -87,6 +90,6 @@ Vector2 root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY);
 
 /// Init/update la matrice de projection avec le frame de la root (perspective
 /// matrix).
-void matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt);
+//void matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt);
 
 #endif /* node_root_h */

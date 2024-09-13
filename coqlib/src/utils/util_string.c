@@ -78,6 +78,14 @@ void   charRef_moveToNextUTF8Char(char** const ref) {
         (*ref)++;
     }
 }
+void   charconstRef_moveToNextUTF8Char(char const** const ref) {
+    // Aller au next a priori.
+    (*ref)++;
+    // Se deplacer encore si on est sur byte "extra", i.e. avec 10xx xxxx.
+    while((**ref & 0xC0) == 0x80) {
+        (*ref)++;
+    }
+}
 void   charRef_moveToPreviousUTF8Char(char** const ref) {
     // Aller au previous a priori.
     (*ref)--;

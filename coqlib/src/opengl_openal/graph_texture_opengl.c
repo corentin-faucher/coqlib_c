@@ -139,11 +139,11 @@ void  texture_engine_tryToLoadAsPng_(Texture* tex, bool const isMini) {
     SDL_UnlockSurface(sdl_surf);
 
     // Mettre à jour les info de la texture.
-        tex->_width =  sdl_surf->w;
-        tex->_height = sdl_surf->h;
+        tex->sizes.w = sdl_surf->w;
+        tex->sizes.h = sdl_surf->h;
         SDL_FreeSurface(sdl_surf);
     }
-    tex->ratio = (float)tex->_width / (float)tex->_height * (float)tex->n / (float)tex->m;
+    tex->ratio = (float)tex->sizes.w / (float)tex->sizes.h * (float)tex->n / (float)tex->m;
     tex->flags |= isMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
 }
 void           texture_engine_loadWithPixels_(Texture* tex, const void* pixelsBGRA8, uint32_t width, uint32_t height) {
@@ -159,14 +159,14 @@ void           texture_engine_loadWithPixels_(Texture* tex, const void* pixelsBG
                  
     tex->flags |= tex_flag_fullyDrawn_;
     // Mise à jour des dimensions
-    tex->_width = width;
-    tex->_height = height;
+    tex->sizes.w = (float)width;
+    tex->sizes.h = (float)height;
     tex->ratio = (float)width / (float)height 
                  * (float)tex->n / (float)tex->m;
 }
 void           texture_engine_updatePixels(Texture* tex, const void* pixelsBGRA8) {
     glBindTexture(GL_TEXTURE_2D, tex->glTexId);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, tex->_width, tex->_height, GL_BGRA, GL_UNSIGNED_BYTE, pixelsBGRA8);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, (int)tex->sizes.w, (int)tex->sizes.h, GL_BGRA, GL_UNSIGNED_BYTE, pixelsBGRA8);
 }
 void  texture_engine_tryToLoadAsString_(Texture* tex, bool isMini) {
     if(!(tex->flags & tex_flag_string)) {
@@ -186,8 +186,7 @@ void  texture_engine_tryToLoadAsString_(Texture* tex, bool isMini) {
     }
     tex->flags |= isMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
     // Mise à jour des dimensions
-    tex->_width =  sizes.w;
-    tex->_height = sizes.h;
+    tex->sizes = sizes;
     tex->ratio = sizes.w / sizes.h * (float)tex->n / (float)tex->m;
     tex->alpha = 1.f;
     tex->beta = 1.f;

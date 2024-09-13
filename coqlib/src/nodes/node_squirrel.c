@@ -45,14 +45,16 @@ void sq_initWithRelPos(Squirrel *const sq, Node *const ref, const Vector2 vRel,
   }
 }
 bool sq_isIn(Squirrel *sq) {
-  return fabsf(sq->v.x - sq->pos->pos.x) <= node_deltaX(sq->pos) &&
-         fabsf(sq->v.y - sq->pos->pos.y) <= node_deltaY(sq->pos);
+  return fabsf(sq->v.x - sq->pos->x) <= node_deltaX(sq->pos) &&
+         fabsf(sq->v.y - sq->pos->y) <= node_deltaY(sq->pos);
 }
 bool sq_goRight(Squirrel *sq) {
-  if (sq->pos->_littleBro == NULL)
-    return false;
-  sq->pos = sq->pos->_littleBro;
-  return true;
+  Node* const bro = sq->pos->_littleBro;
+  if (bro) {
+    sq->pos = bro;
+    return true;
+  }
+  return false;
 }
 bool sq_goRightLoop(Squirrel *sq) {
   if (sq->pos->_littleBro != NULL) {
@@ -113,10 +115,12 @@ bool sq_goLeftWithout(Squirrel *sq, flag_t flag) {
   return true;
 }
 bool sq_goDown(Squirrel *sq) {
-  if (sq->pos->_firstChild == NULL)
-    return false;
-  sq->pos = sq->pos->_firstChild;
-  return true;
+  Node* const child = sq->pos->_firstChild;
+  if(child) {
+    sq->pos = child;
+    return true;
+  }
+  return false;
 }
 void sq_goDownForced(Squirrel *sq, Node *(*createNew)(void *), void *parOpt) {
   if (sq->pos->_firstChild != NULL) {
@@ -172,10 +176,12 @@ bool sq_goDownPS(Squirrel *sq) {
   return true;
 }
 bool sq_goUp(Squirrel *sq) {
-  if (sq->pos->_parent == NULL)
-    return false;
-  sq->pos = sq->pos->_parent;
-  return true;
+  Node* const parent = sq->pos->_parent;
+  if(parent) {
+    sq->pos = parent;
+    return true;
+  }
+  return false;
 }
 bool sq_goUpP(Squirrel *sq) {
   if (sq->pos->_parent == NULL)
@@ -210,17 +216,17 @@ bool sq_goToNext(Squirrel *sq) {
 }
 bool sq_goToNextToDisplay(Squirrel *sq) {
   // 1. Aller en profondeur, pause si branche à afficher.
-  if (sq->pos->_firstChild &&
-      (sq->pos->flags & (flag_show | flag_parentOfToDisplay))) {
-    sq->pos->flags &= ~flag_parentOfToDisplay;
+  if (sq->pos->_firstChild && (sq->pos->flags & (flag_show | flag_parentOfToDraw))) {
+    sq->pos->flags &= ~flag_parentOfToDraw;
     sq_goDown(sq);
     return true;
   }
   // 2. Redirection (voisin, parent).
   do {
     // Si le noeud présent est encore actif -> le parent doit l'être aussi.
-    if (node_isDisplayActive(sq->pos) && sq->pos->_parent) {
-      sq->pos->_parent->flags |= flag_parentOfToDisplay;
+    Node* const parent = sq->pos->_parent;
+    if((sq->pos->flags & (flag_show|flag_parentOfToDraw|flag_drawableActive)) && parent) {
+      parent->flags |= flag_parentOfToDraw;
     }
     if (sq_goRight(sq))
       return true;
@@ -233,12 +239,12 @@ bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq) {
   //    Node *bro = toLittle ? sq->pos->littleBro : sq->pos->bigBro;
   if (bro) {
     sq->pos = bro;
-    node_tree_throwToGarbage(toDelete);
+    node_throwToGarbage_callback_(toDelete);
     return true;
   }
   if (sq->pos->_parent) {
     sq->pos = sq->pos->_parent;
-    node_tree_throwToGarbage(toDelete);
+    node_throwToGarbage_callback_(toDelete);
     return false;
   }
   printerror("Ne peut deconnecter, nul part ou aller.");

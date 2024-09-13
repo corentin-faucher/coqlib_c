@@ -17,21 +17,21 @@
 #define _sm_types           0x0003
 #define _sm_flag_angle      0x0004
 
-float   _sp_getElapsedSec(FluidPos* sp) {
+float   fl_getElapsedSec_(const FluidPos* sp) {
     return (float)((uint32_t)ChronoRender_elapsedMS() - sp->_time) * 0.001f;
 }
-float   _sp_getDelta(FluidPos* sp, float elapsedSec) {
-    if((sp->_flags & _sm_types) == _sm_type_static) return 0.f;
-    if((sp->_flags & _sm_types) == _sm_type_amortiCrit)
-        return expf(-sp->_lambda * elapsedSec) * (sp->_A + sp->_B * elapsedSec);
-    if((sp->_flags & _sm_types) == _sm_type_surAmorti)
-        return sp->_A * expf(-sp->_lambda * elapsedSec)
-            + sp->_B * expf(-sp->_beta   * elapsedSec);
+float   fl_getDelta_(const FluidPos* fl, float elapsedSec) {
+    if((fl->_flags & _sm_types) == _sm_type_static) return 0.f;
+    if((fl->_flags & _sm_types) == _sm_type_amortiCrit)
+        return expf(-fl->_lambda * elapsedSec) * (fl->_A + fl->_B * elapsedSec);
+    if((fl->_flags & _sm_types) == _sm_type_surAmorti)
+        return fl->_A * expf(-fl->_lambda * elapsedSec)
+            + fl->_B * expf(-fl->_beta   * elapsedSec);
     // _sm_type_oscAmorti
-    return expf(-sp->_lambda * elapsedSec) *
-         (sp->_A * cosf(sp->_beta * elapsedSec) + sp->_B * sinf(sp->_beta * elapsedSec));
+    return expf(-fl->_lambda * elapsedSec) *
+         (fl->_A * cosf(fl->_beta * elapsedSec) + fl->_B * sinf(fl->_beta * elapsedSec));
 }
-Vector2 _sp_getDeltaAndSlope(FluidPos* fl, float elapsedSec) {
+Vector2 fl_getDeltaAndSlope_(const FluidPos* fl, float elapsedSec) {
     if((fl->_flags & _sm_types) == _sm_type_static) return vector2_zeros;
     if((fl->_flags & _sm_types) == _sm_type_amortiCrit)
         return (Vector2) {{
@@ -56,7 +56,7 @@ Vector2 _sp_getDeltaAndSlope(FluidPos* fl, float elapsedSec) {
     }};
 }
 
-void  _sp_setABT(FluidPos* fl, Vector2 ds) {
+void  fl_setABT_(FluidPos* fl, Vector2 ds) {
     switch(fl->_flags & _sm_types) {
         case _sm_type_oscAmorti:
             fl->_A = ds.x;
@@ -76,7 +76,7 @@ void  _sp_setABT(FluidPos* fl, Vector2 ds) {
     }
     fl->_time = (uint32_t)ChronoRender_elapsedMS();
 }
-void  _sp_setLambdaBetaType(FluidPos *sp, float gamma, float k) {
+void  fl_setLambdaBetaType_(FluidPos *sp, float gamma, float k) {
     sp->_flags &= ~ _sm_types;
     if(gamma == 0 && k == 0) {
         sp->_flags |= _sm_type_static;
@@ -102,12 +102,12 @@ void  _sp_setLambdaBetaType(FluidPos *sp, float gamma, float k) {
 }
 void  fl_updateToConstants(FluidPos *sp, float gamma, float k) {
     // 1. Enregistrer delta et pente avant de modifier la courbe.
-    float elapsedSec = _sp_getElapsedSec(sp);
-    Vector2 deltaSlope = _sp_getDeltaAndSlope(sp, elapsedSec);
+    float elapsedSec = fl_getElapsedSec_(sp);
+    Vector2 deltaSlope = fl_getDeltaAndSlope_(sp, elapsedSec);
     // 2. Mise à jour des paramètres de la courbe
-    _sp_setLambdaBetaType(sp, gamma, k);
+    fl_setLambdaBetaType_(sp, gamma, k);
     // 3. Réévaluer a/b pour nouveau lambda/beta et reset time.
-    _sp_setABT(sp, deltaSlope);
+    fl_setABT_(sp, deltaSlope);
 }
 void  fl_updateToLambda(FluidPos *fl, float lambda) {
     fl_updateToConstants(fl, 2*lambda, lambda * lambda);
@@ -121,7 +121,7 @@ void  fl_init(FluidPos* sp, float pos, float lambda, bool asAngle) {
     sp->_time = (uint32_t)ChronoApp_elapsedMS();
     sp->_flags = _sm_type_static | (asAngle ? _sm_flag_angle : 0);
     
-    _sp_setLambdaBetaType(sp, 2*lambda, lambda * lambda);
+    fl_setLambdaBetaType_(sp, 2*lambda, lambda * lambda);
 }
 void  fl_initGammaK(FluidPos *sp, float pos, float gamma, float k, bool asAngle) {
     if(asAngle) pos = float_toNormalizedAngle(pos);
@@ -131,15 +131,15 @@ void  fl_initGammaK(FluidPos *sp, float pos, float gamma, float k, bool asAngle)
     sp->_time = (uint32_t)ChronoApp_elapsedMS();
     sp->_flags = _sm_type_static | (asAngle ? _sm_flag_angle : 0);
     
-    _sp_setLambdaBetaType(sp, gamma, k);
+    fl_setLambdaBetaType_(sp, gamma, k);
 }
 void  fl_set(FluidPos* sp, float pos) {
-    float elapsedSec = _sp_getElapsedSec(sp);
-    Vector2 deltaSlope = _sp_getDeltaAndSlope(sp, elapsedSec);
+    float elapsedSec = fl_getElapsedSec_(sp);
+    Vector2 deltaSlope = fl_getDeltaAndSlope_(sp, elapsedSec);
     deltaSlope.x += sp->_pos - pos;
     if(sp->_flags & _sm_flag_angle)
         deltaSlope.x = float_toNormalizedAngle(deltaSlope.x);
-    _sp_setABT(sp, deltaSlope);
+    fl_setABT_(sp, deltaSlope);
     if(sp->_flags & _sm_flag_angle)
         sp->_pos = float_toNormalizedAngle(pos);
     else
@@ -207,7 +207,7 @@ void  fl_array_fix(FluidPos *sp, const float *f, size_t count) {
         f ++;
     }
 }
-void  fl_array_writeTo(FluidPos *sp, float *f, size_t count) {
+void  fl_array_writeTo(const FluidPos *sp, float *f, size_t count) {
     float *end = &f[count];
     while(f < end) {
         *f = fl_pos(sp);
@@ -215,37 +215,37 @@ void  fl_array_writeTo(FluidPos *sp, float *f, size_t count) {
         f ++;
     }
 }
-Vector2 fl_array_toVec2(FluidPos *sp) {
+Vector2 fl_array_toVec2(const FluidPos *sp) {
     return (Vector2) {{
         fl_pos(sp), fl_pos(&sp[1]),
     }};
 }
-Vector3 fl_array_toVec3(FluidPos *sp) {
+Vector3 fl_array_toVec3(const FluidPos *sp) {
     return (Vector3) {{
         fl_pos(sp), fl_pos(&sp[1]), fl_pos(&sp[2]),
     }};
 }
-Vector3 fl_array_toRealVec3(FluidPos *sp) {
+Vector3 fl_array_toRealVec3(const FluidPos *sp) {
     return (Vector3) {{
         sp[0]._pos, sp[1]._pos, sp[2]._pos,
     }};
 }
 
 // Array de 4 smpos -> Vector4 (i.e. simd_float4, 4 aligned float)
-Vector4 fl_array_toVec4(FluidPos *sp) {
+Vector4 fl_array_toVec4(const FluidPos *sp) {
     return (Vector4) {{
         fl_pos(&sp[0]), fl_pos(&sp[1]), fl_pos(&sp[2]), fl_pos(&sp[3]),
     }};
 }
 
-float fl_pos(FluidPos *sp) {
-    float elapsedSec = _sp_getElapsedSec(sp);
-    return _sp_getDelta(sp, elapsedSec) + sp->_pos;
+float   fl_pos(const FluidPos *sp) {
+    float elapsedSec = fl_getElapsedSec_(sp);
+    return fl_getDelta_(sp, elapsedSec) + sp->_pos;
 }
-float   fl_real(FluidPos *sp) {
+float   fl_real(const FluidPos *sp) {
     return sp->_pos;
 }
-bool    fl_isStatic(FluidPos *fl) {
+bool    fl_isStatic(const FluidPos *fl) {
     return (fl->_flags & _sm_types) == _sm_type_static;
 }
 
@@ -254,21 +254,21 @@ void  fld_init(FluidPosWithDrift* fld, float pos, float lambda, bool asAngle) {
     fld->drift = 0.f;
 }
 void  fld_set(FluidPosWithDrift* spd, float pos, float drift) {
-    float elapsedSec = _sp_getElapsedSec(&spd->fl);
-    Vector2 deltaSlope = _sp_getDeltaAndSlope(&spd->fl, elapsedSec);
+    float elapsedSec = fl_getElapsedSec_(&spd->fl);
+    Vector2 deltaSlope = fl_getDeltaAndSlope_(&spd->fl, elapsedSec);
     deltaSlope.x += spd->fl._pos + elapsedSec * spd->drift - pos;
     if(spd->fl._flags & _sm_flag_angle)
         deltaSlope.x = float_toNormalizedAngle(deltaSlope.x);
     deltaSlope.y += spd->drift - drift;
-    _sp_setABT(&spd->fl, deltaSlope);
+    fl_setABT_(&spd->fl, deltaSlope);
     if(spd->fl._flags & _sm_flag_angle)
         spd->fl._pos = float_toNormalizedAngle(pos);
     else
         spd->fl._pos = pos;
     spd->drift = drift;
 }
-float fld_pos(FluidPosWithDrift* spd) {
-    float elapsedSec = _sp_getElapsedSec(&spd->fl);
-    return _sp_getDelta(&spd->fl, elapsedSec)
+float fld_pos(const FluidPosWithDrift* spd) {
+    float elapsedSec = fl_getElapsedSec_(&spd->fl);
+    return fl_getDelta_(&spd->fl, elapsedSec)
         + spd->fl._pos + elapsedSec * spd->drift;
 }

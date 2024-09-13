@@ -7,7 +7,7 @@
 #import "metal_view.h"
 #include "coq_timer.h"
 #include "coq_event.h"
-
+#include "coq_utils.h"
 #include "util_apple.h"
 
 #import <CloudKit/CloudKit.h>
@@ -36,17 +36,15 @@
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device {
     self = [super initWithFrame:frameRect device:device];
-    [self setUpRendererAndNotifications];
+    [self setUpNotifications];
     return self;
 }
 - (void)awakeFromNib {
     [super awakeFromNib];
     [self setDevice:MTLCreateSystemDefaultDevice()];
-    [self setUpRendererAndNotifications];
+    [self setUpNotifications];
 }
--(void)setUpRendererAndNotifications {
-    renderer = [[Renderer alloc] initWithView:self];
-    [self setDelegate:renderer];
+-(void)setUpNotifications {
     [self setPaused:YES];
     chronochecker_set(&(self->cc));
 #if TARGET_OS_OSX == 1
@@ -153,9 +151,19 @@
                     GamePadInput input = { gamepad_ZR, value };
                     CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
                 }];
+                [[gamePad rightShoulder] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_R, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
                 [[gamePad leftTrigger] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
                     [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_ZL, value };
+                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
+                }];
+                [[gamePad leftShoulder] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
+                    [self setPaused:NO]; if(self.isPaused) return;
+                    GamePadInput input = { gamepad_L, value };
                     CoqEvent_addToRootEvent((CoqEvent) { pressed ? event_type_gamePad_down : event_type_gamePad_up, .gamepadInput = input });
                 }];
                 [[gamePad buttonMenu] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
@@ -549,6 +557,43 @@
     CoqEvent_addToRootEvent(coq_event);
 }
 
+-(void)rightMouseDown:(NSEvent *)event {
+    if(root == NULL) return;
+    [self setPaused:NO];
+    if(self.isPaused) return;
+    NSPoint viewPosNSP = event.locationInWindow;
+    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
+    
+    CoqEvent coq_event = {
+        .type = event_type_touch_down, 
+        .touch_pos = root_absposFromViewPos(root, viewPos, false),
+        .touch_id = 1,
+    };
+    CoqEvent_addToRootEvent(coq_event);
+}
+-(void)rightMouseDragged:(NSEvent *)event {
+    if(root == NULL) return;
+    [self setPaused:NO];
+    if(self.isPaused) return;
+    NSPoint viewPosNSP = event.locationInWindow;
+    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
+    CoqEvent coq_event = {
+        .type = event_type_touch_drag, 
+        .touch_pos = root_absposFromViewPos(root, viewPos, false),
+        .touch_id = 1,
+    };
+    CoqEvent_addToRootEvent(coq_event);
+}
+-(void)rightMouseUp:(NSEvent *)event {
+    if(root == NULL) return;
+    [self setPaused:NO];
+    if(self.isPaused) return;
+    CoqEvent coq_event = {
+        .type = event_type_touch_up,
+        .touch_id = 1,
+    };
+    CoqEvent_addToRootEvent(coq_event);
+}
 -(void)mouseDown:(NSEvent *)event {
     if(root == NULL) return;
     [self setPaused:NO];

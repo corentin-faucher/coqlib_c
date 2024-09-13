@@ -13,73 +13,130 @@
 #include "node_drawable_multi.h"
 #include "../coq_sound.h"
 
+typedef struct PopingNode_ {
+    union {
+        Node   n;
+        Fluid  f;
+    };
+    PopingNode_** refererOpt;
+    Countdown     countdown;
+    void        (*callbackOpt)(Fluid*, Countdown*);
+} PopingNode_;
+
+PopingNode_* node_asPopingNodeOpt_(Node* n) {
+    if(!n) return NULL;
+    if(n->_type & node_type_flag_poping)
+        return (PopingNode_*)n;
+    return NULL;
+}
+
 #pragma mark - Poping Base
 static View*    Poping_frontView_ = NULL;
-static Texture* Poping_tex_ = NULL;
-static uint32_t Poping_soundId_ = 0;
+static Timer*   Poping_timer_ = NULL;
+Fluid* popingnode_last_notSharedOpt_ = NULL;
 
-static const PopingInfo Poping_defaultInfo_ = {
-    {{ 0.0, 0.0, -0.4, -0.2 }},
-    {{ 0.0, 1.0,  0.0,  0.0 }},
-    10, 25, 10, 25,
-};
+void PopingNode_setFrontView(View* frontView) {
+    Poping_frontView_ = frontView;
+}
 
+void PopingNode_checkAll_callback_(void* unused) {
+    if(!Poping_frontView_) goto terminate_callbacks;
+    if(Poping_frontView_->n.flags & flag_toDelete_) {
+        printwarning("Front view deleted and not updated in PopingNode.");
+        Poping_frontView_ = NULL;
+        goto terminate_callbacks;
+    }
+    bool stillPopingActive = false;
+    Node* child = Poping_frontView_->n._firstChild;
+    while(child) {
+        Node* toDelete = NULL;
+        PopingNode_* const pn = node_asPopingNodeOpt_(child);
+        if(!pn) goto go_next;
+        stillPopingActive = true;
+        if(pn->callbackOpt && (pn->n.flags & flag_show)) pn->callbackOpt(&pn->f, &pn->countdown);
+        if(!countdown_isRinging(&pn->countdown)) goto go_next;
+        if(pn->n.flags & flag_show)
+            node_tree_close(child);
+        else // Déjà fermer -> effacer.
+            toDelete = child;
+    go_next:
+        child = child->_littleBro;
+        if(toDelete) {
+            node_throwToGarbage_callback_(toDelete);
+        }
+    }
+    if(stillPopingActive) return;
+terminate_callbacks:
+    timer_cancel(&Poping_timer_);
+}
+
+void PopingNode_newAdded_(void) {
+    if(!Poping_frontView_) { printerror("No front view."); return; }
+    if(Poping_timer_) return;
+    timer_scheduled(&Poping_timer_, 1, true, NULL, PopingNode_checkAll_callback_);
+}
+
+#pragma mark - Instance PopingNode
 
 void popingnode_close_(Node* n) {
-    PopingNode* pn = (PopingNode*)n;
-    timer_cancel(&pn->timer);
-    timer_scheduled(&pn->timer, 500, false, n, node_tree_throwToGarbage);
+    PopingNode_* pn = (PopingNode_*)n;
+    pn->countdown.ringTimeMS = 500;
+    if(n == &popingnode_last_notSharedOpt_->n)
+        popingnode_last_notSharedOpt_ = NULL;
+    countdown_start(&pn->countdown);
 }
-void PopingNode_init(View* frontView, const char* pngNameOpt, uint32_t soundId) {
-    Poping_frontView_ = frontView;
-    Poping_tex_ = Texture_sharedImageByName(pngNameOpt ? pngNameOpt : "coqlib_sparkle_stars");
-    Poping_soundId_ = soundId;
-}
-void PopingNode_setTexture(uint32_t pngId) {
-    Poping_tex_ = Texture_sharedImage(pngId);
-}
-PopingNode* PopingNode_spawn(Node* refOpt, float x, float y, float width, float height, size_t structSizeOpt,
-                                  float timeSec, const PopingInfo* popInfoOpt) {
-    if(Poping_frontView_ == NULL) { printerror("PopingNode not init."); }
-    Node* parent = refOpt ? refOpt : (Node*)Poping_frontView_;
-    size_t size = (structSizeOpt > sizeof(PopingNode)) ? structSizeOpt : sizeof(PopingNode);
-    const PopingInfo* info = popInfoOpt ? popInfoOpt : &Poping_defaultInfo_;
-
-    PopingNode *pn = coq_calloc(1, size);
+void PopingNode_spawn(PopingNode_** refererOpt, float x, float y, float width, float height,
+                      float timeSec, PopingInfo popInfo, void (*callBackOpt)(Fluid*,Countdown*)) {
+    popingnode_last_notSharedOpt_ = NULL;
+    if(Poping_frontView_ == NULL) { printerror("PopingNode not init."); return; }
+    PopingNode_ *pn = coq_callocTyped(PopingNode_);
     // Init as node
-    node_init_(&pn->n, parent, x, y, width, height, node_type_n_fluid, 0, 0);
-    pn->n.closeOpt = popingnode_close_;
+    node_init(&pn->n, &Poping_frontView_->n, x, y, width, height, node_type_nf_poping, 0, 0);
     // Init as Fluid
     fluid_init_(&pn->f, 0.f);
-    fluid_popIn(&pn->f, *info);
-    // Close callback
-    timer_scheduled(&pn->timer, (int64_t)(timeSec*1000.f), false, &pn->n, node_tree_close);
-
-    return pn;
+    fluid_popIn(&pn->f, popInfo);
+    // Init as poping
+    pn->n.closeOpt = popingnode_close_;
+    pn->countdown.ringTimeMS = (int64_t)(timeSec * 1000.f);
+    countdown_start(&pn->countdown);
+    pn->callbackOpt = callBackOpt;
+    pn->refererOpt = refererOpt;
+    
+    PopingNode_newAdded_();
+    popingnode_last_notSharedOpt_ = &pn->f;
 }
-PopingNode* PopingNode_spawnOver(Node* const nodeOver, float width_rel, float height_rel, size_t structSizeOpt,
-                                float timeSec, const PopingInfo* popInfoOpt, bool inFrontScreen) {
-    float x = 0;
-    float y = 0;
-    float width, height;
-    if(inFrontScreen) {
-        Box parent_box = node_hitBoxInParentReferential(nodeOver, NULL);
-        height = height_rel * 2*parent_box.Dy;
-        width =  width_rel  * 2*parent_box.Dy; // (La référence reste la hauteur du parent.)
-        x = parent_box.c_x;
-        y = parent_box.c_y;
-    } else {
-        height = height_rel * nodeOver->h;
-        width =  width_rel * nodeOver->h;
+void popingnode_last_open(void) {
+    node_tree_openAndShow(&popingnode_last_notSharedOpt_->n);
+}
+void popingnoderef_cancel(PopingNode_** const popingref) {
+    if(!popingref) return;
+    PopingNode_* const poping = *popingref;
+    if(poping == NULL) return;
+    if(popingref != poping->refererOpt) {
+        printerror("timerRef is not the timer referer.");
+        return;
     }
-
-    return PopingNode_spawn(inFrontScreen ? NULL : nodeOver, x, y, width, height, structSizeOpt, timeSec, popInfoOpt);
+    *popingref = NULL;
+    if(poping->n.flags & flag_show)
+        poping->countdown.ringTimeMS = 0;
 }
 
-void popingnode_checkForScreenSpilling(PopingNode* pn) {
-    // Retrouver la root
+void PopingNode_spawnOver(Node* const nodeOver, PopingNode_** refererOpt, float width_rel, float height_rel,
+                                float timeSec, PopingInfo popInfo, void (*callBackOpt)(Fluid*,Countdown*)) {
+    Box parent_box = node_hitBoxInParentReferential(nodeOver, NULL);
+    float height = height_rel * 2*parent_box.Dy;
+    float width =  width_rel  * 2*parent_box.Dy; // (La référence reste la hauteur du parent.)
+    float x = parent_box.c_x;
+    float y = parent_box.c_y;
+    
+    PopingNode_spawn(refererOpt, x, y, width, height, timeSec, popInfo, callBackOpt);
+}
+
+void popingnode_last_checkForScreenSpilling(void) {
+    Fluid* const f = popingnode_last_notSharedOpt_;
+    if(!f) return;
+    Node* const n = &f->n;
     Squirrel sq;
-    Node* n = &pn->n;
     sq_init(&sq, n, sq_scale_deltas);
     Root* root = NULL;
     while(sq_goUpPS(&sq)) {
@@ -107,67 +164,34 @@ void popingnode_checkForScreenSpilling(PopingNode* pn) {
     }
     // Replacer x, y dans l'écran.
     if(dx || dy)
-        fluid_setXY(&pn->f, (Vector2){{n->x + dx, n->y + dy}});
+        fluid_setXY(f, (Vector2){{n->x + dx, n->y + dy}});
 }
-
 
 #pragma mark - PopDisk
 /*-- PopDisk disk de progres qui s'autodetruit --------------------------------------------*/
-typedef struct PopDisk {
-    union {
-        Node        n;
-        PopingNode pn;
-    };
-    Timer*    updateTimer;
-    PopDisk** referer;
-    Chrono    chrono;
-    float     deltaT;
-    Drawable* fan;
-} PopDisk;
-
-// Overwriting du close.
-void popdisk_close_(Node* n) {
-    PopDisk* pop = (PopDisk*)n;
-    timer_cancel(&pop->updateTimer);
-    if(pop->referer) *pop->referer = (PopDisk*)NULL;
-    // super
-    popingnode_close_(n);
-}
-void popdisk_updateCallback_(Node* nd) {
-    PopDisk* pd = (PopDisk*)nd;
-    float elapsedSec = chrono_elapsedSec(&pd->chrono);
-    if(elapsedSec < pd->deltaT + 0.10f) {
-        float ratio = fminf(elapsedSec / pd->deltaT, 1.f);
-        mesh_fan_update(pd->fan->_mesh, ratio);
+void popdisk_updateCallback_(Fluid* f, Countdown* cd) {
+    float elapsedSec = chrono_elapsedSec(&cd->c);
+    float deltaT = (float)cd->ringTimeMS * 0.001f;
+    Drawable* const fan = node_asDrawableOpt(f->n._firstChild);
+    if(!fan) { printerror("No drawable in popdisk."); return; }
+    if(elapsedSec < deltaT + 0.10f) {
+        float ratio = fminf(elapsedSec / deltaT, 1.f);
+        mesh_fan_update(fan->_mesh, ratio);
         return;
     }
 }
-void   PopDisk_spawn(Node* const refOpt, PopDisk** const refererOpt,
+void   PopDisk_spawnAndOpen(Node* const refOpt, PopingNode_** refererOpt,
                    uint32_t pngId, uint32_t tile, float deltaT,
                    float x, float y, float twoDy) {
-    PopDisk* pop = (PopDisk*)PopingNode_spawn(refOpt, x, y, twoDy, twoDy, sizeof(PopDisk), deltaT, NULL);
-    // Init as PopDisk
-    pop->n.closeOpt = popdisk_close_;
-    pop->deltaT = deltaT;
-    chrono_start(&pop->chrono);
-    timer_scheduled(&pop->updateTimer, 50, true, &pop->n, popdisk_updateCallback_);
-    pop->referer = refererOpt;
-    if(refererOpt) *refererOpt = pop;
+    PopingNode_spawn(refererOpt, x, y, twoDy, twoDy, deltaT, popinginfo_default, popdisk_updateCallback_);
+    Fluid* const f = popingnode_last_notSharedOpt_;
+    if(!f) return;
     // Structure
-    pop->fan = coq_calloc(1, sizeof(Drawable));
-    node_init_(&pop->fan->n, &pop->n, 0, 0, twoDy, twoDy, node_type_n_drawable, 0, 0);
-    drawable_init_(pop->fan, Texture_sharedImage(pngId), Mesh_createFan(), 0, twoDy, 0);
-//    drawable_setTile(pop->fan, tile, 0);
+    Drawable* const fan = coq_callocTyped(Drawable);
+    node_init(&fan->n, &f->n, 0, 0, twoDy, twoDy, node_type_n_drawable, 0, 0);
+    drawable_init(fan, Texture_sharedImage(pngId), Mesh_createFan(), 0, twoDy);
     // Open
-    node_tree_openAndShow(&pop->n);
-}
-void   popdisk_cancel(PopDisk** popRef) {
-    if(*popRef == NULL) return;
-    if(popRef != (*popRef)->referer) {
-        printerror("PopDisk ref is not the popdisk...");
-        return;
-    }
-    node_tree_close((Node*)*popRef);
+    popingnode_last_open();
 }
 
 #pragma mark - Sparkles
@@ -186,20 +210,21 @@ typedef struct DrawableMultiSparkles_ {
     Vector2             p1s[SPARKLES_N_];
 } DrawableMultiSparkles_;
 // Override...
-Drawable* drawablemultiSparkle_updateModels_(Node* const n) {
+void drawablemultiSparkle_updateModels_(Node* const n) {
     DrawableMultiSparkles_* dmsp = (DrawableMultiSparkles_*)n;
-    float show = smtrans_setAndGetIsOnSmooth(&dmsp->d.trShow, (n->flags & flag_show) != 0);
-    if(show < 0.001f)  // Rien à afficher...
-        return NULL;
-    const Node* const parent = n->_parent;
-    if(!parent) { printwarning("Sparkel without parent."); return NULL; }
-    const Matrix4* const pm = &parent->_piu.model;
+    float show = smtrans_setAndGetValue(&dmsp->d.trShow, (n->flags & flag_show) != 0);
+    if(show < 0.001f) {
+        n->flags &= ~flag_drawableActive;
+        return;
+    }
+    n->flags |= flag_drawableActive;
+    const Matrix4* const pm = node_parentModel(n);
     
     float deltaT = (float)(ChronoApp_elapsedMS() - dmsp->t0)*0.001f;
     float alpha = float_smoothOut(deltaT, 5.f);
     Vector2 const scl = {{ dmsp->n.sx * show, dmsp->n.sy * show }};
-    PerInstanceUniforms* piu =        dmsp->dm.piusBuffer.pius;
-    PerInstanceUniforms* const end = &dmsp->dm.piusBuffer.pius[dmsp->dm.piusBuffer.actual_count];
+    InstanceUniforms* piu =        dmsp->dm.iusBuffer.ius;
+    InstanceUniforms* const end = &dmsp->dm.iusBuffer.ius[dmsp->dm.iusBuffer.actual_count];
     const Vector2* p0 = dmsp->p0s;
     const Vector2* p1 = dmsp->p1s;
     while(piu < end) {
@@ -218,69 +243,87 @@ Drawable* drawablemultiSparkle_updateModels_(Node* const n) {
         }};
         piu++; p0++; p1++;
     }
-    return &dmsp->d;
 }
 DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const height, Texture* tex) {
-    DrawableMultiSparkles_* dmsp = coq_calloc(1, sizeof(DrawableMultiSparkles_));
-    node_init_(&dmsp->n, parent, 0, 0, height, height, node_type_nd_multi, 0, 0);
-    drawable_init_(&dmsp->d, tex, mesh_sprite, 0, height, 0);
+    DrawableMultiSparkles_* dmsp = coq_callocTyped(DrawableMultiSparkles_);
+    node_init(&dmsp->n, parent, 0, 0, height, height, node_type_nd_multi, 0, 0);
+    drawable_init(&dmsp->d, tex, mesh_sprite, 0, height);
     drawablemulti_init_(&dmsp->dm, SPARKLES_N_);
     dmsp->n.updateModel = drawablemultiSparkle_updateModels_;
     dmsp->t0 = ChronoApp_elapsedMS();
     // Init des per instance uniforms
-    PerInstanceUniforms* piu = dmsp->dm.piusBuffer.pius;
+    
     Vector2* p0 = dmsp->p0s;
     Vector2* p1 = dmsp->p1s;
-    float const Du = dmsp->n._piu.uvRect.w;
-    float const Dv = dmsp->n._piu.uvRect.h;
-    PerInstanceUniforms* end = &dmsp->dm.piusBuffer.pius[SPARKLES_N_];
-    while(piu < end) {
-        *piu = dmsp->n._piu;
+    Vector2 const Duv = texture_tileDuDv(tex);
+    InstanceUniforms iuInit = InstanceUnifoms_default;
+    iuInit.uvRect.size = Duv;
+    InstanceUniforms* end = &dmsp->dm.iusBuffer.ius[SPARKLES_N_];
+    for(InstanceUniforms* piu = dmsp->dm.iusBuffer.ius; piu < end; piu++, p0++, p1++) {
+        *piu = iuInit;
         uint32_t tile = rand() % (tex->m*tex->n);
-        piu->uvRect.o_x = (tile % tex->m) * Du;   
-        piu->uvRect.o_y = (tile / tex->m) * Dv;
+        piu->uvRect.origin = (Vector2){ (tile % tex->m) * Duv.w, (tile / tex->m) * Duv.h };
         *p0 = (Vector2) {{ rand_floatAt(0, 0.25f*height), rand_floatAt(0, 0.25f*height) }};
         *p1 = (Vector2) {{ rand_floatAt(0, 3.00f*height), rand_floatAt(0, 3.00f*height) }};
-        piu++; p0++; p1++;
     }
     return dmsp;
 }
 
-void Sparkle_spawnAt(float xabs, float yabs, float delta, Texture* texOpt) {
-    if(!Poping_tex_) { printerror("Poping not init."); return; }
+
+static Texture* Sparkle_tex_ = NULL;
+static uint32_t Sparkle_soundId_ = 0;
+void Sparkle_init(Texture* sparkleTex, uint32_t sparkleSoundId) {
+    Sparkle_tex_ = sparkleTex;
+    Sparkle_soundId_ = sparkleSoundId;
+}
+
+void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture* texOpt) {
+    if(!texOpt && !Sparkle_tex_) { printerror("No texture for sparkles."); return; }
     PopingInfo info = {
         {{ rand_floatAt(0, 0.25*delta), rand_floatAt(0, 0.25*delta), 0, 0 }},
         {{ rand_floatAt(0, 0.50*delta), rand_floatAt(0, 0.50*delta), 0, 0 }},
         10, 25, 0, 0,
     };
-    PopingNode* spk = PopingNode_spawn(NULL, xabs, yabs, delta, delta, 0, 0.6, &info);
-    Texture* tex = texOpt ? texOpt : Poping_tex_;
-    DrawableMultiSparkles_create_(&spk->n, delta, tex);
-    Sound_play(Poping_soundId_, 1.f, 0, 1.f);
-    node_tree_openAndShow(&spk->n);
+    PopingNode_spawn(NULL, xabs, yabs, delta, delta, 0.6, info, NULL);
+    Fluid* const f = popingnode_last_notSharedOpt_;
+    if(!f) return;
+    Texture* tex = texOpt ? texOpt : Sparkle_tex_;
+    DrawableMultiSparkles_create_(&f->n, delta, tex);
+    Sound_play(Sparkle_soundId_, 1.f, 0, 1.f);
+    node_tree_openAndShow(&f->n);
 }
 // Convenience constructor.
-void Sparkle_spawnOver(Node* nd, float deltaRatio) {
+void Sparkle_spawnOverAndOpen(Node* nd, float deltaRatio) {
     Box box = node_hitBoxInParentReferential(nd, NULL);
     float delta = deltaRatio * box.Dy;
-    Sparkle_spawnAt(box.c_x, box.c_y, delta, NULL);
+    Sparkle_spawnAtAndOpen(box.c_x, box.c_y, delta, NULL);
 }
 
 #pragma mark - PopMessage
 /*-- PopMessage : Message temporaire. ----------------------------------*/
-void PopMessage_spawnAt(float xabs, float yabs, float twoDxOpt, float twoDy, float timeSec, uint32_t framePngId, StringDrawable str, FramedStringParams params) {
-    PopingNode* pm = PopingNode_spawn(NULL, xabs, yabs, twoDxOpt, twoDy, 0, timeSec, NULL);
+void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy, 
+                        float timeSec, uint32_t framePngId, 
+                        StringGlyphedInit str, FramedStringParams params) 
+{
+    PopingNode_spawn(NULL, xabs, yabs, twoDxOpt, twoDy, timeSec, popinginfo_default, NULL);
+    Fluid* const f = popingnode_last_notSharedOpt_;
+    if(!f) return;
     // Structure
-    node_addFramedString(&pm->n, framePngId, str, params);
-    popingnode_checkForScreenSpilling(pm);
-    node_tree_openAndShow(&pm->n);
+    node_addFramedString(&f->n, framePngId, str, params);
+    popingnode_last_checkForScreenSpilling();
+    node_tree_openAndShow(&f->n);
 }
 
-void PopMessage_spawnOver(Node* n, float widthOpt_rel, float height_rel, float timeSec, uint32_t framePngId, StringDrawable str, FramedStringParams params, bool inFrontScreen) {
-    PopingNode* pm = PopingNode_spawnOver(n, widthOpt_rel, height_rel, 0, timeSec, NULL, inFrontScreen);
-    pm->n.w = pm->n.h * 10;
+void PopMessage_spawnOverAndOpen(Node* n, float widthOpt_rel, float height_rel, 
+                            float timeSec, uint32_t framePngId, 
+                            StringGlyphedInit str, FramedStringParams params) 
+{
+    PopingNode_spawnOver(n, NULL, widthOpt_rel, height_rel, timeSec, popinginfo_default, NULL);
+    Fluid* const f = popingnode_last_notSharedOpt_;
+    if(!f) return;
+    f->n.w = f->n.h * 10;
     // Structure
-    node_addFramedString(&pm->n, framePngId, str, params);
-    popingnode_checkForScreenSpilling(pm);
-    node_tree_openAndShow(&pm->n);
+    node_addFramedString(&f->n, framePngId, str, params);
+    popingnode_last_checkForScreenSpilling();
+    node_tree_openAndShow(&f->n);
 }

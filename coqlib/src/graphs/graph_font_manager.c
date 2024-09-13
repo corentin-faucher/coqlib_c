@@ -13,7 +13,7 @@ static const CoqFontInfo fontInfo_arr_[] = {
     {"Chalkboard SE", "Chalkboard", {{1, 1.25}}},
     {"Chalkduster", "Chalkduster", {{1.2, 1.55}}},
     {"Comic Sans MS", "Comic Sans", {{1, 1.45}}},
-    {"Courier", "Courier", {{0.5, 1.3}}},
+    {"Courier", "Courier", {{0.5, 1.3}}},  // Bogué ?
     {"Futura", "Futura", {{0.0, 1.4}}},
     {"Helvetica", "Helvetica", {{0.3, 1.1}}},
     {"Luciole", "Luciole", {{0.6, 1.3}}},

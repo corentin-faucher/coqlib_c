@@ -10,14 +10,63 @@
 
 #include "../maths/math_base.h"
 
-/*-- Vertex --------------------*/
-typedef struct {
-    float x, y, z;
-    float u, v;
-    float nx, ny, nz;
+/// - Vertex -
+/// Le verteux peut être soit :
+///  - avec coord uv et vecteur normal (pos, uv, norm) ;
+///  - avec une couleur par vertex (pos, color).
+typedef union {
+    float f_arr[8];
+    struct {
+        Vector3 pos;
+        Vector2 uv;
+        Vector3 norm;
+    };
+    struct {
+        Vector4 pos4;
+        Vector4 color;
+    };
+    struct {
+        float x, y, z;
+        union {
+            struct {
+                float u, v;
+                float nx, ny, nz;
+            };
+            struct {
+                float w;
+                float col_r, col_g, col_b, col_a;
+            };
+        };        
+    };
 } Vertex;
 
+/// Vecteur normal usuel (vers les z positifs)
+extern const Vector3 mesh_defNorm; // = { 0, 0, 1};
+
 /*-- Mesh ----------------------*/
+
+typedef struct Mesh {
+    uint32_t const vertex_count;       // Le nombre de vertex.
+    uint32_t const index_count;        // 0 si triangle strip (pas besoin d'indices de vertex).
+    uint16_t       primitive_type;
+    uint16_t       cull_mode;
+    bool const     isShared;          // Le noeud drawable n'est pas l'owner de la mesh (pas besoin de libérer)
+    bool const     isColor;           // Vertex avec couleur au lieu de mapping uv de texture et vecteur normal.
+    union {
+        // Metal
+        struct {
+            const void* const _mtlIndicesBufferOpt_cptr; // Buffer Metal des indices (optionel).
+            const void* const _mtlVerticesBuffer_cptr;   // (Suffisant, pas besoin de garder l'array vertices.)
+        };
+        // OpenGl
+        struct {
+            uint32_t const _glVertexArrayId;   // VAO
+            uint32_t const _glVertexBufferId;  // VBO
+            uint32_t const _glIndicesBufferId; // VBO des indices
+        };
+    };   
+} Mesh;
+
 // Type de primitives. Telles que dans Metal, voir MTLRenderCommandEncoder.h.
 enum MeshPrimitiveType {
 #ifdef WITH_OPENGL
@@ -41,17 +90,23 @@ enum MeshCullMode {
     mesh_cullMode_back = 2,
 };
 
-/*-- Infos d'une mesh. (implementation partiellement cachée, depend de l'OS.) --*/
-typedef struct Mesh Mesh;
+/// Init des meshes de base : `mesh_sprite` et `mesh_shaderQuad_`.
+void   Mesh_init(void);
+
+/// Init d'une mesh.
+void   mesh_init(Mesh* mesh, const Vertex* const verticesOpt, uint32_t vertexCount,
+            const uint16_t* const indicesOpt, uint32_t indexCount,
+            enum MeshPrimitiveType primitive_type, enum MeshCullMode cull_mode, bool isShared);
+void   mesh_deinit(Mesh* mesh);
 
 /// La "sprite". Mesh partagée par la plupart des surfaces.
-/// Init lors du `CoqGraph_init()`.
+/// (Centrée en (0,0) de dimensions (1, 1), i.e. [-0.5, 0.5] x [-0.5, 0.5].)
 extern Mesh* mesh_sprite;
-Mesh*  Mesh_createEmpty(const Vertex* verticesOpt,  uint32_t vertexCount,
-                        const uint16_t* indicesOpt, uint32_t indexCount,
-                        enum MeshPrimitiveType primitive_type,
-                        enum MeshCullMode cull_mode, bool isShared);
-void   mesh_destroyAndNull(Mesh** const meshToDelete);
+// Pour final pass du renderer (Quad [-1, 1] x [-1, 1]).
+extern Mesh* mesh_shaderQuad_;
+
+#pragma mark - Meshes usuelles pratiques ------------------------
+
 Mesh*  Mesh_createHorizontalBar(void);
 Mesh*  Mesh_createVerticalBar(void);
 Mesh*  Mesh_createFrame(void);
@@ -62,22 +117,14 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
                            float ymin, float ymax, float yR, float deltaY,
                            float lineWidthRatio);
 
+#pragma mark - Engine specific (Metal or OpenGL) -----------------
 
-
-/*-- Getters --*/
-uint32_t mesh_indexCount(Mesh* mesh);
-uint32_t mesh_vertexCount(Mesh* mesh);
-size_t   mesh_verticesSize(Mesh* mesh);
 /// Référence des vertices pour mise à jour des positions.
-Vertex*  mesh_vertices(Mesh* mesh);
-/// Une fois modifiées signaler que les vertices devront être updatés
-/// (juste pour OpenGL).
-void     mesh_needToUpdateVertices(Mesh* mesh);
-enum MeshPrimitiveType  mesh_primitiveType(Mesh* mesh);
-enum MeshCullMode       mesh_cullMode(Mesh* mesh);
-bool     mesh_isShared(Mesh* mesh);
+/// Caller `mesh_releaseVertices` une fois fini.
+Vertex*  mesh_engine_retainVertices(Mesh* mesh);
+/// Fini d'éditer les vertex.
+void     mesh_engine_releaseVertices(Mesh* mesh);
 
-
-
+void     mesh_engine_initBuffers_(Mesh* const mesh, const Vertex* const verticesOpt, const uint16_t* const indicesOpt);
 
 #endif /* graph_mesh_h */

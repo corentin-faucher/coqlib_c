@@ -11,6 +11,7 @@
 @interface AppDelegate : NSObject <NSApplicationDelegate> {
     NSWindow*     window;
     CoqMetalView* view;
+    id<MTKViewDelegate> renderer;
 }
 
 @end

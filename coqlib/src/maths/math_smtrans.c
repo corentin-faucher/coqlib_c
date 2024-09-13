@@ -25,7 +25,6 @@ enum {
     sm_flag_hard_ =         16,
 };
 
-static float        sm_semiFactor_ =   0.4f;
 static ChronoTiny   sm_defTransTime_ = 500;
 static float        sm_a_ =     0.75 + (0.2) * 0.2;  // (pop factor est de 0.2 par défaut)
 static float        sm_b_ =    -0.43 + (0.2) * 0.43;
@@ -52,10 +51,7 @@ void    SmTrans_setPopFactor(float popFactor) {
     sm_a_ =  0.75f + popFactor * 0.20f;
     sm_b_ = -0.43f + popFactor * 0.43f;
 }
-void    SmTrans_setSemiFactor(float semiFactor) {
-    sm_semiFactor_ = semiFactor;
-}
-void    SmTrans_setTransTime(ChronoTiny transTime) {
+void    SmTrans_setDefaultTransTime(ChronoTiny transTime) {
     sm_defTransTime_ = transTime;
 }
 
@@ -73,7 +69,7 @@ float smtrans_value(SmTrans *st) {
     }
     return sm_value_(*st);
 }
-float smtrans_setAndGetIsOnSmooth(SmTrans *st, bool isOn) {
+float smtrans_setAndGetValue(SmTrans *st, bool isOn) {
     smtrans_setIsOn(st, isOn);
     return sm_value_(*st);
 }
@@ -149,4 +145,8 @@ void  smtrans_setOptions(SmTrans *st, bool isHard, bool isPoping) {
         st->_flags |=  sm_flag_poping_;
     else
         st->_flags &= ~sm_flag_poping_;
+}
+
+void  smtrans_setDeltaT(SmTrans *st, ChronoTiny deltaT) {
+    st->_D = deltaT;
 }

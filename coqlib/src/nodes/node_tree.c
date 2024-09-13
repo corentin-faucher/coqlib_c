@@ -318,7 +318,7 @@ Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typ
     while(true) {
         if(sq.pos->flags & flag_show) {
             Button* b = node_asButtonOpt(sq.pos);
-            if(b) if(b->data.uint0 == data0) {
+            if(b) if(b->n.uint0 == data0) {
                 if(!typeOpt) return b;
                 if(b->n._type & typeOpt)
                     return b;
@@ -376,6 +376,8 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
     bool horizontal = ((alignOpt & node_align_vertically) == 0);
     bool setSecondaryToDefPos = ((alignOpt & node_align_setSecondaryToDefPos) != 0);
     bool dontSetPrimaryDefPos = ((alignOpt & node_align_dontSetPrimaryDefPos) != 0);
+    bool updateSecondarySize = (alignOpt & node_align_dontUpdateSecondarySize) == 0;
+    bool updatePrimarySize = (alignOpt & node_align_dontUpdateSecondarySize) == 0;
     // 1. Mesurer largeur et hauteur requises
     float w = 0;
     float h = 0;
@@ -417,11 +419,16 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
         }
     }
     // 3. Mettre à jour largeur et hauteur du noeud parent.
-    if((alignOpt & node_align_dontUpdateSizes) == 0) {
-        nd->w = w;
-        nd->h = h;
-        if(nd->flags & flag_giveSizeToBigbroFrame)
-            node_tryUpdatingAsFrameOfBro(nd->_bigBro, nd);
+    if(updatePrimarySize) {
+        if(horizontal) nd->w = w;
+        else nd->h = h;
+    }
+    if(updateSecondarySize) {
+        if(horizontal) nd->h = h;
+        else nd->w = w;
+    }
+    if(nd->flags & flag_giveSizeToBigbroFrame) if(updatePrimarySize || updateSecondarySize) {
+        node_tryUpdatingAsFrameOfBro(nd->_bigBro, nd);
     }
     // 4. Aligner les éléments
     sq_init(&sq, nd, sq_scale_ones);
@@ -429,39 +436,42 @@ int  node_tree_alignTheChildren(Node* nd, node_align_option alignOpt, float rati
         return 0;
     if(horizontal) {
         float x = -w / 2.f;
+        uint32_t const relativeFlag = (alignOpt & node_align_rightBottom) ? relatives_bottom : 
+                                 ((alignOpt & node_align_leftTop) ? relatives_top : 0);
         do {
             x += spacingRef * node_deltaX(sq.pos) + extraHalfSpace;
             Fluid* fluid = node_asFluidOpt(sq.pos);
             if(fluid) {
                 if(!dontSetPrimaryDefPos) fluid->x.def = x;
                 fluid_setX(fluid, x, fix);
-                if(setSecondaryToDefPos) {
-                    fluid_setYrelToDef(fluid, 0.f, fix);
-                } else 
-                    fluid_setY(fluid, 0.f, fix);
             } else {
                 sq.pos->x = x;
-                sq.pos->y = 0.f;
             }
+            if(setSecondaryToDefPos && fluid)
+                fl_setRelToDef(&fluid->y, 0);
+            else
+                node_setYrelatively(sq.pos, relativeFlag, fix);
             x += spacingRef * node_deltaX(sq.pos) + extraHalfSpace;
         } while(sq_goRightWithout(&sq, flag_hidden|flag_notToAlign));
         return n;
     }
     // Aligner verticalement
-    float y = +h / 2.f; // (de haut en bas)
+    float y = +0.5f*h; // (de haut en bas)
+    uint32_t const relativeFlag = (alignOpt & node_align_rightBottom) ? relatives_right : 
+                                 ((alignOpt & node_align_leftTop) ? relatives_left : 0);
     do {
         y -= spacingRef * node_deltaY(sq.pos) + extraHalfSpace;
         Fluid* fluid = node_asFluidOpt(sq.pos);
         if(fluid) {
             if(!dontSetPrimaryDefPos) fluid->y.def = y;
             fluid_setY(fluid, y, fix);
-            if(setSecondaryToDefPos) {
-                fluid_setXrelToDef(fluid, 0.f, fix);
-            } else fluid_setX(fluid, 0.f, fix);
         } else {
             sq.pos->y = y;
-            sq.pos->x = 0.f;
         }
+        if(setSecondaryToDefPos && fluid)
+            fl_setRelToDef(&fluid->x, 0);
+        else
+            node_setXrelatively(sq.pos, relativeFlag, fix);
         y -= spacingRef * node_deltaY(sq.pos) + extraHalfSpace;
     } while(sq_goRightWithout(&sq, flag_hidden|flag_notToAlign));
     return n;

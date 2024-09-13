@@ -6,17 +6,18 @@
 //
 
 #import <MetalKit/MetalKit.h>
-#import "metal_renderer.h"
+//#import "metal_renderer.h"
 #if TARGET_OS_OSX != 1
 #import "ViewController.h"
 #endif
+
+#include "nodes/node_root.h"
 
 //@protocol CoqViewDelegate;
 
 @interface CoqMetalView : MTKView {
     
 @public
-    Renderer*        renderer;
     Root*            root;
     ChronoChecker    cc;
 #if TARGET_OS_OSX == 1
@@ -35,7 +36,7 @@
 @property (nonatomic) BOOL iosForceVirtualKeyboard;
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device;
-- (void)setUpRendererAndNotifications;
+- (void)setUpNotifications;
 - (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix;
 
 // Méthodes à overrider. Superflu ?

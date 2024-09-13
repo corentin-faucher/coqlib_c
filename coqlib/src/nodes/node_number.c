@@ -21,25 +21,26 @@ void      number_open_(Node* n) {
     Number* nb = (Number*)n;
     number_setTo(nb, nb->value);
 }
-Drawable* number_updateModels_(Node* const n) {
+void number_updateModels_(Node* const n) {
     Number* nb = (Number*)n;
-    float const show = smtrans_setAndGetIsOnSmooth(&nb->d.trShow, (n->flags & flag_show) != 0);
-    if(show < 0.001f) return NULL;
-    const Node* const parent = n->_parent;
-    if(!parent) { printwarning("Sparkel without parent."); return NULL; }
-    const Matrix4* const pm = &parent->_piu.model;
+    float const show = smtrans_setAndGetValue(&nb->d.trShow, (n->flags & flag_show) != 0);
+    if(show < 0.001f) {
+        n->flags &= ~flag_drawableActive;
+        return;
+    }
+    n->flags |= flag_drawableActive;
+    const Matrix4* const pm = node_parentModel(n);
     
     float const pop = (nb->n.flags & flag_poping) ? show : 1.f;
     float const pos_y = nb->n.y;
     float const pos_z = nb->n.z;
     Vector2 const scales = nb->n.scales;
-    PerInstanceUniforms* piu =        nb->dm.piusBuffer.pius;
-    PerInstanceUniforms* const end = &nb->dm.piusBuffer.pius[nb->dm.piusBuffer.actual_count];
     const float* x = nb->_xs;
-    while(piu < end) {
-        piu->show = show;
+    InstanceUniforms* const end = &nb->dm.iusBuffer.ius[nb->dm.iusBuffer.actual_count];
+    for(InstanceUniforms* iu = nb->dm.iusBuffer.ius; iu < end; iu++, x++) {
+        iu->show = show;
         float const pos_x = nb->n.x + (*x) * scales.x;
-        Matrix4* m = &piu->model;
+        Matrix4* m = &iu->model;
         // Petite translation sur la parent-matrix en fonction du digit.
         m->v0.v = pm->v0.v * scales.x * pop;
         m->v1.v = pm->v1.v * scales.y * pop;
@@ -50,23 +51,23 @@ Drawable* number_updateModels_(Node* const n) {
             pm->v3.z + pm->v0.z * pos_x + pm->v1.z * pos_y + pm->v2.z * pos_z,
             pm->v3.w,
         }};
-        piu++; x++;
     }
-    return &nb->d;
 }
-Drawable* (*Number_defaultUpdateModel)(Node*) = number_updateModels_; 
+void (*Number_defaultUpdateModel)(Node*) = number_updateModels_; 
 Number*   Number_create(Node* ref, int32_t value,
                       float x, float y, float height,
                       flag_t flags, uint8_t node_place) {
-    Number* nb = coq_calloc(1, sizeof(Number));
-    node_init_(&nb->n, ref, x, y, 1, 1, node_type_ndm_number, flags, node_place);
+    Number* nb = coq_callocTyped(Number);
+    node_init(&nb->n, ref, x, y, 1, 1, node_type_ndm_number, flags, node_place);
     nb->n.sx = height; nb->n.sy = height;
     if(Number_defaultTex == NULL)
         Number_defaultTex = Texture_sharedImageByName("coqlib_digits_black");
-    drawable_init_(&nb->d, Number_defaultTex, mesh_sprite, 0, 1, 0);
-    // (pass drawable_updateDims_)
+    drawable_init(&nb->d, Number_defaultTex, mesh_sprite, 0, 1);
     drawablemulti_init_(&nb->dm, NUMBER_MAX_DIGITS_);
-    nb->dm.piusBuffer.actual_count = 0;
+    InstanceUniforms iu = InstanceUnifoms_default;
+    iu.uvRect.size = texture_tileDuDv(Number_defaultTex);
+    piusbuffer_setAllTo(&nb->dm.iusBuffer, iu);
+    nb->dm.iusBuffer.actual_count = 0;
     // Init as number
     nb->n.openOpt =     number_open_;
     nb->n.updateModel = Number_defaultUpdateModel;
@@ -75,7 +76,7 @@ Number*   Number_create(Node* ref, int32_t value,
     nb->digit_x_margin =     -0.25;
     nb->separator_x_margin = -0.60;
     nb->extra_x_margin =      0.25;
-    nb->n.sx = height * nb->d._tex->ratio;
+    nb->n.sx = height * texture_tileRatio(nb->d._tex);
     nb->n.sy = height;
     number_last_ = nb;
     
@@ -87,29 +88,29 @@ Number*   node_asNumberOpt(Node* n) {
     return NULL;
 }
 typedef struct NumberIt_ {
-    float*                     xit;
-    float                      x1;
-    PerInstanceUniforms*       piu;
-    PerInstanceUniforms* const end;
-    uint32_t const             m;
-    uint32_t                   i;
-    float const                Du, Dv;
+    float*                  xit;
+    float                   x1;
+    InstanceUniforms*       iu;
+    InstanceUniforms* const end;
+    uint32_t const          m;
+    uint32_t                i;
+    Vector2 const           Duv;
 } NumberIt_; 
 void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
-    if(nbit->piu >= nbit->end) {
+    if(nbit->iu >= nbit->end) {
         printerror("Number overflow, cannot add digit %d.", digit);
         return;
     }
     nbit->x1 += deltaX;
     *nbit->xit = nbit->x1;
-    nbit->piu->uvRect.o_x = (digit % nbit->m) * nbit->Du;
-    nbit->piu->uvRect.o_y = (digit / nbit->m) * nbit->Dv;
-    nbit->piu++; nbit->xit++; nbit->i++;
+    nbit->iu->uvRect.o_x = (digit % nbit->m) * nbit->Duv.w;
+    nbit->iu->uvRect.o_y = (digit / nbit->m) * nbit->Duv.h;
+    nbit->iu++; nbit->xit++; nbit->i++;
     nbit->x1 += deltaX;
 }
 void    number_setTo(Number* const nb, int32_t const newValue) {
     // Pas de changement ?
-    if((newValue == nb->value) && nb->dm.piusBuffer.actual_count)
+    if((newValue == nb->value) && nb->dm.iusBuffer.actual_count)
         return;
     // 0. Init
     nb->value = newValue;
@@ -118,8 +119,10 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
     uint32_t const maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
     float const deltaX_def = 0.5*(1.f + nb->digit_x_margin);
     NumberIt_ it = {
-        nb->_xs, 0, nb->dm.piusBuffer.pius, &nb->dm.piusBuffer.pius[NUMBER_MAX_DIGITS_], nb->d._tex->m, 0,
-        nb->n._piu.uvRect.w, nb->n._piu.uvRect.h
+        nb->_xs, 0, 
+        nb->dm.iusBuffer.ius, &nb->dm.iusBuffer.ius[NUMBER_MAX_DIGITS_], 
+        nb->d._tex->m, 0,
+        texture_tileDuDv(nb->d._tex),
     };
     // 1. Signe "+/-"
     if(isNegative) {
@@ -150,18 +153,17 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
         numberit_setAndNext_(&it, nb->extraDigitOpt, deltaX_ext);
     }
     // 5. Finaliser...
-    nb->dm.piusBuffer.actual_count = it.i;
+    nb->dm.iusBuffer.actual_count = it.i;
     float deltaX = 0.5f*it.x1;
     nb->n.w = 2.f*deltaX;
     for(float *x = nb->_xs; x < it.xit; x++)
         *x -= deltaX;  // (centrer)
 }
 
-void     number_last_setDigitTexture(Texture* digitTexture) {
+void     number_last_setDigitTexture(Texture* const digitTexture) {
     if(!number_last_) { printerror("No last number."); return; }
-    if(!(digitTexture->flags & tex_flag_png)) { printerror("Not a png texture."); return; }
     number_last_->d._tex = digitTexture;
-    number_last_->n.sx = number_last_->n.sy * digitTexture->ratio;
+    number_last_->n.sx = number_last_->n.sy * texture_tileRatio(digitTexture);
 }
 void   number_last_setExtraDigit(uint32_t extraDigit) {
     if(!number_last_) { printerror("No last number."); return; }

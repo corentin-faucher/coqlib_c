@@ -12,7 +12,7 @@
 #include "utils/util_string.h"
 
 typedef struct coq_Root Root;
-typedef struct _SlidingMenu SlidingMenu;
+typedef struct SlidingMenu SlidingMenu;
 
 enum EventFlag {
     event_type_null =                           0x000,
@@ -128,7 +128,10 @@ typedef struct CoqEvent {
     uint32_t type;
     union {
         // mouse/touch : hovering, down, drag.
+        struct {
         Vector2       touch_pos;
+        uint32_t      touch_id; // 0: click gauche / touche ordinaire, 1: click droit.
+        };
         // scroll/swipe
         ScrollInfo    scroll_info;
         // keyboard events

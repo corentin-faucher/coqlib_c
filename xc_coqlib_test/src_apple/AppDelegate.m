@@ -9,6 +9,7 @@
 #include "graph__apple.h"
 #include "coq_sound.h"
 
+#include "metal_renderer.h"
 #include "my_enums.h"
 #include "my_root.h"
 
@@ -21,7 +22,6 @@
     id appMenuItem = [NSMenuItem new];
     [menubar addItem:appMenuItem];
     id appMenu = [NSMenu new];
-//    id appName = [[NSProcessInfo processInfo] processName];
     NSString* quit = [NSBundle.mainBundle localizedStringForKey:@"quit" value:@"Quit" table:nil];
     id quitMenuItem = [[NSMenuItem alloc]
                        initWithTitle:quit
@@ -38,9 +38,9 @@
     srand((uint32_t)time(NULL));
     CoqSystem_init();
     Language_init();
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     Font_init();
-    CoqGraph_MTLinit(device);
+    CoqGraph_MTLinit(MTLCreateSystemDefaultDevice(), 0, 0);
+    Mesh_init();
     // 2. Chargement des textures et sons du projet.
     Texture_init(MyProject_pngInfos, png_total_pngs, true);    
     Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds);
@@ -59,17 +59,19 @@
     [window makeKeyAndOrderFront:NULL];
     [window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
     [window makeMainWindow];
-//    [window center];
+    [window center];
     [window setContentAspectRatio:NSMakeSize(16, 10)];
     [window setContentMinSize:NSMakeSize(400, 250)];
     
     // 4. Vue metal
-    view = [[CoqMetalView alloc] initWithFrame:[window frame] device:device];
+    view = [[CoqMetalView alloc] initWithFrame:[window frame] device:CoqGraph_getMTLDevice()];
+    renderer = [[Renderer alloc] initWithView:view];
+    [view setDelegate:renderer];
     
     // 5. Structure
     view->root = Root_initAndGetProjectRoot();
     
-    // Fini    
+    // Fini setter la view comme le contenue de la fenêtre...
     [window setContentView:view];
     [view updateRootFrame:[window frame].size dontFix:NO];
 }

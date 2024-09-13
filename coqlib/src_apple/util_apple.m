@@ -12,6 +12,9 @@ CGRect  rectangle_toCGRect(Rectangle rect) {
 CGSize  vector2_toCGSize(Vector2 v) {
     return (CGSize) { v.x, v.y };
 }
+MTLClearColor vector4_toMTLClearColor(Vector4 v) {
+    return (MTLClearColor) { v.x, v.y, v.z, v.w };
+}
 Rectangle  CGRect_toRectangle(CGRect rect) {
     return (Rectangle) { rect.origin.x, rect.origin.y, rect.size.width, rect.size.height };
 }

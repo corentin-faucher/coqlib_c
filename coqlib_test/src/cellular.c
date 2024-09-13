@@ -113,10 +113,10 @@ PixelBGRA cel_toPixelCoq(uint8_t c) {
 PixelBGRA cel_toPixelMathieu(uint8_t c) {
     if(c & cgm_ON)   return (PixelBGRA){0xFFFFFFFF};
     if(c & cgm_WALL) return (PixelBGRA){0xFF000000};
-    if(c == cgm_ul)   return (PixelBGRA){0xA0FF2020};
-    if(c == cgm_dr)   return (PixelBGRA){0xA020FF20};
-    if(c == cgm_dl)   return (PixelBGRA){0xA0FF8020};
-    if(c == cgm_ur)   return (PixelBGRA){0xA02020FF};
+    if(c == cgm_ul)   return (PixelBGRA){0x10FF2020};
+    if(c == cgm_dr)   return (PixelBGRA){0x1020FF20};
+    if(c == cgm_dl)   return (PixelBGRA){0x10FF8020};
+    if(c == cgm_ur)   return (PixelBGRA){0x102020FF};
     
     return (PixelBGRA){0x80808080};
 }
@@ -195,8 +195,10 @@ void   celgrid_setGridMathieu(CelGrid* cg) {
             else
                 *cel = 3 - ((i + odd_pair_dec) % 4); // 321032103210...
             // Activation de quelques cellules...
-            if(rand_bool(0.01)) {
-                *cel |= cgm_ON;
+            if(i == 5) {
+                *cel |= cgm_WALL;
+            } else if(rand_bool(0.01)) {
+//                *cel |= cgm_ON;
             }
         }
     }
@@ -283,16 +285,16 @@ void celgrid_drawPixels_(CelGrid* const cg) {
         cel++; pixel++;
     }
 }
-void celgrid_callback_(Node* n) {
-    CelGrid* cg = (CelGrid*)n;
+void celgrid_callback_(void* cgIn) {
+    CelGrid* cg = (CelGrid*)cgIn;
     if(cg->mathieu) celgrid_updateMathieu(cg); 
     else celgrid_updateCoq(cg);
     celgrid_drawPixels_(cg);
-    texture_engine_updatePixels(cg->d._tex, cg->pixels);
+    texture_engine_writeAllPixels(cg->d._tex, cg->pixels);
 }
 void celgrid_open_(Node* n) {
     CelGrid* cg = (CelGrid*)n;
-    timer_scheduled(&cg->timer, 1, true, &cg->node, celgrid_callback_);
+    timer_scheduled(&cg->timer, 1, true, cg, celgrid_callback_);
 }
 void celgrid_close_(Node* n) {
     CelGrid* cg = (CelGrid*)n;
@@ -306,17 +308,17 @@ void celgrid_deinit_(Node* n) {
 CelGrid* CelGrid_create(Node* parent, float x, float y, float height, uint32_t m, uint32_t n, bool mathieu) {
     uint32_t count = m*n;
     if(count == 0) { printerror("No cells."); return NULL; }
-    CelGrid* cg = coq_calloc(1, sizeof(CelGrid) + sizeof(PixelBGRA) * (count - 1));
+    CelGrid* cg = coq_callocArray(CelGrid, PixelBGRA, count);
     // Super inits...
-    node_init_(&cg->node, parent, x, y, height, height, node_type_n_drawable, 0, 0);
-    drawable_init_(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), mesh_sprite, 0, height, 0);
+    node_init(&cg->node, parent, x, y, height, height, node_type_n_drawable, 0, 0);
+    drawable_init(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), mesh_sprite, 0, height);
     // Init as CelGrid
     cg->node.openOpt =   celgrid_open_;
     cg->node.closeOpt =  celgrid_close_;
     cg->node.deinitOpt = celgrid_deinit_;
     cg->mathieu = mathieu;
-    *(uint32_t*)&cg->m = m; // (init de const)
-    *(uint32_t*)&cg->n = n;
+    uint_initConst(&cg->m, m);
+    uint_initConst(&cg->n, n);
     cg->cels0 = coq_calloc(m*n, sizeof(uint8_t));
     cg->cels1 = coq_calloc(m*n, sizeof(uint8_t));
     if(mathieu) celgrid_setGridMathieu(cg); else celgrid_setGridCoq(cg);

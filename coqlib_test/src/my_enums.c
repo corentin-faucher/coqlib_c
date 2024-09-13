@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include "nodes/node__types.h"
 
-static const char* _Localizable_stringKeys[] = {
+static const char* Localizable_stringKeys_[] = {
     "app_name",
     "error",
     "error_empty",
@@ -18,12 +18,13 @@ static const char* _Localizable_stringKeys[] = {
     "quit",
 };
 const char* loc_stringKey(Localizable loc) {
-    return _Localizable_stringKeys[loc];
+    return Localizable_stringKeys_[loc];
 }
-StringDrawable loc_stringDrawable(Localizable loc) {
-    return (StringDrawable) {
-        _Localizable_stringKeys[loc], 
-        .string_flags = string_flag_localized, .x_margin = 0.5
+StringGlyphedInit loc_stringGlyphedInit(Localizable loc) {
+    return (StringGlyphedInit) {
+        .c_str = Localizable_stringKeys_[loc],
+        .isLocalized = true,
+        .x_margin = 0.5,
     };
 }
 
@@ -42,6 +43,8 @@ const PngInfo MyProject_pngInfos[] = {
     {"icons", 8, 4, false},
     {"language_flags", 4, 4, false},
     {"some_animals", 4, 7, false},
+    
+    {"coqlib_test_frame", 1, 1, true, true},
 };
 
 const char* MyProject_wavNames[] = {

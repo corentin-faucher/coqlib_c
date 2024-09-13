@@ -49,7 +49,7 @@ void        FILE_writeData(const char* path, const void* buffer, size_t buffer_s
 char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
                         const char* fileExtOpt, const char* subDirOpt);
 /// Dossier `local` où l'application peut stocker ses fichiers.
-/// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.
+/// Retourne le buffer *editable* `_FileManager_tmp_path` de taille `PATH_MAX`.
 char*        FileManager_getApplicationSupportDirectoryPathOpt(void);
 /// Dossier `Cloud` où l'application peut stocker ses fichiers.
 /// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.

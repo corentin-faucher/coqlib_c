@@ -6,15 +6,22 @@
 //
 
 #include "util_char_and_keycode.h"
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <ctype.h>
 
+#include "util_base.h"
+#include "util_string.h"
+
+const Character spchar_null = { 0 };
 const Character spchar_delete = { "\b" };
 const Character spchar_deleteSymbol = { "␈" };
+const Character spchar_questionMark = { "?" };
 const Character spchar_tab = { "\t" };
 const Character spchar_tabSymbol = { "␉" };
 const Character spchar_return_ = { "\r" };
+const Character spchar_newline_ = { "\n" };
 const Character spchar_returnSymbol = { "␍" };
 const Character spchar_space = { " " };
 const Character spchar_spaceSymbol = { "␠" };
@@ -23,6 +30,7 @@ const Character spchar_spaceIdeographic = { "　" };
 const Character spchar_spaceThin = { "\u2009" };
 const Character spchar_bottomBracket = { "⎵" };
 const Character spchar_underscore = { "_" };
+const Character spchar_overline = {"‾" };
 const Character spchar_openBox = { "␣" };
 const Character spchar_interpunct = { "·" };
 const Character spchar_dot = { "•" };
@@ -168,7 +176,7 @@ const char character_cyrillics_[][4] = {
 };
 
 // Armenian
-const char character_armenians_[][4] = {
+static const char character_armenians_[][4] = {
     "Ա", "ա", "Բ", "բ", "Գ", "գ", "Դ", "դ", "Ե", "ե", "Զ", "զ", "Է", "է", "Ը", "ը", "Թ", "թ", "Ժ", "ժ", "Ի", "ի", "Լ", "լ", 
     "Խ", "խ", "Ծ", "ծ", "Կ", "կ", "Հ", "հ", "Ձ", "ձ", "Ղ", "ղ", "Ճ", "ճ", "Մ", "մ", "Յ", "յ", "Ն", "ն", "Շ", "շ", "Ո", "ո", 
     "Չ", "չ", "Պ", "պ", "Ջ", "ջ", "Ռ", "ռ", "Ս", "ս", "Վ", "վ", "Տ", "տ", "Ր", "ր", "Ց", "ց", "Ւ", "ւ", "Փ", "փ", "Ք", "ք", 
@@ -267,3 +275,80 @@ Character const character_lowerCased(Character c, unsigned character_type) {
     printf("⁉️ Cannot lowercase %s.", c.c_str);
     return c;
 }
+ 
+bool character_isSpace(Character c) {
+    static const char character_spaces_[][4] = {
+        " ", "\t", " ", "　", "\u2009",
+    };
+    const char (*p)[4] =    character_spaces_;
+    const char (*end)[4] = &character_spaces_[sizeof(character_spaces_) / sizeof(character_spaces_[0])];
+    for(; p < end; p++) {
+        if(c.c_data4 == *(uint32_t*)p) return true;
+    }
+    return false;
+}
+bool character_isPunct(Character c) {
+    static const char character_puncts_[][4] = {
+        ".", ",", ";", ":", "!", "?",  
+    };
+    const char (*p)[4] =    character_puncts_;
+    const char (*end)[4] = &character_puncts_[sizeof(character_puncts_) / sizeof(character_puncts_[0])];
+    for(; p < end; p++) {
+        if(c.c_data4 == *(uint32_t*)p) return true;
+    }
+    return false;
+}
+bool character_isWordFinal(Character c) {
+    static const char character_final_[][4] = {
+        " ", "\t", " ", "　", "\u2009", ".", ",", ";", ":", "!", "?", "-", 
+    };
+    const char (*p)[4] =    character_final_;
+    const char (*end)[4] = &character_final_[sizeof(character_final_) / sizeof(character_final_[0])];
+    for(; p < end; p++) {
+        if(c.c_data4 == *(uint32_t*)p) return true;
+    }
+    return false;
+}
+bool character_isEndLine(Character c) {
+    if(c.c_data4 == spchar_return_.c_data4) return true;
+    if(c.c_data4 == spchar_newline_.c_data4) return true;
+    return false;
+}
+ 
+ #warning Tester...
+ 
+typedef struct CharacterArray {
+    size_t const count;
+    Character    chars[1];
+} CharacterArray;
+CharacterArray* CharacterArray_createFromString(const char* const string) {
+    size_t maxCount = 512;
+    CharacterArray* ca = coq_callocArray(CharacterArray, Character, maxCount);
+    const char* c = string;
+    size_t charIndex = 0;
+    while(*c) {
+        if(charIndex >= maxCount) {
+            maxCount += 512;
+            ca = coq_realloc(ca, sizeof(CharacterArray) + (maxCount - 1) * sizeof(Character));
+        }
+        size_t c_size = charRef_sizeAsUTF8(c);
+        memcpy(&ca->chars[charIndex], c, c_size);
+        // Next
+        charconstRef_moveToNextUTF8Char(&c);
+        charIndex++;
+    }
+    size_initConst(&ca->count, charIndex);
+    charIndex = charIndex ? charIndex : 1;
+    ca = coq_realloc(ca, sizeof(CharacterArray) + (charIndex - 1) * sizeof(Character));
+    return ca;
+}
+
+size_t     characterarray_count(const CharacterArray* charArr) {
+    return charArr->count;
+}
+Character const * characterarray_first(const CharacterArray* charArray) {
+    return charArray->chars;
+} 
+Character const * characterarray_end(const CharacterArray* charArray) {
+    return &charArray->chars[charArray->count];
+} 

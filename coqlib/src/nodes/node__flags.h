@@ -23,28 +23,30 @@ typedef enum {
     flag_notToAlign =                   1ULL<<4,
     /// Qui apparaît en grossissant.
     flag_poping =                       1ULL<<5,
-    /// Heu, le noeud est dans la poubelle... Quittez le navire !
+    /// Le noeud est dans la poubelle... Quittez le navire !
     flag_toDelete_ =                    1ULL<<6,
+    flag_toDeleteScheduled_ =           1ULL<<7, // Sera bientôt dans la poubelle.
     
     // Flags pour savoir quelle branches où chercher.
-    flag_parentOfToDisplay =            1ULL<<7,
-    flag_parentOfButton =               1ULL<<8,
-    flag_parentOfScrollable =           1ULL<<9,
-    flag_parentOfReshapable =           1ULL<<10,
+    flag_parentOfToDraw =               1ULL<<8, // Branche ayant des noeud `show` ou `drawableActive`.
+    flag_parentOfButton =               1ULL<<9,
+    flag_parentOfScrollable =           1ULL<<10,
+    flag_parentOfReshapable =           1ULL<<11,
     
     // Action au resize.
     flag_giveSizeToBigbroFrame =        1ULL<<12,
     flag_giveSizeToParent =             1ULL<<13,
     
-    // Pour les drawables.
-    /// Il faut fournir la largeur, la largeur n'est pas prise avec le ratio w/h du png d'origine.
-    flag_drawableDontRespectRatio =      1ULL<<15,
+    // Drawable encore actif (meme si show est off, transition pas encore fini).
+    flag_drawableActive =                1ULL<<14,
+    
+    // Libre 15, 16, 17...
     
     // Pour les views.
     /// Les "blocs" (premiers descendants) ne sont pas alignées en fonction de la dimention de la vue principale/fenêtre.
-    flag_viewDontAlignElements =         1ULL<<17,
+    flag_viewDontAlignElements =         1ULL<<18,
     /// Pas automatiquement jetté à la poubelle (par defaut, quand on quitte une view, elle est détruite)
-    flag_viewPersistent =                1ULL<<18,
+    flag_viewPersistent =                1ULL<<19,
     /// Defaut pour l'avant-plan et l'arrière-plan, i.e. toujours présent et pas d'alignemment des blocs.
     flags_viewBackAndFrontDefault =      flag_viewPersistent|flag_viewDontAlignElements|flag_exposed|flag_show,
     
@@ -59,11 +61,14 @@ typedef enum {
     flag_fluidJustifiedLeft =          1ULL<<25,
     flag_fluidJustifiedTop =           1ULL<<26,
     flag_fluidJustifiedBottom =        1ULL<<27,
+    // Sera centré (-> 0) lors d'un setRelatively.
+//    flag_fluidRelativeCentered =       1ULL<<28,
     
-    flag_fluidFadeInRight =            1ULL<<28,
+    flag_fluidFadeInRight =            1ULL<<29,
     
     flags_fluidRelatives = flag_fluidRelativeToTop|flag_fluidRelativeToBottom|
                            flag_fluidRelativeToLeft|flag_fluidRelativeToRight,
+//                           flag_fluidRelativeCentered,
     flags_fluidJustifieds = flag_fluidJustifiedTop|flag_fluidJustifiedBottom|
                             flag_fluidJustifiedLeft|flag_fluidJustifiedRight,
     /// Flags ayaant besoin de  `fluid_reshape_` au reshape.
@@ -77,11 +82,11 @@ typedef enum {
     flag_buttonInactive =                1ULL<<30,
     
     // Pour les root
-    flags_rootDefault = flag_exposed|flag_show|flag_parentOfToDisplay|flag_parentOfButton|
+    flags_rootDefault = flag_exposed|flag_show|flag_parentOfToDraw|flag_parentOfButton|
         flag_parentOfScrollable|flag_parentOfReshapable,
 
     
-    flag_firstCustomFlag =              1ULL<<32,
+    flag_firstCustomFlag =              1ULL<<31,
 } flag_t;
 
 

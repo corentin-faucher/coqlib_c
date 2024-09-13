@@ -12,19 +12,22 @@
 
 typedef struct _Timer Timer;
 
-/// Verification des timers actifs...
-/// Si caller assez souvent, peut verifier si un noeud est a la poubelle.
-/// Mauvaise idee ? Mieu de caller timer_cancel lors d'un node_deinit ?
+/// Verification des timers actifs et exécution des `callBack` qui sont dûs.
 void Timer_check(void);
 
-/// Création d'un timer qui call `callBack` sur `target_object` après `deltaTimeMS`.
-/// A priori, il est preferable de garder la reference au timer (passer à `timerRefOpt`).
-/// Si le `target_node` est `_flag_toDelete`, le timer sera automatiquement cancelé.
+/// Création d'un timer qui call `callBack` sur `targetObject` après `deltaTimeMS`.
+/// Pour répéter à chaque "tick", mettre deltaTimeMS à 1 ms.
+/// A priori, il est preferable de garder la reference au timer (passer à `timerRefOpt`) pour pouvoir cancel le timer.
+/// S'assurer de caller `timer_cancel` avant de dealloc `target_object`.
+/// targetObjectOpt: l'objet sur lequel le callBack agit (optionel).
 void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
-                     Node* target_node, void (*callBack)(Node*));
+                     void* targetObjectOpt, void (*callBack)(void* targetObjectOpt));
 
+/// Annuler le callback. La ref `*timerRef` est mis à null.
 void timer_cancel(Timer** timerRef);
 
+
+// Garbage...
 /// Création d'un timer qui call `callBack` sur `target_node` après `deltaTimeMS`.
 /// A priori, il est preferable de garder la reference au timer (passer à `timerRefOpt`).
 /// Si le `target_node` est `_flag_toDelete`, le timer sera automatiquement cancelé.

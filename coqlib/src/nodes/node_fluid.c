@@ -23,8 +23,8 @@ void fluid_init_(Fluid* f, float lambda) {
 }
 Fluid* Fluid_create(Node* const refOpt, float x, float y, float w, float h,
                               float lambda, flag_t flags, uint8_t node_place) {
-    Fluid* f = coq_calloc(1, sizeof(Fluid));
-    node_init_(&f->n, refOpt, x, y, w, h, node_type_n_fluid, flags, node_place);
+    Fluid* f = coq_callocTyped(Fluid);
+    node_init(&f->n, refOpt, x, y, w, h, node_type_n_fluid, flags, node_place);
     fluid_init_(f, lambda);
     return f;
 }
@@ -81,6 +81,13 @@ void    fluid_setScales(Fluid* f, Vector2 scales, bool fix) {
     }
     f->n.sx = scales.x;  f->n.sy = scales.y;
 }
+
+const PopingInfo popinginfo_default = {
+    {{ 0.0, 0.0, -0.4, -0.2 }},
+    {{ 0.0, 1.0,  0.0,  0.0 }},
+    10, 25, 10, 25,
+};
+const PopingInfo popinginfo_zeros = { 0 };
 
 /// Applique un effet d'apparition. *Non compatible avec les `flags_fluidOpen` et `flags_fluidClose`*,
 /// i.e. Soit on utilise le fluid pour setter relativement, soint on l'utilies pour l'effet `poping`.

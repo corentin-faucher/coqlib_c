@@ -47,7 +47,6 @@ uint32_t _hash(const char *name) {
 
 HashSlot*  _hashslot_create(const char* key, const char* valueDataOpt, size_t size_value) {
     size_t size_slot = sizeof(HashSlot) - 1 + size_value;
-//    size_t size_value = size_slot - sizeof(HashSlot) + 1;
     HashSlot* hs = coq_calloc(1, size_slot);
     strncpy(hs->key, key, _MAP_MAX_NAME_COMPARE);
     // (s'assurer d'avoir une string fini pour l'affichage)
@@ -103,8 +102,7 @@ void  _hashslot_print(HashSlot* hs, void (*printValue)(const char*)) {
 }
 
 StringMap* Map_create(uint32_t count, size_t size_value) {
-    size_t map_size = sizeof(StringMap) + sizeof(HashSlot*) * (count - 1);
-    StringMap* ht = coq_calloc(1, map_size);
+    StringMap* ht = coq_callocArray(StringMap, HashSlot*, count);
     ht->count = count;
     ht->size_value = size_value;
     return ht;

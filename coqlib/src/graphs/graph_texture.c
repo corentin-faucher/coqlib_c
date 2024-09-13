@@ -13,13 +13,11 @@
 
 #define TEX_UNUSED_DELTATMS_ 1000
 
-static Texture      _Texture_dummy = {
+static Texture      Texture_dummy_ = {
 //    PTU_DEFAULT,
-    1, 1, 8, 8,
-    1.f, 1.f, 1.f,
-    tex_flag_static_, 0,
-    "dummy", NULL, NULL, {{ 1, 1, 1, 1 }}, 0,
-    {{ 0, 0 }}
+    1, 1, 8, 8,     // n, m, w, h,
+    tex_flag_static_, 0, // flags, touchTime
+    NULL,           // nom
 };
 
 /*-- Variable globales --*/
@@ -43,19 +41,15 @@ void  texture_deinit_(void* tex_void) {
         coq_free(tex->string);
         tex->string = NULL;
     }
-    if(tex->string_fontOpt) {
-        coq_free(tex->string_fontOpt);
-        tex->string_fontOpt = NULL;
-    }
     // Déréferencer...
-    if(tex->string_refererOpt)
-        *(tex->string_refererOpt) = (Texture*)NULL;
+//    if(tex->string_refererOpt)
+//        *(tex->string_refererOpt) = (Texture*)NULL;
     Texture_total_count_ --;
 }
 
 // Casting des modif de texture d'engine pour les maps. 
 static void (* const texture_engine_releasePartly__)(char*) = (void (*)(char*))texture_engine_releasePartly_;
-static void (* const texture_engine_setStringAsToRedraw__)(char*) = (void (*)(char*))texture_engine_setStringAsToRedraw_;
+//static void (* const texture_engine_setStringAsToRedraw__)(char*) = (void (*)(char*))texture_engine_setStringAsToRedraw_;
 static void (* const texture_engine_releaseAll__)(char*) = (void (*)(char*))texture_engine_releaseAll_;
 void  _texture_unsetUnusedPng_(char* tex_char) {
     Texture* tex = (Texture*)tex_char;
@@ -65,11 +59,9 @@ void  _texture_unsetUnusedPng_(char* tex_char) {
 }
 void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
     // Init des champs
-//    tex->ptu = (PerTextureUniforms) { 8, 8, (float)info->m, (float)info->n };
     tex->m =     info->m; tex->n =     info->n;
-    tex->alpha = 1.f;     tex->beta =  1.f;
-    tex->ratio = (float)info->n / (float)info->m;  // (temporaire)
-    tex->flags = tex_flag_png|tex_flag_shared|(info->isCoqlib ? tex_flag_png_coqlib : 0)
+//    tex->ratio = (float)info->n / (float)info->m; 
+    tex->flags = tex_flag_shared|(info->isCoqlib ? tex_flag_png_coqlib : 0)
                     |(info->nearest ? tex_flag_nearest : 0);
     tex->touchTime = CR_elapsedMS_ - TEX_UNUSED_DELTATMS_;
     
@@ -77,6 +69,15 @@ void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
     
     texture_engine_tryToLoadAsPng_(tex, true);
     
+    Texture_total_count_ ++;
+}
+
+void  texture_initEmpty_(Texture* const tex) {
+    *tex = (Texture) {
+        1, 1, 2, 2,
+        0, CR_elapsedMS_,
+        // reste à 0.
+    };
     Texture_total_count_ ++;
 }
 
@@ -100,18 +101,12 @@ const PngInfo            coqlib_pngInfos_[] = {
     {"coqlib_the_cat", 1, 1, true, true},
 };
 const uint32_t           coqlib_pngCount_ = sizeof(coqlib_pngInfos_) / sizeof(PngInfo);
-/// Maps des constant strings (shared)
-static StringMap*        textureOfSharedString_ = NULL;
-// Liste des strings quelconques...
-#define NonCstStringTexture_Count_ 64
-static Texture*          _nonCstStrTexArray[NonCstStringTexture_Count_];
-static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[NonCstStringTexture_Count_];
-static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;
 
-Texture* texture_white = NULL;
+Texture* Texture_white = NULL;
 static uint32_t texture_white_pixels_[4] = {
     0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
 };
+Texture* Texture_frameBuffers[10] = {};
 
 #pragma mark -- Globals ------------------------------------------------
 
@@ -154,33 +149,25 @@ void     Texture_init(PngInfo const pngInfos[], const unsigned pngCount, bool lo
         }
     }
     // 3. Strings
-    textureOfSharedString_ = Map_create(64, sizeof(Texture));
-    memset(_nonCstStrTexArray, 0, sizeof(Texture*) * NonCstStringTexture_Count_);
+//    textureOfSharedString_ = Map_create(64, sizeof(Texture));
+//    memset(_nonCstStrTexArray, 0, sizeof(Texture*) * NonCstStringTexture_Count_);
     
     // 4. Texture par défaut (blanc)
-    texture_white = Texture_createWithPixels(texture_white_pixels_, 2, 2, true, true);
+    Texture_white = Texture_createWithPixels(texture_white_pixels_, 2, 2, true, true);    
     
     _Texture_isInit = true;
     _Texture_isLoaded = true;
 }
-/// Après un changement de Font...
-void     Texture_redrawStrings(void) {
-    map_applyToAll(textureOfSharedString_, texture_engine_setStringAsToRedraw__);
-    Texture** tr = _nonCstStrTexArray;
-    while(tr < _nonCstStrArrEnd) {
-        if(*tr) { texture_engine_setStringAsToRedraw_(*tr); }
-        tr ++;
-    }
-}
+
 void     Texture_suspend(void) {
     if(!_Texture_isInit || !_Texture_isLoaded) return;
     map_applyToAll(textureOfPngName_,      texture_engine_releasePartly__); // (On garde les minis pour les pngs)
-    map_applyToAll(textureOfSharedString_, texture_engine_releaseAll__);
-    Texture** tr = _nonCstStrTexArray;
-    while(tr < _nonCstStrArrEnd) {
-        if(*tr) { texture_engine_releaseAll_(*tr); }
-        tr ++;
-    }
+//    map_applyToAll(textureOfSharedString_, texture_engine_releaseAll__);
+//    Texture** tr = _nonCstStrTexArray;
+//    while(tr < _nonCstStrArrEnd) {
+//        if(*tr) { texture_engine_releaseAll_(*tr); }
+//        tr ++;
+//    }
     _Texture_isLoaded = false;
 }
 void     Texture_resume(void) {
@@ -190,13 +177,13 @@ void     Texture_resume(void) {
 void     Texture_deinit(void) {
     _Texture_isInit = false;
     _Texture_isLoaded = false;
-    map_destroyAndNull(&textureOfSharedString_, texture_deinit_);
+//    map_destroyAndNull(&textureOfSharedString_, texture_deinit_);
     map_destroyAndNull(&textureOfPngName_,      texture_deinit_);
     if(textureOfPngId_)
         coq_free(textureOfPngId_);
     textureOfPngId_ = NULL;
-    texture_deinit_(texture_white);
-    texture_white = NULL;
+    texture_deinit_(Texture_white);
+    Texture_white = NULL;
     pngCount_ = 0;
 }
 
@@ -210,15 +197,15 @@ void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
             map_applyToAll(textureOfPngName_, _texture_unsetUnusedPng_);
         if(checkunset_counter != 1) return;
         // liberer les shared strings non utilisées...
-        bool notFinish = map_iterator_init(textureOfSharedString_);
-        while(notFinish) {
-            Texture* tex = (Texture*)map_iterator_valueRefOpt(textureOfSharedString_);
-            if((tex->string_ref_count == 0) && _texture_isUnused(tex)) {
-                notFinish = map_iterator_removeAndNext(textureOfSharedString_, texture_deinit_);
-            } else {
-                notFinish = map_iterator_next(textureOfSharedString_);
-            }
-        }
+//        bool notFinish = map_iterator_init(textureOfSharedString_);
+//        while(notFinish) {
+//            Texture* tex = (Texture*)map_iterator_valueRefOpt(textureOfSharedString_);
+//            if((tex->string_ref_count == 0) && _texture_isUnused(tex)) {
+//                notFinish = map_iterator_removeAndNext(textureOfSharedString_, texture_deinit_);
+//            } else {
+//                notFinish = map_iterator_next(textureOfSharedString_);
+//            }
+//        }
         return;
     }    
     // Chercher les png, `const string`, `non const string` à dessiner au complet...
@@ -231,34 +218,34 @@ void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
                 return;
         }
     } while(map_iterator_next(textureOfPngName_));
-    if(map_iterator_init(textureOfSharedString_)) do {
-        Texture* tex = (Texture*)map_iterator_valueRefOpt(textureOfSharedString_);
-        if(!_texture_isUsed(tex)) continue;
-         if(!(tex->flags & tex_flag_fullyDrawn_)) {
-            texture_engine_tryToLoadAsString_(tex, false);
-            if(chronochecker_elapsedMS(cc) > timesUp)
-                return;
-        }
-    } while(map_iterator_next(textureOfSharedString_));
-    Texture** tr = _nonCstStrTexArray;
-    while(tr < _nonCstStrArrEnd) {
-        if(*tr) if(!((*tr)->flags & tex_flag_fullyDrawn_)) {
-            texture_engine_tryToLoadAsString_(*tr, false);
-            if(chronochecker_elapsedMS(cc) > timesUp)
-                return;
-        }
-        tr ++;
-    }
+//    if(map_iterator_init(textureOfSharedString_)) do {
+//        Texture* tex = (Texture*)map_iterator_valueRefOpt(textureOfSharedString_);
+//        if(!_texture_isUsed(tex)) continue;
+//         if(!(tex->flags & tex_flag_fullyDrawn_)) {
+//            texture_engine_tryToLoadAsString_(tex, false);
+//            if(chronochecker_elapsedMS(cc) > timesUp)
+//                return;
+//        }
+//    } while(map_iterator_next(textureOfSharedString_));
+//    Texture** tr = _nonCstStrTexArray;
+//    while(tr < _nonCstStrArrEnd) {
+//        if(*tr) if(!((*tr)->flags & tex_flag_fullyDrawn_)) {
+//            texture_engine_tryToLoadAsString_(*tr, false);
+//            if(chronochecker_elapsedMS(cc) > timesUp)
+//                return;
+//        }
+//        tr ++;
+//    }
     Texture_needToFullyDraw_ = false;
 }
 
 #pragma mark -- Constructors... ----------------------------------------
 
 Texture* Texture_sharedImage(uint32_t const pngId) {
-    if(!textureOfPngId_) { printerror("pngs not loaded."); return &_Texture_dummy; }
+    if(!textureOfPngId_) { printerror("pngs not loaded."); return &Texture_dummy_; }
     if(pngId >= pngCount_) {
         printerror("Invalid png id %d. Max id is %d.", pngId, pngCount_);
-        return &_Texture_dummy;
+        return &Texture_dummy_;
     }
     Texture *tex = textureOfPngId_[pngId];
     tex->touchTime = CR_elapsedMS_;
@@ -274,11 +261,11 @@ Texture* Texture_sharedImage(uint32_t const pngId) {
     return tex;
 }
 Texture* Texture_sharedImageByName(const char* pngName) {
-    if(!textureOfPngName_) { printerror("Texture not init."); return &_Texture_dummy; }
+    if(!textureOfPngName_) { printerror("Texture not init."); return &Texture_dummy_; }
     Texture* tex = (Texture*)map_valueRefOptOfKey(textureOfPngName_, pngName);
     if(!tex) {
         printerror("Invalid png name %s.", pngName);
-        return &_Texture_dummy;
+        return &Texture_dummy_;
     }
     tex->touchTime = CR_elapsedMS_;
     if((tex->flags & tex_flags_drawn_) == 0) {
@@ -287,83 +274,15 @@ Texture* Texture_sharedImageByName(const char* pngName) {
     return tex;
 }
 
-void     _texture_addToNonSharedStringReferers(Texture* tex) {
-    Texture** const referer = _nonCstStrCurrent;
-    if(*referer) {
-        printwarning("Texture referer space occupied.");
-    } else {
-        // Référencer dans la liste des "non constant strings".
-        *referer = tex;
-        tex->string_refererOpt = referer;
-    }
-    // Cherche un disponible pour le prochain...
-    do {
-        _nonCstStrCurrent++;
-        if(_nonCstStrCurrent >= _nonCstStrArrEnd)
-            _nonCstStrCurrent = _nonCstStrTexArray;
-        if(*_nonCstStrCurrent == NULL)
-            return;
-    } while(_nonCstStrCurrent != referer);
-    printwarning("Texture referer space not found.");
-}
-// Création d'une string quelconque (mutable, localisable, avec font...)
-Texture* Texture_retainString(StringDrawable str) {
-    if(!_Texture_isInit) {
-        printerror("Texture not init.");
-        return &_Texture_dummy;
-    }
-    // 0. Récuperer si la string existe.
-    Texture* tex;
-    if(str.string_flags & string_flag_shared) {
-        if(str.string_flags & string_flag_mutable) {
-            printerror("Shared string cannot be mutable.");
-            str.string_flags &= ~tex_flag_string_mutable;
-        }
-        tex = (Texture*)map_valueRefOptOfKey(textureOfSharedString_, str.c_str);
-        // Existe, juste incrémenter le compteur de références.
-        if(tex) {
-            tex->string_ref_count ++;
-            return tex;
-        }
-        // N'existe pas encore, créer...
-        tex = (Texture*)map_put(textureOfSharedString_, str.c_str, NULL);
-    } else {
-        tex = coq_calloc(1, sizeof(Texture));
-    }
-    
-    // 1. Init des champs de base.
-//    tex->ptu = ptu_default;
-    tex->m =     1;   tex->n =     1;
-    tex->flags = tex_flag_string|(str.string_flags & tex_flags_string_);
-    tex->string_ref_count = 1;
-    tex->touchTime = CR_elapsedMS_;
-    tex->string = String_createCopy(str.c_str);
-    tex->string_fontOpt = str.fontNameOpt ? String_createCopy(str.fontNameOpt) : NULL;
-    tex->string_color = str.color;
-    // 1. Evaluer les dimensions.
-    texture_engine_justSetSizeAsString_(tex);
-    
-    // 3. Garder une référence pour pause/resume.
-    if(!(str.string_flags & string_flag_shared))
-        _texture_addToNonSharedStringReferers(tex);
-    // (sinon c'est dans textureOfSharedString_)
-    
-    Texture_total_count_ ++;
-    return tex;
-}
+
 Texture* Texture_createWithPixels(const void* pixelsBGRA8, uint32_t width, uint32_t height, 
                                   bool shared, bool nearest) 
 {
-    Texture* tex = coq_calloc(1, sizeof(Texture));
-    *tex = (Texture) {
-//        PTU_DEFAULT,
-        1, 1, 8, 8,
-        1.f, 1.f, 1.f,
-        (shared ? tex_flag_shared : 0)|(nearest ? tex_flag_nearest : 0), CR_elapsedMS_,
-        NULL, NULL, NULL, {{ 1, 1, 1, 1 }}, 0,
-        {{ 0, 0 }}
-    };
-    texture_engine_loadWithPixels_(tex, pixelsBGRA8, width, height);
+    Texture* tex = coq_callocTyped(Texture);
+    texture_initEmpty_(tex);
+    tex->flags = (shared ? tex_flag_shared : 0)|(nearest ? tex_flag_nearest : 0);
+    texture_engine_loadEmptyWithSize_(tex, width, height);
+    texture_engine_writeAllPixels(tex, pixelsBGRA8);
     return tex;
 }
 
@@ -371,34 +290,136 @@ void    textureref_releaseAndNull_(Texture** const texRef) {
     if(*texRef == NULL) return;
     Texture* const tex = *texRef;
     *texRef = NULL;
-    if(tex->string_ref_count > 0) tex->string_ref_count --;
     if(tex->flags & tex_flag_shared) return;
     if(tex->flags & tex_flag_static_) { printwarning("Release de static tex ?"); return; }
-    if(tex->string_ref_count > 0) return;
     
-    // Seules les non-shared string sont deallocted (tout de suite)
     texture_deinit_(tex);
     coq_free(tex);
 }
-void    textureref_exchangeSharedStringFor(Texture** const texRef, StringDrawable str) {
-    if(((*texRef)->flags & tex_flag_shared) == 0 || (str.string_flags & string_flag_shared) == 0) {
-        printerror("Not shared strings.");
-        return;
-    }
-    Texture* const oldTex = *texRef;
-    *texRef = Texture_retainString(str);
-    if(oldTex->string_ref_count > 0) oldTex->string_ref_count --;
+
+
+#pragma mark - Methods ---
+
+RectangleUint  texture_pixelRegionFromUVrect(const Texture* const tex, Rectangle const UVrect) {
+    return (RectangleUint) {
+        tex->width * UVrect.o_x, tex->height * UVrect.o_y,
+        tex->width * UVrect.w,   tex->height * UVrect.h,
+    };
 }
 
-/*-- Fonctions public sur une instance Texture -------------------------*/
-void  texture_updateMutableString(Texture* tex, const char* newString, bool forceRedraw) {
-    if(!(tex->flags & string_flag_mutable) || !newString) {
-        printwarning("Not a mutable string or missing newString.");
-        return;
-    }
-    coq_free(tex->string);
-    tex->string = String_createCopy(newString);
-    texture_engine_tryToLoadAsString_(tex, !forceRedraw);
-    tex->touchTime = CR_elapsedMS_;
+Rectangle      texture_UVrectFromPixelRegion(const Texture* const tex, RectangleUint const region) {
+    return (Rectangle) {
+        (float)region.o_x / tex->width, (float)region.o_y / tex->height,
+        (float)region.w / tex->width,   (float)region.h / tex->height,
+    };
 }
 
+float          texture_tileRatio(const Texture* const tex) {
+    return tex->width / tex->height * ((float)tex->n / (float)tex->m);
+}
+Vector2        texture_tileDuDv(const Texture* const tex) {
+    return (Vector2) { 1.f/(float)tex->m, 1.f/(float)tex->n };
+}
+
+
+// Garbage
+//void    textureref_exchangeSharedStringFor(Texture** const texRef, StringDrawable str) {
+//    if(((*texRef)->flags & tex_flag_shared) == 0 || (str.string_flags & string_flag_shared) == 0) {
+//        printerror("Not shared strings.");
+//        return;
+//    }
+//    Texture* const oldTex = *texRef;
+//    *texRef = Texture_retainString(str);
+//    if(oldTex->string_ref_count > 0) oldTex->string_ref_count --;
+//}
+//*-- Fonctions public sur une instance Texture -------------------------*/
+//void  texture_updateMutableString(Texture* tex, const char* newString, bool forceRedraw) {
+//    if(!(tex->flags & string_flag_mutable) || !newString) {
+//        printwarning("Not a mutable string or missing newString.");
+//        return;
+//    }
+//    coq_free(tex->string);
+//    tex->string = String_createCopy(newString);
+//    texture_engine_tryToLoadAsString_(tex, !forceRedraw);
+//    tex->touchTime = CR_elapsedMS_;
+//}
+//void     _texture_addToNonSharedStringReferers(Texture* tex) {
+//    Texture** const referer = _nonCstStrCurrent;
+//    if(*referer) {
+//        printwarning("Texture referer space occupied.");
+//    } else {
+//        // Référencer dans la liste des "non constant strings".
+//        *referer = tex;
+//        tex->string_refererOpt = referer;
+//    }
+//    // Cherche un disponible pour le prochain...
+//    do {
+//        _nonCstStrCurrent++;
+//        if(_nonCstStrCurrent >= _nonCstStrArrEnd)
+//            _nonCstStrCurrent = _nonCstStrTexArray;
+//        if(*_nonCstStrCurrent == NULL)
+//            return;
+//    } while(_nonCstStrCurrent != referer);
+//    printwarning("Texture referer space not found.");
+//}
+// Création d'une string quelconque (mutable, localisable, avec font...)
+//Texture* Texture_retainString(StringDrawable str) {
+//    if(!_Texture_isInit) {
+//        printerror("Texture not init.");
+//        return &Texture_dummy_;
+//    }
+//    // 0. Récuperer si la string existe.
+//    Texture* tex;
+//    if(str.string_flags & string_flag_shared) {
+//        if(str.string_flags & string_flag_mutable) {
+//            printerror("Shared string cannot be mutable.");
+//            str.string_flags &= ~tex_flag_string_mutable;
+//        }
+//        tex = (Texture*)map_valueRefOptOfKey(textureOfSharedString_, str.c_str);
+//        // Existe, juste incrémenter le compteur de références.
+//        if(tex) {
+//            tex->string_ref_count ++;
+//            return tex;
+//        }
+//        // N'existe pas encore, créer...
+//        tex = (Texture*)map_put(textureOfSharedString_, str.c_str, NULL);
+//    } else {
+//        tex = coq_callocTyped(Texture);
+//    }
+//    
+//    // 1. Init des champs de base.
+////    tex->ptu = ptu_default;
+//    tex->m =     1;   tex->n =     1;
+//    tex->flags = tex_flag_string|(str.string_flags & tex_flags_string_);
+//    tex->string_ref_count = 1;
+//    tex->touchTime = CR_elapsedMS_;
+//    tex->string = String_createCopy(str.c_str);
+//    tex->string_fontOpt = str.fontNameOpt ? String_createCopy(str.fontNameOpt) : NULL;
+//    tex->string_color = str.color;
+//    // 1. Evaluer les dimensions.
+//    texture_engine_justSetSizeAsString_(tex);
+//    
+//    // 3. Garder une référence pour pause/resume.
+//    if(!(str.string_flags & string_flag_shared))
+//        _texture_addToNonSharedStringReferers(tex);
+//    // (sinon c'est dans textureOfSharedString_)
+//    
+//    Texture_total_count_ ++;
+//    return tex;
+//}
+/// Après un changement de Font...
+//void     Texture_redrawStrings(void) {
+//    map_applyToAll(textureOfSharedString_, texture_engine_setStringAsToRedraw__);
+//    Texture** tr = _nonCstStrTexArray;
+//    while(tr < _nonCstStrArrEnd) {
+//        if(*tr) { texture_engine_setStringAsToRedraw_(*tr); }
+//        tr ++;
+//    }
+//}
+/// Maps des constant strings (shared)
+//static StringMap*        textureOfSharedString_ = NULL;
+// Liste des strings quelconques...
+//#define NonCstStringTexture_Count_ 64
+//static Texture*          _nonCstStrTexArray[NonCstStringTexture_Count_];
+//static Texture** const   _nonCstStrArrEnd = &_nonCstStrTexArray[NonCstStringTexture_Count_];
+//static Texture**         _nonCstStrCurrent = _nonCstStrTexArray;

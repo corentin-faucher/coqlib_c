@@ -9,32 +9,36 @@
 
 #include <stdio.h>
 
-/*-- ChronoRender, le chrono pour le rendering. --*/
+#pragma mark - ChronoRender, le chrono pour le rendering. --
 // variable "prives"
-static       int     _CR_isPaused = 0;
+static       int     CR_isPaused_ = 0;
 int64_t              CR_elapsedMS_ = 0;
-static       int64_t _CR_elapsedAngleMS = 0;
-static       int64_t _CR_touchTimeMS = 0;
-static const int64_t _CR_angleLoopTimeMS = (int64_t)(24000 * M_PI);
-static       int64_t _CR_sleepTime = 16000;
+static       int64_t CR_sleepTime_ = 16000;
+static       int64_t CR_elapsedAngleMS_ = 0;
+static       int64_t CR_touchTimeMS_ = 0;
+
+static const int64_t CR_angleLoopTimeMS_ = (int64_t)(24000 * M_PI);
+
 
 int64_t Chrono_UpdateDeltaTMS = 50;
 // Methodes
 void    ChronoRender_update(int64_t deltaTMS) {
-    if(_CR_isPaused) return;
+    if(CR_isPaused_) return;
     CR_elapsedMS_ += deltaTMS;
-    _CR_elapsedAngleMS += deltaTMS;
-    if(_CR_elapsedAngleMS > _CR_angleLoopTimeMS)
-        _CR_elapsedAngleMS -= _CR_angleLoopTimeMS;
+    CR_elapsedAngleMS_ += deltaTMS;
+    if(CR_elapsedAngleMS_ > CR_angleLoopTimeMS_)
+        CR_elapsedAngleMS_ -= CR_angleLoopTimeMS_;
 }
 void    ChronoRender_setPaused(bool isPaused) {
-    _CR_isPaused = isPaused;
+    CR_isPaused_ = isPaused;
     if(isPaused) return;
-    _CR_touchTimeMS = CR_elapsedMS_;
-//    _CR_touchAngleTimeMS = _CR_elapsedAngleMS;
+    CR_touchTimeMS_ = CR_elapsedMS_;
 }
 bool    ChronoRender_shouldSleep(void) {
-    return CR_elapsedMS_ - _CR_touchTimeMS > _CR_sleepTime;
+    return CR_elapsedMS_ - CR_touchTimeMS_ > CR_sleepTime_;
+}
+void      ChronoRender_setSleepTime(int64_t deltaTMStoSleep) {
+    CR_sleepTime_ = deltaTMStoSleep;
 }
 int64_t ChronoRender_elapsedMS(void) {
     return CR_elapsedMS_;
@@ -43,7 +47,7 @@ float   ChronoRender_elapsedSec(void) {
     return (float)CR_elapsedMS_ / 1000;
 }
 float   ChronoRender_elapsedAngleSec(void) {
-    return (float)_CR_elapsedAngleMS / 1000;
+    return (float)CR_elapsedAngleMS_ / 1000;
 }
 
 /*-- ChronoApp, temps ecoule depuis l'ouverture de l'app. (vrais ms/sec) --*/
@@ -86,17 +90,18 @@ void chrono_stop(Chrono *c) {
     c->isActive = 0;
 }
 /// Le temps écoulé depuis "start()" en millisec.
-int64_t chrono_elapsedMS(Chrono *c) {
+int64_t chrono_elapsedMS(const Chrono *c) {
     return c->isActive ? (c->isRendering ? CR_elapsedMS_ : ChronoApp_elapsedMS()) - c->_time
         : c->_time;
 }
 /// Le temps global où le chrono a commencé (en millisec).
-int64_t chrono_startTimeMS(Chrono *c) {
+int64_t chrono_startTimeMS(const Chrono *c) {
     return c->isActive ? c->_time :
         (c->isRendering ? CR_elapsedMS_ : ChronoApp_elapsedMS()) - c->_time;
 }
-float   chrono_elapsedSec(Chrono *c) {
-    return (float)chrono_elapsedMS(c) / 1000.f;
+float   chrono_elapsedSec(const Chrono *c) {
+    return (float)(c->isActive ? (c->isRendering ? CR_elapsedMS_ : ChronoApp_elapsedMS()) - c->_time
+        : c->_time) / 1000.f;
 }
 void chrono_pause(Chrono *c) {
     if(!c->isActive) return;
@@ -135,10 +140,10 @@ void    countdown_start(Countdown *cd) {
 void    countdown_stop(Countdown *cd) {
     chrono_stop(&cd->c);
 }
-int64_t countdown_remainingMS(Countdown *cd) {
+int64_t countdown_remainingMS(const Countdown *cd) {
     return cd->ringTimeMS - chrono_elapsedMS(&cd->c);
 }
-bool     countdown_isRinging(Countdown *cd) {
+bool     countdown_isRinging(const Countdown *cd) {
     return chrono_elapsedMS(&cd->c) >= cd->ringTimeMS;
 }
 
@@ -161,10 +166,10 @@ float      chronotiny_elapsedSec(ChronoTiny t) {
 void    chronochecker_set(ChronoChecker* cc) {
     cc->_time = CA_systemTime_();
 }
-int64_t chronochecker_elapsedMS(ChronoChecker* cc) {
+int64_t chronochecker_elapsedMS(const ChronoChecker* cc) {
     return CA_systemTime_() - cc->_time;
 }
-void chronochecker_toc_(ChronoChecker* cc, const char* filename, uint32_t line) {
+void chronochecker_toc_(const ChronoChecker* cc, const char* filename, uint32_t line) {
     int64_t elapsedMS = CA_systemTime_() - cc->_time;
     printf("🐸 Toc ! %lld ms -> %s line %d\n", elapsedMS, filename, line);
 }

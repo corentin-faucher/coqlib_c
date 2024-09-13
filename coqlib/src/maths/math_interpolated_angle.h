@@ -12,7 +12,7 @@
 
 #define INT_ANGLE_SIZE 20
 
-typedef struct _IntAngle {
+typedef struct InterpolatedAngle {
     float    pos;
     float    slope;
     uint32_t indexLast;

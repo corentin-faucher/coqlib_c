@@ -55,21 +55,21 @@ const char* Language_currentIso(void);
 const char* Language_currentCode(void);
 
 /// Obtenir l'enum Language a partir du code iso, e.g. "en" -> `language_english`.
-Language       Language_languageWithIso(const char* iso);
+Language    Language_languageWithIso(const char* iso);
 /// Semblable à `Language_languageWithIso` mais ne contient que le code de langue.
 /// Différent seulement pour le chinois où "zh" retourne `language_chineseSimplified`.
-Language       Language_languageWithCode(const char* const code);
+Language    Language_languageWithCode(const char* const code);
 /// Le code iso, e.g. language_english -> "en".
-const char*    language_iso(Language language);
-const char*    language_name(Language language);
+const char* language_iso(Language language);
+const char* language_name(Language language);
 
 /*-- Pour la localisation des strings. ----------------*/
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
-char*    String_createLocalized(const char* stringKey);
-void     String_copyLocalizedTo(const char* stringKey, char* buffer, size_t size_max_opt);
+const char* String_createLocalized(const char* stringKey);
+void        String_copyLocalizedTo(const char* stringKey, char* buffer, size_t size_max_opt);
 /// Version par defaut de la string, e.g. localization anglaise.
-char*    String_createLocalizedDefault(const char* stringKey);
+const char* String_createLocalizedDefault(const char* stringKey);
 
 
 #endif

@@ -82,8 +82,7 @@ void  Sound_resume(void) {
         printerror("No wav sound to load."); return;
     }
     // 1. Buffers
-    size_t size_buffer_array = sizeof(BufferArray_) + sizeof(AVAudioPCMBuffer*) * (_wav_count - 1);
-    _buffers = coq_calloc(1, size_buffer_array);
+    _buffers = coq_callocArray(BufferArray_, AVAudioPCMBuffer*, _wav_count);
     _buffers->count = _wav_count;
     NSString* wavName = [NSString stringWithUTF8String:_wav_names[0]];
     _buffers->buffers[0] = _Sound_createBuffer(wavName, nil);
@@ -197,7 +196,7 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
 //            }
         }
         if(!player) {
-            printwarning("No available player.");
+//            printwarning("No available player.");
             return;
         }
         if(player->audio_player == nil || player->pitch_controller == nil) {

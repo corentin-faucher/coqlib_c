@@ -4,65 +4,66 @@
 //
 //  Created by Corentin Faucher on 2023-10-28.
 
-#ifndef _coq_node_pop_disk_h
-#define _coq_node_pop_disk_h
+#ifndef coq_node_poping_h
+#define coq_node_poping_h
 
 #include "node_fluid.h"
 #include "node_structs.h"
+#include "node_string.h"
 
 #include "../coq_timer.h"
 #include "../graphs/graph_texture.h"
 
 #pragma mark - Poping Base
 
-typedef struct PopingNode_ {
-  union {
-    Node  n;  
-    Fluid f;
-  };
-  Timer *timer;
-} PopingNode;
-
 typedef struct coq_View View;
-/// Set la vue "en avant", la texture par défaut et le bruit par défaut pour les
+typedef struct PopingNode_ PopingNode_;
+/// Set la vue "en avant" pour les
 /// PopingNode.
-void PopingNode_init(View *frontView, const char *pngNameOpt, uint32_t soundId);
-void PopingNode_setTexture(uint32_t pngId);
+void PopingNode_setFrontView(View* frontView);
+
 /// Crée un noeud (sans structure) qui s'autodétruit.
-/// Si refOpt == NULL -> placé dans la frontView.
-PopingNode *PopingNode_spawn(Node *refOpt, float x, float y, float width,
-                             float height, size_t structSizeOpt, float timeSec,
-                             const PopingInfo *popInfoOpt);
+/// callBackOpt (optionel) forction de mise à jour à chaque "tic".
+void PopingNode_spawn(PopingNode_** refererOpt, float x, float y, float width, float height,
+                      float timeSec, PopingInfo popInfo, void (*callBackOpt)(Fluid*,Countdown*));
+/// Une fois la structure init, ouvrir.
+void popingnode_last_open(void);
+void popingnoderef_cancel(PopingNode_** popingref);
+
 /// Convenience constructor situe le noeud au-dessus de nodeOver (en x,y).
 /// Placé dans frontScreen si inFrontScreen, sinon dans les descendant de
 /// nodeOver. width et height sont relatifs à la hauteur de nodeOver.
-PopingNode *PopingNode_spawnOver(Node *const nodeOver, float width_rel,
-                                 float height_rel, size_t structSizeOpt,
-                                 float timeSec, const PopingInfo *popInfoOpt,
-                                 bool inFrontScreen);
+void PopingNode_spawnOver(Node *const nodeOver, PopingNode_** refererOpt, float width_rel, float height_rel,
+                          float timeSec, PopingInfo popInfo, void (*callBackOpt)(Fluid*,Countdown*));
+/// Accès au dernier PopingNode créé pour créer sa structure. 
+/// ** Attention, ne pas garder de reference ver un poping node -> s'autodétruit ! 
+/// ** On peut donc se retrouver avec un noeud dealloc....              
+extern Fluid* popingnode_last_notSharedOpt_;
 /// Ajuste la position pour être visible dans l'écran.
-void popingnode_checkForScreenSpilling(PopingNode *pn);
+void popingnode_last_checkForScreenSpilling(void);
 
-#pragma mark - PopDisk, un disque de `progression`, disparaît une fois plein. (Sous-strut de PopingNode)
 
-typedef struct PopDisk PopDisk;
-void PopDisk_spawn(Node *refOpt, PopDisk **refererOpt, uint32_t pngId,
+#pragma mark - Quelques exemple de PopingNode...
+
+#pragma mark - PopDisk, un disque de `progression`, disparaît une fois plein.
+
+void PopDisk_spawnAndOpen(Node *refOpt, PopingNode_** refererOpt, uint32_t pngId,
                    uint32_t tile, float deltaT, float x, float y, float twoDy);
-void popdisk_cancel(PopDisk **popRef);
 
 #pragma mark - Sparkles ! (des feux d artifices)
+
+void Sparkle_init(Texture* sparkleTex, uint32_t sparkleSoundId);
 /// Exemple d'implémentation de PopingNode...
-void Sparkle_spawnAt(float xabs, float yabs, float delta, Texture *texOpt);
-void Sparkle_spawnOver(Node *nd, float deltaRatio);
+void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture *texOpt);
+void Sparkle_spawnOverAndOpen(Node *nd, float deltaRatio);
 
 #pragma mark - PopMessage, message qui s autodétruit (e.g. error).
 /// Autre exemple d'implémentation de PopingNode...
-void PopMessage_spawnAt(float xabs, float yabs, float twoDxOpt, float twoDy,
-                        float timeSec, uint32_t framePngId, StringDrawable str,
+void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy,
+                        float timeSec, uint32_t framePngId, StringGlyphedInit str,
                         FramedStringParams params);
-void PopMessage_spawnOver(Node *n, float widthOpt_rel, float height_rel,
+void PopMessage_spawnOverAndOpen(Node *n, float widthOpt_rel, float height_rel,
                           float timeSec, uint32_t framePngId,
-                          StringDrawable str, FramedStringParams params,
-                          bool inFrontScreen);
+                          StringGlyphedInit str, FramedStringParams params);
 
 #endif /* pop_disk_h */

@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-18.
 //
 
-#ifndef _coq_node_view_h
-#define _coq_node_view_h
+#ifndef coq_node_view_h
+#define coq_node_view_h
 
 #include "../coq_event.h"
 #include "node_button.h"
@@ -14,17 +14,17 @@
 typedef struct coq_View View;
 typedef struct coq_View {
   union { // Upcasting
-    Node n;
+    Node  n;
     Fluid f;
   };
   /// La derniére position clické/touché.
   Vector2 lastTouchedPos;
   /// Le bouton présentement grabbé.
   Button *buttonSelectedOpt;
+  
+  // Méthodes pour répondre à des évènements.
   /*-- Enter responder --*/
   void (*enterOpt)(View *);
-  // <- Jusqu'ici la structure est +/- commune à Button...
-  //    i.e. Une view peut être caster comme un button pour root, prefs, action.
   /*-- Escape --*/
   void (*escapeOpt)(View *);
   /*-- Key Responder --*/
@@ -33,9 +33,9 @@ typedef struct coq_View {
   void (*modifiersChangedToOpt)(View *, uint32_t);
   /*-- Mouse/touch --*/
   void (*touchHovering)(View*, Vector2); 
-  void (*touchDown)(View*, Vector2);
-  void (*touchDrag)(View*, Vector2);
-  void (*touchUp)(View*);
+  void (*touchDown)(View*, Vector2, uint32_t);
+  void (*touchDrag)(View*, Vector2, uint32_t);
+  void (*touchUp)(View*, uint32_t);
   /*-- GamePad Responder --*/
   void (*gamePadDownOpt)(View *, GamePadInput);
   void (*gamePadUpOpt)(View *, GamePadInput);
@@ -46,17 +46,22 @@ typedef struct coq_View {
   void (*systemChangedOpt)(View *, SystemChange);
 } View;
 
-/// Constructeur et init.
-/// Size est la taille d'une sous-structure (si 0 -> sizeof(View)).
-View *View_create(Root *const root, flag_t flags, size_t sizeOpt);
+/// Init (init aussi les supers : Node et Fluid).
+void  view_initWithSuper(View* v, Root* root, flag_t flags);
+
 // Downcasting
-View *node_asViewOpt(Node *n);
+View* node_asViewOpt(Node *n);
 
 // Méthodes `privées` pour override...
+void view_open_(Node* n);
+void view_reshape_(Node* n);
+/// AlignElement : par défault, caller lors de `open` et `reshape`.
 void view_alignElements_(View *v, bool isOpening);
+// Action par defaut de survol: `selectionner` un bouton.
 void view_touchHoveringDefault_(View* v, Vector2 pos);
-void view_touchDownDefault_(View* v, Vector2 pos);
-void view_touchDragDefault_(View* v, Vector2 pos);
-void view_touchUpDefault_(View* v);
+// Action de `touch` par defaut: activer un bouton ou dragger un draggable.
+void view_touchDownDefault_(View* v, Vector2 pos, uint32_t touchId);
+void view_touchDragDefault_(View* v, Vector2 pos, uint32_t touchId);
+void view_touchUpDefault_(View* v, uint32_t touchId);
 
 #endif /* node_screen_h */

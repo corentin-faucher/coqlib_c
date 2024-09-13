@@ -1,6 +1,7 @@
 //
 //  camera.h
 //  Structure pratique pour un point de vue.
+//  Superflu ? juste 3 vecteurs "fluides"...
 //
 //  Created by Corentin Faucher on 2023-10-15.
 //
@@ -19,7 +20,5 @@ typedef struct {
 extern Vector3 camera_def_pos;
 
 void camera_init(Camera *c, float lambda);
-
-void matrix4_initAsLookAtWithCameraAndYshift(Matrix4 *m, Camera *c, float yShift);
 
 #endif /* camera_h */

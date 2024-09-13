@@ -9,22 +9,54 @@
 
 #include "../utils/util_base.h"
 
-static const Vertex _vertex_default_origin = {
+#pragma mark - Mesh de base et init -------------
+
+const Vector3 mesh_defNorm = {{ 0, 0, 1 }};
+
+// Point central avec normal vers le haut.
+static const Vertex vertex_default_origin_ = {
     0.f, 0.f, 0.f,  0.5f,0.5f,  0.f,0.f,1.f
 };
-static const Vertex _vertex_uv00 = {
-    0.f, 0.f, 0.f,  0.f,0.f,  0.f,0.f,1.f
+static const Vertex mesh_sprite_vertices_[4] = {
+    {-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1},
+    {-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1},
+    { 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1},
+    { 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1},
 };
-static const Vertex _vertex_uv01 = {
-    0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
+static const Vertex mesh_shaderQuad_vertices_[4] = {
+    {-1.0, 1.0, 0, 0.0, 0.0, 0,0,1},
+    {-1.0,-1.0, 0, 0.0, 1.0, 0,0,1},
+    { 1.0, 1.0, 0, 1.0, 0.0, 0,0,1},
+    { 1.0,-1.0, 0, 1.0, 1.0, 0,0,1},
 };
-static const Vertex _vertex_uv10 = {
-    0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
-};
-static const Vertex _vertex_uv11 = {
-    0.f, 0.f, 0.f,  1.f,1.f,  0.f,0.f,1.f
-};
-static const Vertex _mesh_bar_vertices[8] = {
+
+Mesh*  mesh_sprite = NULL;
+Mesh*  mesh_shaderQuad_ = NULL;
+
+void   mesh_init(Mesh* const mesh, const Vertex* const verticesOpt, uint32_t const vertexCount,
+                const uint16_t* const indicesOpt, uint32_t const indexCount,
+                enum MeshPrimitiveType const primitive_type, enum MeshCullMode const cull_mode, bool const isShared) {
+    uint_initConst(&mesh->vertex_count, vertexCount);
+    uint_initConst(&mesh->index_count, indexCount);
+    mesh->primitive_type = primitive_type;
+    mesh->cull_mode = cull_mode;
+    *(bool*)&mesh->isShared = isShared;
+    
+    mesh_engine_initBuffers_(mesh, verticesOpt, indicesOpt);
+}
+
+void   Mesh_init(void) {
+    if(mesh_sprite) { printerror("Mesh already init."); return; }
+    // Mesh par défaut (sprite)
+    mesh_sprite = coq_callocTyped(Mesh);
+    mesh_init(mesh_sprite, mesh_sprite_vertices_, 4, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, true);
+    mesh_shaderQuad_ = coq_callocTyped(Mesh);
+    mesh_init(mesh_shaderQuad_, mesh_shaderQuad_vertices_, 4, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, true);
+}
+
+#pragma mark - "Bar" i.e. `====`
+
+static const Vertex mesh_bar_vertices_[8] = {
     {-0.5000, 0.5, 0,  0.000,0,  0,0,1},
     {-0.5000,-0.5, 0,  0.000,1,  0,0,1},
     {-0.1667, 0.5, 0,  0.333,0,  0,0,1},
@@ -34,7 +66,7 @@ static const Vertex _mesh_bar_vertices[8] = {
     { 0.5000, 0.5, 0,  1.000,0,  0,0,1},
     { 0.5000,-0.5, 0,  1.000,1,  0,0,1},
 };
-static const Vertex _mesh_vbar_vertices[8] = {
+static const Vertex mesh_vbar_vertices_[8] = {
     { 0.5, 0.5000, 0,  1, 0.000,  0,0,1},
     {-0.5, 0.5000, 0,  0, 0.000,  0,0,1},
     { 0.5, 0.1667, 0,  1, 0.333,  0,0,1},
@@ -44,7 +76,20 @@ static const Vertex _mesh_vbar_vertices[8] = {
     { 0.5,-0.5000, 0,  1, 1.000,  0,0,1},
     {-0.5,-0.5000, 0,  0, 1.000,  0,0,1},
 };
-static const Vertex _mesh_frame_vertices[] = {
+Mesh*  Mesh_createHorizontalBar(void) {
+    Mesh* const bar = coq_callocTyped(Mesh);
+    mesh_init(bar, mesh_bar_vertices_, 8, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, false);
+    return bar;
+}
+Mesh*  Mesh_createVerticalBar(void) {
+    Mesh* const bar = coq_callocTyped(Mesh);
+    mesh_init(bar, mesh_vbar_vertices_, 8, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, false);
+    return bar;
+}
+
+#pragma mark - Frame (e.g. cadre stretchable) ----------------
+
+static const Vertex   mesh_frame_vertices_[] = {
     {-0.5000, 0.5000, 0,  0.000,0.000,  0,0,1},
     {-0.5000, 0.1667, 0,  0.000,0.333,  0,0,1},
     {-0.5000,-0.1667, 0,  0.000,0.667,  0,0,1},
@@ -62,7 +107,7 @@ static const Vertex _mesh_frame_vertices[] = {
     { 0.5000,-0.1667, 0,  1.000,0.667,  0,0,1},
     { 0.5000,-0.5000, 0,  1.000,1.000,  0,0,1},
 };
-static const uint16_t _mesh_frame_indices[] = {
+static const uint16_t mesh_frame_indices_[] = {
     0, 1, 4,    1, 5, 4,
     1, 2, 5,    2, 6, 5,
     2, 3, 6,    3, 7, 6,
@@ -73,6 +118,13 @@ static const uint16_t _mesh_frame_indices[] = {
     9, 10, 13,  10, 14, 13,
     10, 11, 14, 11, 15, 14,
 };
+Mesh*  Mesh_createFrame(void) {
+    Mesh* const frame = coq_callocTyped(Mesh);
+    mesh_init(frame, mesh_frame_vertices_, 16, mesh_frame_indices_, 54, mesh_primitive_triangle, mesh_cullMode_none, false);
+    return frame;
+}
+
+#pragma mark - Fan (disque <-> pointe) ----------------
 
 static const uint16_t _mesh_fan_indices[] = {
     0, 1, 2,   0, 2, 3,
@@ -80,26 +132,12 @@ static const uint16_t _mesh_fan_indices[] = {
     0, 5, 6,   0, 6, 7,
     0, 7, 8,   0, 8, 9
 };
-
-Mesh*  Mesh_createHorizontalBar(void) {
-    return Mesh_createEmpty(_mesh_bar_vertices, 8, NULL, 0,
-                            mesh_primitive_triangleStrip, mesh_cullMode_none, false);
-}
-Mesh*  Mesh_createVerticalBar(void) {
-    return Mesh_createEmpty(_mesh_vbar_vertices, 8, NULL, 0,
-                            mesh_primitive_triangleStrip, mesh_cullMode_none, false);
-}
-Mesh*  Mesh_createFrame(void) {
-    return Mesh_createEmpty(_mesh_frame_vertices, 16, _mesh_frame_indices, 54,
-                            mesh_primitive_triangle, mesh_cullMode_none, false);
-}
-
 Mesh*  Mesh_createFan(void) {
-    Mesh* fan = Mesh_createEmpty(NULL, 10, _mesh_fan_indices, 24,
-                                 mesh_primitive_triangle, mesh_cullMode_none, false);
+    Mesh* const fan = coq_callocTyped(Mesh); 
+    mesh_init(fan, NULL, 10, _mesh_fan_indices, 24, mesh_primitive_triangle, mesh_cullMode_none, false);
     // Init des vertices pour une fan.
-    Vertex* vertices = mesh_vertices(fan);
-    vertices[0] = _vertex_default_origin;  // Centre de la fan en (0, 0).
+    Vertex* vertices = mesh_engine_retainVertices(fan);
+    vertices[0] = vertex_default_origin_;  // Centre de la fan en (0, 0).
     Vertex* p = &vertices[1];
     Vertex* const end = &vertices[10];
     float i = 0.f;
@@ -112,15 +150,15 @@ Mesh*  Mesh_createFan(void) {
         i++;
         p++;
     }
-    mesh_needToUpdateVertices(fan);
+    mesh_engine_releaseVertices(fan);
     return fan;
 }
 void   mesh_fan_update(Mesh* fan, float ratio) {
-    if(mesh_vertexCount(fan) < 10) {
+    if(fan->vertex_count < 10) {
         printerror("Fan mesh with vertex_count < 10.");
         return;
     }
-    Vertex* vertices = mesh_vertices(fan);
+    Vertex* vertices = mesh_engine_retainVertices(fan);
     Vertex* p = &vertices[2];  // (On skip le premier, reste a (0, 0.5).)
     Vertex* const end = &vertices[10];
     float i = 1.f;
@@ -132,10 +170,10 @@ void   mesh_fan_update(Mesh* fan, float ratio) {
         i++;
         p++;
     }
-    mesh_needToUpdateVertices(fan);
+    mesh_engine_releaseVertices(fan);
 }
 
-
+#pragma mark - Graphique ------------
 /// Les xs/ys devraient être préformaté pour être contenu dans [-0.5, 0.5] x [-0.5, 0.5]...
 /// delta: épaisseur des lignes.
 /// ratio: étirement en largeur.
@@ -186,12 +224,11 @@ Mesh*  Mesh_createPlot(float* xs, float* ys, uint32_t count, float delta, float 
         *ind = ind_dec + 4*i + 2;  ind++;
         *ind = ind_dec + 4*i + 3;  ind++;
     }
-
-    Mesh* mesh = Mesh_createEmpty(vertices, vertices_count, indices, indices_count, 
-                            mesh_primitive_triangle, mesh_cullMode_none, false);
+    Mesh* plot = coq_callocTyped(Mesh);
+    mesh_init(plot, vertices, vertices_count, indices, indices_count, mesh_primitive_triangle, mesh_cullMode_none, false);
     coq_free(vertices);
     coq_free(indices);
-    return mesh;
+    return plot;
 }
 Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
                            float ymin, float ymax, float yR, float deltaY,
@@ -239,23 +276,36 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
         *ind = ind_dec + 4*i + 2;  ind++;
         *ind = ind_dec + 4*i + 3;  ind++;
     }
-    
-    Mesh* mesh = Mesh_createEmpty(vertices, vertices_count, indices, indices_count, 
-                                mesh_primitive_triangle, mesh_cullMode_none, false);
+    Mesh* plotGrid = coq_callocTyped(Mesh);
+    mesh_init(plotGrid, vertices, vertices_count, indices, indices_count, mesh_primitive_triangle, mesh_cullMode_none, false); 
     coq_free(vertices);
     coq_free(indices);
-    return mesh;
+    return plotGrid;
 }
 
+#pragma mark - Courbe ------------
 #warning TODO...
+
+static const Vertex _vertex_uv00 = {
+    0.f, 0.f, 0.f,  0.f,0.f,  0.f,0.f,1.f
+};
+static const Vertex _vertex_uv01 = {
+    0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
+};
+static const Vertex _vertex_uv10 = {
+    0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
+};
+static const Vertex _vertex_uv11 = {
+    0.f, 0.f, 0.f,  1.f,1.f,  0.f,0.f,1.f
+};
 Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
     if(v_count < 2) {
         printerror("Mesh curve with less than 2 pos."); return mesh_sprite;
     }
     uint32_t vertex_count = 4*(v_count - 1);
-    Mesh* mesh = Mesh_createEmpty(NULL, vertex_count, NULL, 0, 
-                    mesh_primitive_triangleStrip, mesh_cullMode_none, false);
-    Vertex* vertices = mesh_vertices(mesh);
+    Mesh* const curve = coq_callocTyped(Mesh);
+    mesh_init(curve, NULL, vertex_count, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, false);
+    Vertex* vertices = mesh_engine_retainVertices(curve);
     // Init des deux premier vertex a gauche. (up-left et down-left).
     Vector2 v0 = v_arr[0], v1 = v_arr[1];
     Vector2 v01 = vector2_minus(v1, v0);
@@ -320,6 +370,6 @@ Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
         vul = vul_next;
         vdl = vdl_next;
     }
-    mesh_needToUpdateVertices(mesh);
-    return mesh;
+    mesh_engine_releaseVertices(curve);
+    return curve;
 }

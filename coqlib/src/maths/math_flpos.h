@@ -52,25 +52,25 @@ void  fl_fadeInFromDef(FluidPos *fl, float delta);
 void  fl_fadeOut(FluidPos *fl, float delta);
 // Getters
 /// Position estimee
-float   fl_pos(FluidPos *sp);
+float   fl_pos(const FluidPos *sp);
 /// Vrai derniere position entree
-float   fl_real(FluidPos *sp);
+float   fl_real(const FluidPos *sp);
 /// Si static -> n'est pas "fluid", reagit comme un float ordinaire.
-bool    fl_isStatic(FluidPos *sp);
+bool    fl_isStatic(const FluidPos *sp);
 
 // Array de SmoothPos
 void  fl_array_init(FluidPos *fl, const float *src_f_arr, size_t count, float lambda);
 void  fl_array_set(FluidPos *fl, const float *f, size_t count);
 void  fl_array_fix(FluidPos *fl, const float *f, size_t count);
 // Ecrire les position actuelles vers un array de float.
-void  fl_array_writeTo(FluidPos *fl, float *dst_f_arr, size_t count);
+void  fl_array_writeTo(const FluidPos *fl, float *dst_f_arr, size_t count);
 /// Array de 2 smpos -> Vector2.
-Vector2 fl_array_toVec2(FluidPos *sp);
+Vector2 fl_array_toVec2(const FluidPos *sp);
 /// Array de 3 smpos -> Vector3.
-Vector3 fl_array_toVec3(FluidPos *sp);
-Vector3 fl_array_toRealVec3(FluidPos *sp);
+Vector3 fl_array_toVec3(const FluidPos *sp);
+Vector3 fl_array_toRealVec3(const FluidPos *sp);
 /// Array de 4 smpos -> Vector4 (i.e. simd_float4, 4 aligned float)
-Vector4 fl_array_toVec4(FluidPos *sp);
+Vector4 fl_array_toVec4(const FluidPos *sp);
 
 typedef struct _FluidPosWithDrift {
     FluidPos  fl;
@@ -79,6 +79,6 @@ typedef struct _FluidPosWithDrift {
 
 void  fld_init(FluidPosWithDrift* fld, float pos, float lambda, bool asAngle);
 void  fld_set(FluidPosWithDrift* fld, float pos, float drift);
-float fld_pos(FluidPosWithDrift* spd);
+float fld_pos(const FluidPosWithDrift* spd);
 
 #endif /* smpos_h */

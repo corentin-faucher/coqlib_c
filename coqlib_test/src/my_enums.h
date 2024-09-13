@@ -7,7 +7,7 @@
 #ifndef my_enums_h
 #define my_enums_h
 
-#include "graphs/graph_texture.h"
+#include "graphs/graph_glyphs.h"
 
 extern const uint32_t node_type_flag_particule;
 extern const uint32_t node_type_nf_particule;
@@ -23,8 +23,8 @@ typedef enum _Localizable {
     
     locstring_total_locstring,
 } Localizable;
-const char*    loc_stringKey(Localizable loc);
-StringDrawable loc_stringDrawable(Localizable loc);
+const char*       loc_stringKey(Localizable loc);
+StringGlyphedInit loc_stringGlyphedInit(Localizable loc);
 
 typedef enum {
     png_bar_gray,
@@ -41,6 +41,8 @@ typedef enum {
     png_icons,
     png_language_flags,
     png_some_animals,
+    
+    png_coqlib_test_frame,
     
     png_total_pngs
 } MyPngEnum;

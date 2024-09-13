@@ -62,7 +62,7 @@ typedef struct Number {
 } Number;
 
 extern Texture*    Number_defaultTex;
-extern Drawable* (*Number_defaultUpdateModel)(Node*); 
+extern void      (*Number_defaultUpdateModel)(Node*); 
 
 Number*  Number_create(Node* ref, int32_t value,
                       float x, float y, float height,

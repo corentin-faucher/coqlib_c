@@ -5,8 +5,8 @@
 //  Created by Corentin Faucher on 2023-10-13.
 //
 
-#ifndef _coq_node_squirrel_h
-#define _coq_node_squirrel_h
+#ifndef coq_node_squirrel_h
+#define coq_node_squirrel_h
 #include "node_base.h"
 #include <stdio.h>
 

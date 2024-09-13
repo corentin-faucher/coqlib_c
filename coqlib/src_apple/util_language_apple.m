@@ -153,7 +153,7 @@ const char*    language_name(Language language) {
 
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
-char* String_createLocalized(const char* stringKey) {
+const char* String_createLocalized(const char* stringKey) {
     if(current_bundle_ == nil) {
         printerror("Language not init.");
         return String_createCopy(stringKey);
@@ -197,7 +197,7 @@ void  String_copyLocalizedTo(const char* stringKey, char* buffer, size_t size_ma
     else strcpy(buffer, stringKey);
 }
 /// Version par defaut de la string, e.g. localization anglaise.
-char* String_createLocalizedDefault(const char* stringKey) {
+const char* String_createLocalizedDefault(const char* stringKey) {
     if(default_bundle_ == nil) {
         printerror("Language not init.");
         return String_createCopy(stringKey);

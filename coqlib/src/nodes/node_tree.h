@@ -5,19 +5,19 @@
 //  Created by Corentin Faucher on 2023-10-15.
 //
 
-#ifndef _coq_node_tree_h
-#define _coq_node_tree_h
+#ifndef coq_node_tree_h
+#define coq_node_tree_h
 
 #include "node_base.h"
 #include "node_button.h"
 
+#pragma mark - Methodes qui s'applique à toute la branche (noeud et descendants)
 void  node_tree_addFlags(Node* nd, flag_t flags);
 void  node_tree_removeFlags(Node* nd, flag_t flags);
 void  node_tree_apply(Node* nd, void (*block)(Node*));
 void  node_tree_applyToTyped(Node* nd, void (*block)(Node*), uint32_t type_flag);
-//void  node_childs_applyToTyped...
+// (ici, ça s'applique aux parents, mais pas au noeud présent)
 void  node_tree_addRootFlags(Node* nd, flag_t flags);
-// supelflu void  node_tree_makeSelectable(Node* nd);
 void  node_tree_openAndShow(Node* nd);
 void  node_tree_unhideAndTryToOpen(Node* nd);
 void  node_tree_close(Node* nd);
@@ -25,21 +25,20 @@ void  node_tree_hideAndTryToClose(Node* nd);
 void  node_tree_reshape(Node* nd);
 
 #pragma mark - Recherche de noeud dans une branche.
-
 Button* node_tree_searchActiveButtonWithPosOpt(Node* const n, Vector2 const pos, Node* const nodeToAvoidOpt);
 Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typeOpt, uint32_t const data0);
 Node*   node_tree_searchFirstOfTypeInBranchOpt(Node* const n, uint32_t const type_flag, flag_t parentFlag);
 
 #pragma mark - Aligement des enfants
-
 // Les options pour l'alignement de noeuds.
 typedef enum {
-    node_align_vertically =      0x0001,
-    node_align_dontUpdateSizes = 0x0002,
+    node_align_vertically =            0x0001,
+    node_align_dontUpdatePrimarySize = 0x0002,
+    node_align_dontUpdateSecondarySize = 0x0004,
     /** Ajoute de l'espacement supplémentaire entre les élément pour respecter le ratio w/h.
      (Compact si option absente.) */
-    node_align_respectRatio =          0x0004,
-    node_align_fixPos =                0x0008,
+    node_align_respectRatio =          0x0008,
+    node_align_fixPos =                0x0010,
     /** En horizontal, le "primary" est "x" des children,
      * le "secondary" est "y". (En vertical prim->"y", sec->"x".)
      * Place la position "alignée" comme étant la position par défaut pour le primary des children
@@ -49,9 +48,13 @@ typedef enum {
     node_align_setSecondaryToDefPos =   0x0020,
     /// Par défaut (pour un Fluid) on set aussi la def pos du primary.
     /// Dans le cas du reshape de view, on n'y touche pas. 
-    node_align_dontSetPrimaryDefPos =   0x0010,
+    node_align_dontSetPrimaryDefPos =   0x0040,
+    /// Si vertical -> les éléments seront du côté droit.
+    /// Si horizontal -> les éléments seront en haut.
+    /// (`node_align_setSecondaryToDefPos` prend le dessus sur l'alignement)
+    node_align_rightBottom =            0x0080,
+    node_align_leftTop =                0x0100,
 } node_align_option;
-
 /// Pour aligner les enfants d'un noeud les un par rapport aux autres.
 /// alignOpt : Options d'alignement (voir plus bas);
 /// ratio : le ratio voulu du noeud (defaut 1);

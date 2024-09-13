@@ -15,21 +15,23 @@
 
 
 #pragma mark -- Constructors... ----------------------------------
-
 void node_disconnect_(Node * const node) {
     // Retrait
-    if(node->_bigBro)
-        node->_bigBro->_littleBro = node->_littleBro;
-    else if(node->_parent) // Pas de grand frère -> probablement l'ainé.
-        node->_parent->_firstChild = node->_littleBro;
-    if(node->_littleBro)
-        node->_littleBro->_bigBro = node->_bigBro;
-    else if(node->_parent)  // Pas de petit frère -> probablement le cadet.
-        node->_parent->_lastChild = node->_bigBro;
+    
+    Node* const big =    node->_bigBro;
+    Node* const little = node->_littleBro;
+    Node* const parent = node->_parent;
+    if(big)         big->_littleBro = little;
+    // Pas de grand frère -> probablement l'ainé.
+    else if(parent) parent->_firstChild = little;
+    if(little)      little->_bigBro = big;
+    // Pas de petit frère -> probablement le cadet.
+    else if(parent) parent->_lastChild = big;
     // Deconnexion (superflu ??)
-//    node->parent = NULL;
-//    node->littleBro = NULL;
-//    node->bigBro = NULL;
+//    node->_parent = NULL;
+//    node->_bigBro = NULL;
+//    node->_littleBro = NULL;
+    
 }
 /** Connect au parent. (Doit être fullyDeconnect.) */
 void node_connectToParent_(Node* const node, Node * const parentOpt, const bool asElder) {
@@ -62,33 +64,30 @@ void node_connectToParent_(Node* const node, Node * const parentOpt, const bool 
         parentOpt->_lastChild = node;
     }
 }
-void node_connectToBro_(Node* const node, Node* const broOpt, const bool asBigbro) {
-    if(broOpt == NULL) return;
-    Node * const bro = broOpt;
+void node_connectToBro_(Node* const node, Node* const bro, const bool asBigbro) {
+    if(bro == NULL) return;
     Node * const parent = bro->_parent;
     if(parent == NULL) { printerror("Boucle sans parent."); return; }
     node->_parent = parent;
 
     if(asBigbro) {
+        Node* const big = bro->_bigBro;
         // Insertion
         node->_littleBro = bro;
-        node->_bigBro = bro->_bigBro;
+        node->_bigBro = big;
         // Branchement
         bro->_bigBro = node;
-        if(node->_bigBro != NULL)
-            node->_bigBro->_littleBro = node;
-        else
-            node->_parent->_firstChild = node;
+        if(big) big->_littleBro = node;
+        else    parent->_firstChild = node;
     } else {
+        Node * const little = bro->_littleBro;
         // Insertion
-        node->_littleBro = bro->_littleBro;
+        node->_littleBro = little;
         node->_bigBro = bro;
         // Branchement
         bro->_littleBro = node;
-        if(node->_littleBro != NULL)
-            node->_littleBro->_bigBro = node;
-        else
-            node->_parent->_lastChild = node;
+        if(little) little->_bigBro = node;
+        else       parent->_lastChild = node;
     }
 }
 
@@ -97,77 +96,36 @@ Node* node_last_nonDrawable = NULL;
 static uint32_t Node_currentId_ = 0;
 #endif
 
-void node_init_(Node* n, Node* const refOpt,
+void node_init(Node* n, Node* const refOpt,
                  float x, float y, float width, float height,
                  const uint32_t type, const flag_t flags, const uint8_t node_place) {
-    n->_piu =    piu_default;
-    n->w =      width;
-    n->h =      height;
-    n->scales = vector2_ones;\
-    n->x =      x;
-    n->y =      y;
+    n->model = matrix4_identity;
+    n->sizes = (Vector2) {width, height};
+    n->scales = vector2_ones;
+    // Vecteur position avec 4e coordonnée (1 pour point, 0 pour vecteur). Mais bon, de toute façon on n'utilise pas w...
+    n->pos4 = (Vector4) { x, y, 0, 1 };
     n->flags =  flags;
-//    n->_size =  size;
     n->_type =  type;
     n->updateModel = node_updateModelMatrixDefault;
 #ifdef DEBUG
     n->_nodeId = Node_currentId_;
     Node_currentId_ ++;
 #endif
-    if(refOpt) {
-        node_simpleMoveTo(n, refOpt, node_place);
-    } else if(!(flags & flag_noParent) && !(type & node_type_flag_root)) {
-        printwarning("Node in void (non root without parent or brother ref).");
-    }
     if(!(type & node_type_flag_drawable))
         node_last_nonDrawable = n;
-}
-/// Allocation d'un noeud de type quelconque.
-/// Obsolete : utiliser `coq_calloc` + `node_init_`...
-void* Node_createOfType_Obsolete_(const uint32_t type, size_t size, const flag_t flags,
-                              Node* const refOpt, const uint8_t node_place) {
-    if(size < sizeof(Node)) {
-        printwarning("size < sizeof(Node).");
-        size = sizeof(Node);
+    if(!refOpt) {
+        if(!(flags & flag_noParent) && !(type & node_type_flag_root))
+            printwarning("Node in void (non root without parent or brother ref).");
+        return;
     }
-    Node* n = coq_calloc(1, size);
-    node_init_(n, refOpt, 0, 0, 1, 1, type, flags, node_place);
-    return n;
+    if(node_place & node_place_asBro)
+        node_connectToBro_(n, refOpt, node_place & node_place_asElderBig);
+    else
+        node_connectToParent_(n, refOpt, node_place & node_place_asElderBig);    
 }
-Node* Node_createEmpty(void)
-{
-    Node* n = coq_calloc(1, sizeof(Node));
-    node_init_(n, NULL, 0, 0, 1, 1, node_type_node, 0, 0);
-    return n;
-}
-// Constructeur usuel.
-Node* Node_create(Node* const refOpt, const float x, const float y, const float w, const float h,
-                  const flag_t flags, const uint8_t node_place) {
-    Node* n = coq_calloc(1, sizeof(Node));
-    node_init_(n, refOpt, x, y, w, h, node_type_node, flags, node_place);
-    return n;
-}
-//Node* Node_default_createCopy(const Node* const other) {
-//    if(other->_type & node_type_flag_notCopyable) {
-//        printerror("Node of type %x is not copyable.", other->_type);
-//        return NULL;
-//    }
-//    Node* nd = coq_malloc(sizeof(other->_size));
-//    // Copie toute les donnees a priori.
-//    memcpy(nd, other, sizeof(other->_size));
-//    // Mais on remet les pointeurs sur null.
-//    nd->parent = NULL;
-//    nd->firstChild = NULL;
-//    nd->lastChild = NULL;
-//    nd->bigBro = NULL;
-//    nd->littleBro = NULL;
-//    if(!(nd->_type & node_type_flag_leaf))
-//        node_last_nonLeaf = nd;
-//    return nd;
-//}
+
 
 #pragma mark - Garbage, emplacement temporaire avant d être deallocated.
-
 void node_tree_burnDown_(Node* const node) {
     if(node->_firstChild == NULL) {
         if(node->deinitOpt) node->deinitOpt(node);
@@ -202,12 +160,12 @@ set_toDelete:
     }
     goto set_toDelete;
 }
-struct _Garbage {
+struct Garbage_ {
     Node** container;
     uint32_t   count;
     uint32_t   index;
 };
-void _garbage_putNode(struct _Garbage* garbage, Node* toDelete) {
+void garbage_putNode_(struct Garbage_* garbage, Node* toDelete) {
     if(garbage->index >= garbage->count) {
         garbage->count += 32;
         garbage->container = coq_realloc(garbage->container, sizeof(Node*) * garbage->count);
@@ -215,16 +173,20 @@ void _garbage_putNode(struct _Garbage* garbage, Node* toDelete) {
     garbage->container[garbage->index] = toDelete;
     garbage->index ++;
 }
-void _garbage_burnDown(struct _Garbage* garbage) {
+void garbage_burnDown_(struct Garbage_* garbage) {
     Node** end = &garbage->container[garbage->index];
     for(Node** ptr = garbage->container; ptr < end; ptr++)
         node_tree_burnDown_(*ptr);
     garbage->index = 0;
 }
-static bool   _garbageA_active = true;
-static struct _Garbage _garbageA = {NULL, 0, 0};
-static struct _Garbage _garbageB = {NULL, 0, 0};
-void  node_tree_throwToGarbage(Node* const node) {
+static bool   garbageA_active_ = true;
+static struct Garbage_ garbageA_ = {NULL, 0, 0};
+static struct Garbage_ garbageB_ = {NULL, 0, 0};
+void  node_throwToGarbage_callback_(void* const nIn) {
+    Node* const node = (Node*)nIn;
+    if(node->flags & flag_toDelete_) {
+        printerror("Node already in garbage."); return;
+    }
     node->flags |= flag_toDelete_;
     Node* pos = node->_firstChild;
     if(pos == NULL)
@@ -250,35 +212,45 @@ check_littleBro:
     goto check_littleBro;
 put_to_garbage:
     node_disconnect_(node);
-    if(_garbageA_active)
-        _garbage_putNode(&_garbageA, node);
+    if(garbageA_active_)
+        garbage_putNode_(&garbageA_, node);
     else
-        _garbage_putNode(&_garbageB, node);
+        garbage_putNode_(&garbageB_, node);
 }
 void  NodeGarbage_burn(void) {
-    if(_garbageA_active)
-        _garbage_burnDown(&_garbageB);
+    if(garbageA_active_)
+        garbage_burnDown_(&garbageB_);
     else
-        _garbage_burnDown(&_garbageA);
-    _garbageA_active = !_garbageA_active;
+        garbage_burnDown_(&garbageA_);
+    garbageA_active_ = !garbageA_active_;
 }
 
 void  noderef_fastDestroyAndNull(Node** const nodeOptRef) {
-    if(*nodeOptRef == NULL) return;
-    node_tree_throwToGarbage(*nodeOptRef);
+    Node* const toDelete = *nodeOptRef;
+    if(toDelete == NULL) return;
     *nodeOptRef = NULL;
+    if(toDelete->flags & (flag_toDelete_|flag_toDeleteScheduled_)) {
+        printwarning("Already to delete."); 
+        return;
+    }
+    node_throwToGarbage_callback_(toDelete);
 }
 void  noderef_slowDestroyAndNull(Node** const nodeOptRef, int64_t deltaTimeMSOpt) {
-    if(*nodeOptRef == NULL) return;
-    if(deltaTimeMSOpt == 0) deltaTimeMSOpt = 400;
-    node_tree_close(*nodeOptRef);
-    timer_scheduled(NULL, deltaTimeMSOpt, false, *nodeOptRef, node_tree_throwToGarbage);
+    Node* const toDelete = *nodeOptRef;
+    if(toDelete == NULL) return;
     *nodeOptRef = NULL;
+    if(toDelete->flags & (flag_toDelete_|flag_toDeleteScheduled_)) {
+        printwarning("Already to delete."); 
+        return;
+    }
+    toDelete->flags |= flag_toDeleteScheduled_;
+    if(deltaTimeMSOpt == 0) deltaTimeMSOpt = 400;
+    node_tree_close(toDelete);
+    timer_scheduled(NULL, deltaTimeMSOpt, false, toDelete, node_throwToGarbage_callback_);
 }
 
 
 #pragma mark -- Getters -------------------------------------------
-
 Vector2 node_deltas(Node* const node) {
     Vector2 ds = {{node->w * node->sx / 2.f, node->h * node->sy / 2.f}};
     return ds;
@@ -292,7 +264,7 @@ float   node_deltaY(Node* const node) {
 Vector3 node_pos(Node *node) {
     Fluid* s = node_asFluidOpt(node);
     if(s) return fl_array_toVec3(&s->x);
-    else  return node->pos;
+    else  return node->xyz;
 }
 Vector2 node_scales(Node *node) {
     Fluid* s = node_asFluidOpt(node);
@@ -303,7 +275,6 @@ Vector2 node_scales(Node *node) {
 
 #pragma mark -- Setters -------------------------------------------
 void    node_setXYrelatively(Node* node, uint32_t relative_flags, bool open) {
-
     Node* parent = node->_parent;
     Fluid* f = node_asFluidOpt(node);
     float x, y;
@@ -350,50 +321,68 @@ void    node_setXYrelatively(Node* node, uint32_t relative_flags, bool open) {
     node->x = x;
     node->y = y;
 }
-//void    node_setX(Node* const nd, float x){
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_set(&s->x, x);
-//    nd->x = x;
-//}
-//void    node_fixX(Node* const nd, float x){
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_fix(&s->x, x);
-//    nd->x = x;
-//}
-//void    node_setY(Node* const nd, float y) {
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_set(&s->y, y);
-//    nd->y = y;
-//}
-//void    node_fixY(Node* const nd, float y) {
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_fix(&s->y, y);
-//    nd->y = y;
-//}
-//void    node_setScaleX(Node* const nd, float sx) {
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_set(&s->sx, sx);
-//    nd->sx = sx;
-//}
-//void    node_fixScaleX(Node* const nd, float sx) {
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_fix(&s->sx, sx);
-//    nd->sx = sx;
-//}
-//void    node_setScaleY(Node* const nd, float sy) {
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_set(&s->sy, sy);
-//    nd->sy = sy;
-//}
-//void    node_fixScaleY(Node* const nd, float sy) {
-//    Fluid* s = node_asFluidOpt(nd);
-//    if(s) fl_fix(&s->sy, sy);
-//    nd->sy = sy;
-//}
+
+void    node_setXrelatively(Node* n, uint32_t relativeFlags, bool open) {
+    Node* const parent = n->_parent;
+    Fluid* f = node_asFluidOpt(n);
+    // Valeur a priori de x...
+    float x = f ? f->x.def : 0.f;
+    // Ajustement par rapport au parent
+    if(parent) {
+        if(relativeFlags & flag_fluidRelativeToRight)
+            x +=  0.5f * parent->w;
+        else if(relativeFlags & flag_fluidRelativeToLeft)
+            x -=  0.5f * parent->w;
+    }
+    // La position est considéré à droite/gauche haut/bas ?
+    if(relativeFlags & flag_fluidJustifiedRight)
+        x -= node_deltaX(n);
+    else if(relativeFlags & flag_fluidJustifiedLeft)
+        x += node_deltaX(n);
+    // Mise à jour de la position...
+    if(f) {
+        if(open) {
+            if(relativeFlags & flag_fluidFadeInRight) {
+                fl_fix(&f->x, x + Fluid_defaultFadeInDelta);
+                fl_set(&f->x, x);
+            } else {
+                fl_fix(&f->x, x);
+            }
+        } else {
+            fl_set(&f->x, x);
+        }
+    }
+    n->x = x;
+}
+void    node_setYrelatively(Node* n, uint32_t relativeFlags, bool open) {
+    Fluid* const f = node_asFluidOpt(n);
+    // Valeur a priori de x...
+    float y = f ? f->y.def : 0.f;
+    // Ajustement par rapport au parent
+    {Node* const parent = n->_parent; if(parent) {
+        if(relativeFlags & flag_fluidRelativeToTop)
+            y +=  0.5f * parent->h;
+        else if(relativeFlags & flag_fluidRelativeToBottom)
+            y -=  0.5f * parent->h;
+    }}
+    // La position est considéré à droite/gauche haut/bas ?
+    if(relativeFlags & flag_fluidJustifiedTop)
+        y -= node_deltaY(n);
+    else if(relativeFlags & flag_fluidJustifiedBottom)
+        y += node_deltaY(n);
+    // Mise à jour de la position...
+    if(f) {
+        if(open) {
+            fl_fix(&f->y, y);
+        } else {
+            fl_set(&f->y, y);
+        }
+    }
+    n->y = y;
+}
 
 
 #pragma mark -- Moving node ---------------------------------------------
-
 void    node_simpleMoveTo(Node* const node, Node* const destOpt, const uint8_t node_place) {
     node_disconnect_(node);
     if(node_place & node_place_asBro)
@@ -414,33 +403,53 @@ void    node_moveWithinBro(Node* const node, bool asElder) {
     if(!asElder && (node->_littleBro == NULL)) return;
     Node* const parent = node->_parent;
     if(!parent) { printerror("No parent."); return; }
-    // Retrait
-    if(node->_bigBro)
-        node->_bigBro->_littleBro = node->_littleBro;
-    else  // Pas de grand frère -> probablement l'ainé.
-        parent->_firstChild = node->_littleBro;
-    if(node->_littleBro)
-        node->_littleBro->_bigBro = node->_bigBro;
-    else  // Pas de petit frère -> probablement le cadet.
-        parent->_lastChild = node->_bigBro;
-
+    {
+        Node* const big =    node->_bigBro;
+        Node* const little = node->_littleBro;
+        // Retrait
+        if(big) big->_littleBro =     little;
+        else    parent->_firstChild = little;
+        if(little) little->_bigBro = big;
+        else       parent->_lastChild = big;
+    }
+    
     if(asElder) {
+        Node* const oldFirstChild = parent->_firstChild;
         // Insertion
-        node->_littleBro = parent->_firstChild;
+        node->_littleBro = oldFirstChild;
         node->_bigBro = NULL;
         // Branchement
-        if(parent->_firstChild)
-            parent->_firstChild->_bigBro = node;
+        if(oldFirstChild) oldFirstChild->_bigBro = node;
         parent->_firstChild = node;
     } else {
+        Node* const oldLastChild = parent->_lastChild;
         // Insertion
         node->_littleBro = NULL;
-        node->_bigBro = parent->_lastChild;
+        node->_bigBro = oldLastChild;
         // Branchement
-        if(parent->_lastChild)
-            parent->_lastChild->_littleBro = node;
+        if(oldLastChild)
+            oldLastChild->_littleBro = node;
         parent->_lastChild = node;
     }
+}
+void    node_moveRight(Node* const n) {
+    Node* const little = n->_littleBro;
+    if(!little) return; // (ne peut aller "à droite")
+    Node* const parent = n->_parent;
+    if(!parent) { printerror("Bro loop without parent."); return; }
+    Node* const big = n->_bigBro;
+    Node* const littleLittle = little->_littleBro;
+    // Retrait
+    if(big) big->_littleBro = little;
+    else    parent->_firstChild = little;
+    little->_bigBro = big; // (little != null)
+    // Insertion
+    n->_littleBro = littleLittle;
+    n->_bigBro = little;
+    // Branchement
+    little->_littleBro = n;
+    if(littleLittle) littleLittle->_bigBro = n;
+    else             parent->_lastChild = n;
 }
 
 void    node_setInReferentialOf_(Node* const n, Node* const ref) {
@@ -479,20 +488,17 @@ void    node_moveToBro(Node* n, Node* new_bro, bool asBigBro) {
 
 
 #pragma mark -- Vector, Matrix... --------------------------------------
-
 /// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.
-Drawable* node_updateModelMatrixDefault(Node *n) {
+/// Equivalent de : 
+///     M = (parent.M T) S,
+/// i.e. On a scaling, puis translation, puis place dans ref du parent.
+void node_updateModelMatrixDefault(Node *n) {
     // Cas feuille, skip...
     if(n->_firstChild == NULL) {
-//    #ifdef DEBUG
-//        printwarning("Update of leaf %s id %d without child?", node_debug_getTypeName(n), n->_nodeId);
-//    #endif 
-        return NULL;
+        return;
     }
-    const Node* const parent = n->_parent;
-    if(!parent) { printwarning("Non root without parent."); return NULL; }
-    const Matrix4* const pm = &parent->_piu.model;
-    Matrix4* m = &n->_piu.model;
+    const Matrix4* const pm = node_parentModel(n);
+    Matrix4* const m = &n->model;
     Vector3 pos = node_pos(n);
     Vector2 scl = node_scales(n);
     m->v0.v = pm->v0.v * scl.x;
@@ -504,7 +510,6 @@ Drawable* node_updateModelMatrixDefault(Node *n) {
         pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y + pm->v2.z * pos.z,
         pm->v3.w,
     }};
-    return NULL;
 }
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
@@ -549,10 +554,14 @@ Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 const absPos, Node* nodeO
     while (sq_goUpPS(&sq));
     return vector2_inReferentialOfSquirrel(absPos, &sq);
 }
+const Matrix4* node_parentModel(Node* n) {
+    Node* const parent = n->_parent;
+    if(!parent) { printerror("Node without parent."); return &matrix4_identity; }
+    return &parent->model;
+}
 
 
 #pragma mark - Debug...
-
 const char* node_type_names_[] = {
     "node",
     "fluid",
@@ -566,8 +575,74 @@ const char* node_type_names_[] = {
     "drawMulti",
     "number",
 };
-
 const char* node_debug_getTypeName(const Node* const n) {
     uint32_t index = 32 - __builtin_clz(n->_type & node_type_flags_defaultTypes);
     return node_type_names_[index];
 }
+
+// Garbage
+// Constructeur usuel.
+//Node* Node_create(Node* const refOpt, const float x, const float y, const float w, const float h,
+//                  const flag_t flags, const uint8_t node_place) {
+//    Node* n = coq_callocTyped(Node);
+//    node_init(n, refOpt, x, y, w, h, node_type_node, flags, node_place);
+//    return n;
+//}
+//Node* Node_default_createCopy(const Node* const other) {
+//    if(other->_type & node_type_flag_notCopyable) {
+//        printerror("Node of type %x is not copyable.", other->_type);
+//        return NULL;
+//    }
+//    Node* nd = coq_malloc(sizeof(other->_size));
+//    // Copie toute les donnees a priori.
+//    memcpy(nd, other, sizeof(other->_size));
+//    // Mais on remet les pointeurs sur null.
+//    nd->parent = NULL;
+//    nd->firstChild = NULL;
+//    nd->lastChild = NULL;
+//    nd->bigBro = NULL;
+//    nd->littleBro = NULL;
+//    if(!(nd->_type & node_type_flag_leaf))
+//        node_last_nonLeaf = nd;
+//    return nd;
+//}
+//void    node_setX(Node* const nd, float x){
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_set(&s->x, x);
+//    nd->x = x;
+//}
+//void    node_fixX(Node* const nd, float x){
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_fix(&s->x, x);
+//    nd->x = x;
+//}
+//void    node_setY(Node* const nd, float y) {
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_set(&s->y, y);
+//    nd->y = y;
+//}
+//void    node_fixY(Node* const nd, float y) {
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_fix(&s->y, y);
+//    nd->y = y;
+//}
+//void    node_setScaleX(Node* const nd, float sx) {
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_set(&s->sx, sx);
+//    nd->sx = sx;
+//}
+//void    node_fixScaleX(Node* const nd, float sx) {
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_fix(&s->sx, sx);
+//    nd->sx = sx;
+//}
+//void    node_setScaleY(Node* const nd, float sy) {
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_set(&s->sy, sy);
+//    nd->sy = sy;
+//}
+//void    node_fixScaleY(Node* const nd, float sy) {
+//    Fluid* s = node_asFluidOpt(nd);
+//    if(s) fl_fix(&s->sy, sy);
+//    nd->sy = sy;
+//}
