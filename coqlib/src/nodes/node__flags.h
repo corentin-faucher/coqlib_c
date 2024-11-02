@@ -8,11 +8,24 @@
 #ifndef COQ_NODE__FLAGS_H
 #define COQ_NODE__FLAGS_H
 
-//typedef uint64_t flag_t;
-typedef enum {
+#include <stdint.h>
+
+// Flags éditable par la thread du renderer.
+enum {
+    renderflag_toDraw =           1,
+    renderflag_firstCustom =   1<<1,
+};
+
+typedef uint64_t flag_t;
+// Flags ordinaire de noeud (bits de `Node.flags`)
+enum {
     /// Noeud initialisé dans le "vide", sans attache (un peu risqué).
     /// Mettre ce flag pour éviter d'avoir un warning.
     flag_noParent =                     1ULL,
+    /// Mettre ce flag pour enregistrer ce noeud comme `Node_lastNode`.
+    flag_nodeLast =                     1ULL<<15,
+    flags_initFlags = flag_noParent|flag_nodeLast, // Des flags utiles qu'à l'init.
+    
     /// Noeud/branche devant être affiché.
     flag_show =                         1ULL<<1,
     /// Le flag "show" n'est pas ajouté lors de l'ouverture de la branche (`node_tree_openAndShow`).
@@ -21,14 +34,12 @@ typedef enum {
     flag_exposed =                      1ULL<<3,
     /// Skippé lors de l'alignement avec `node_tree_alignTheChildren`.
     flag_notToAlign =                   1ULL<<4,
-    /// Qui apparaît en grossissant.
-    flag_poping =                       1ULL<<5,
     /// Le noeud est dans la poubelle... Quittez le navire !
     flag_toDelete_ =                    1ULL<<6,
-    flag_toDeleteScheduled_ =           1ULL<<7, // Sera bientôt dans la poubelle.
+//    flag_toDeleteScheduled_ =           1ULL<<7, // Sera bientôt dans la poubelle.
     
     // Flags pour savoir quelle branches où chercher.
-    flag_parentOfToDraw =               1ULL<<8, // Branche ayant des noeud `show` ou `drawableActive`.
+//    flag_parentOfToDraw =               1ULL<<8,  Branche ayant des noeud `show` ou `drawableActive`.
     flag_parentOfButton =               1ULL<<9,
     flag_parentOfScrollable =           1ULL<<10,
     flag_parentOfReshapable =           1ULL<<11,
@@ -37,10 +48,18 @@ typedef enum {
     flag_giveSizeToBigbroFrame =        1ULL<<12,
     flag_giveSizeToParent =             1ULL<<13,
     
-    // Drawable encore actif (meme si show est off, transition pas encore fini).
-    flag_drawableActive =                1ULL<<14,
+    // Drawables
+    /// Drawable encore actif (meme si show est off, transition pas encore fini).
+//    flag_drawableActive =                1ULL<<14,
+    /// Qui apparaît en grossissant.
+    flag_drawablePoping =                1ULL<<5,
     
-    // Libre 15, 16, 17...
+    // Root
+    /// La matrice projection et view sont séparé. (pour calculs sur vecteur normal dans shader par exemple)
+    flags_rootDefault = flag_exposed|flag_show|flag_parentOfButton|
+        flag_parentOfScrollable|flag_parentOfReshapable|flag_noParent,
+        
+    // 1ULL<<17,
     
     // Pour les views.
     /// Les "blocs" (premiers descendants) ne sont pas alignées en fonction de la dimention de la vue principale/fenêtre.
@@ -81,13 +100,10 @@ typedef enum {
     // Pour les boutons.
     flag_buttonInactive =                1ULL<<30,
     
-    // Pour les root
-    flags_rootDefault = flag_exposed|flag_show|flag_parentOfToDraw|flag_parentOfButton|
-        flag_parentOfScrollable|flag_parentOfReshapable,
-
+    // 1ULL<<31
     
-    flag_firstCustomFlag =              1ULL<<31,
-} flag_t;
+    flag_firstCustomFlag =              1ULL<<32, // Assure d'avoir des uint64...
+};
 
 
 

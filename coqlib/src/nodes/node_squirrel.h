@@ -56,7 +56,7 @@ bool sq_goUpP(Squirrel *sq);
 bool sq_goUpPS(Squirrel *sq);
 
 bool sq_goToNext(Squirrel *sq);
-bool sq_goToNextToDisplay(Squirrel *sq);
+bool sq_renderer_goToNextToDisplay(Squirrel *sq);
 
 bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq);
 

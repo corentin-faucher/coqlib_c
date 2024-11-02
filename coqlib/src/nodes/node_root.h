@@ -34,6 +34,8 @@ typedef struct coq_Root {
   Vector2 viewSizePt;
   /// Marges en points.
   Margins margins;
+  /// Matrice de projection (optionnel, par défaut pour root : M = P * V.)
+  Matrix4 projectionOpt;
   /// Camera. que les vecteurs eye, centre, up. Typiquement (0,0,4), (0,0,0),
   /// (0,1,0). On peut s'amuser à la bouger...
   Camera camera;
@@ -41,13 +43,13 @@ typedef struct coq_Root {
   FluidPos back_RGBA[4];
   /// Lumière ambiante (entre 0 et 1)
   FluidPos ambiantLight;
-  /// Les vues importantes : la vue présentement active, le "backscreen" et le
-  /// "frontscreen".
+  // Les vues importantes : la vue présentement active, le "backscreen" et le "frontscreen".
   View *viewActiveOpt;
   /// En avant plan, e.g. pour les effets de particules... -> voir Sparkles.
   View *viewFrontOpt;
   /// Le fond d'écran.
   View *viewBackOpt;
+  Node *toDeleteViewNodeOpt;
   Root *rootParentOpt;
 
   /// Events... ? Juste shouldTerminate pour l'instant.
@@ -58,21 +60,23 @@ typedef struct coq_Root {
   void (*resizeOpt)(Root *, ResizeInfo);
   void (*resumeAfterMSOpt)(Root *, int64_t);
   //    void        (*willTerminateOpt)(Root*);  // Utile ?
-  Timer* _timer;
+  Timer _timer;
 } Root;
 
 /// A priori une root est à `parent = NULL`, pas de parents.
 /// Mais on peut faire une sous-root (i.e. avec nouvelle matrice de projection),
 /// dans ce cas il faut fournir la root absolue `parentRoot`.
-void root_init(Root *root, Root *parentRootOpt);
+void root_and_super_init(Root *root, Root *parentRootOpt, Node* parentRootChildOpt);
 /// Downcasting.
 Root *node_asRootOpt(Node *nOpt);
 
+/// Changement de view (fermeture/release de l'ancienne view et ouverture de la nouvelle)
 void root_changeViewActiveTo(Root *rt, View *newViewOpt);
 /// Resize de la window.view.
 void root_viewResized(Root *rt, ResizeInfo info);
+/// Resize temporaire de la window.view.
 void root_justSetFrameSize_(Root *r, Vector2 frameSizePt);
-
+/// Landscape : w > h.
 bool root_isLandscape(Root *r);
 
 /// Obtenir le rectangle (en pixels) associé à une position (origin)

@@ -9,15 +9,6 @@
 #include "../maths/math_base.h"
 #include "../graphs/graph_base.h"
 
-/// Transforme la couleur vers le gris de niveau `level`.
-/// alpha : ratio de `grisification`.
-/// e.g. si level = 0.5, alpha = 0 -> pas de changement.
-/// level = 0.5, alpha = 1 -> completement gris (0.5, 0.5, 0.5).
-Vector4   vector4_color_toGray(Vector4 v, float level, float alpha);
-/// Conversion de vecteur 4 vers un pixel en BGRA uint8,
-/// e.g. (1, 0.25, 0, 0.5) -> 0x7F003FFF
-PixelBGRA vector4_color_toPixelBGRA(Vector4 v);
-
 extern const Vector4 color4_black;
 extern const Vector4 color4_black_back;
 extern const Vector4 color4_white;
@@ -62,4 +53,26 @@ extern const Vector4 color4_purble_china_pink;
 extern const Vector4 color4_purble_electric_indigo;
 extern const Vector4 color4_purble_blue_violet;
 
+/// Transforme la couleur vers le gris de niveau `level`.
+/// alpha : ratio de `grisification`.
+/// e.g. si level = 0.5, alpha = 0 -> pas de changement.
+/// level = 0.5, alpha = 1 -> completement gris (0.5, 0.5, 0.5).
+static inline Vector4   vector4_color_toGray(Vector4 const v, float const level, float const alpha) {
+    return (Vector4) {{
+        (1.f - alpha)*v.r + level*alpha,
+        (1.f - alpha)*v.g + level*alpha,
+        (1.f - alpha)*v.b + level*alpha,
+        v.a,        
+    }};
+}
+/// Conversion de vecteur 4 vers un pixel en BGRA uint8,
+/// e.g. (1, 0.25, 0, 0.5) -> 0x7F003FFF
+static inline PixelBGRA vector4_color_toPixelBGRA(Vector4 const v) {
+    return (PixelBGRA) {
+        .b = (uint8_t)(fminf(fmaxf(v.b, 0.f), 1.f)*255.f),
+        .g = (uint8_t)(fminf(fmaxf(v.g, 0.f), 1.f)*255.f), 
+        .r = (uint8_t)(fminf(fmaxf(v.r, 0.f), 1.f)*255.f), 
+        .a = (uint8_t)(fminf(fmaxf(v.a, 0.f), 1.f)*255.f),
+    };
+}
 #endif /* colors_h */

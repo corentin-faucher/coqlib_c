@@ -1,16 +1,16 @@
 //
-//  graph_texture_apple.h
-//  Test2
+//  graph__opengl.h
+//  Pour utiliser OpenGL (au lieu de Metal)
 //
 //  Created by Corentin Faucher on 2023-10-12.
 //
 
 #ifndef COQ_GRAPH__OPENGL_H
 #define COQ_GRAPH__OPENGL_H
-// #ifdef WITH_OPENGL
 
 #include "graph_texture.h"
 #include "graph_mesh.h"
+#include "graph_base.h"
 
 #ifdef __APPLE__
 #define GL_SILENCE_DEPRECATION
@@ -20,22 +20,25 @@
 #include <GL/glew.h>
 #endif
 
+void   CoqGraph_opengl_init(bool loadCoqlibPngs);
+void   CoqGraph_opengl_deinit(void);
+
 /*-- Texture --*/
-void   Texture_GLinit(GLuint program, const char* font_dir, const char* default_font_name);
+void   Texture_opengl_init_(GLuint program);
 void   texture_glBind(Texture* tex);
 
 /*-- Mesh --*/
-void   Mesh_init(GLuint program);
-void   mesh_glBind(Mesh* mesh);
+void   Mesh_opengl_init_(GLuint program);
+void   mesh_glBind(Mesh *mesh);
+
 
 /*-- Uniforms Buffer --*/
-void   PIUsBuffer_GLinit(GLuint program);
-void   piusbuffer_glBind(PIUsBuffer* piusbuffer);
-void   perinstanceuniform_glBind(const PerInstanceUniforms* piu);
+void   iusbuffer_glBind(IUsBuffer* iusbuffer);
+void   instanceuniform_glBind(InstanceUniforms const *iu);
 
-#else
-// #warning N inclure que si on utilise OpenGL (avec -DWITH_OPENGL)
+/*-- Dessin d'une instance (groupe d'instances) --*/
+void  rendering_opengl_initForDrawing(void);
+void  rendering_opengl_draw(Mesh *mesh, Texture *tex, InstanceUniforms const* iu);
+void  rendering_opengl_drawMulti(Mesh *mesh, Texture *tex, IUsBuffer *iusBuffer);
+
 #endif
-// #endif
-
-/* graph_texture_apple_h */

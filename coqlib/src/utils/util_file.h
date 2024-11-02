@@ -1,6 +1,6 @@
 //
 //  _util_file.h
-//  Fonctions de base pratiques pour 
+//  Fonctions de base pratiques pour
 //  l'ecriture/lecture de fichiers.
 //
 //  Created by Corentin Faucher on 2023-12-08.
@@ -28,6 +28,7 @@
 //int         FILE_existAt(const char* path);
 
 /// Optenir le contenu d'un fichier texte (+1 à la taille pour le `\0` terminal ajouté à la string).
+/// Retourne une référence au buffer (privé de `util_file.c`).
 /// Il ne faut pas `free` le buffer retourné. Pour ce faire utiliser `FILE_freeBuffer`.
 const char* FILE_stringContentOptAt(const char* path);
 /// Obtenir le contenu d'un fichier binaire.
@@ -35,12 +36,12 @@ const void* FILE_bufferContentOptAt(const char* path);
 /// Obtenir le contenu d'un bmp. On passe les emplacements où stocker width et height.
 /// Le bitmap est stocker dans le buffer dans le format BGRA, i.e. en hexadec 0xAARRGGBB
 ///  (compatible avec les textures).
-const void* FILE_bitmapBGRA8ContentOptAt(const char* path,  uint32_t* widthRef, uint32_t* heightRef, bool flipY);
-/// Taille du tempon retourné par `FILE_contentOpt`.
+const void* FILE_bitmapBGRA8ContentOptAt(const char* pathOpt,  uint32_t* widthRef, uint32_t* heightRef, bool flipY);
+/// Taille du tempon retourné par `FILE_XXXcontentOpt`.
 size_t      FILE_bufferSize(void);
 /// Libérer le tempon (facultatif).
 void        FILE_freeBuffer(void);
-/// Ecrire une string dans un fichier texte.
+/// Ecrire une string dans un fichier texte (terminée par `\0`).
 void        FILE_writeString(const char* path, const char* content);
 void        FILE_writeData(const char* path, const void* buffer, size_t buffer_size);
 

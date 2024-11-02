@@ -9,7 +9,7 @@
 #define ios_dummy_scrollview_h
 
 #import <UIKit/UIKit.h>
-#import "metal_view.h"
+#import "apple_view_metal.h"
 #include "nodes/node_sliding_menu.h"
 
 @interface DummyScrollView : UIScrollView <UIScrollViewDelegate> {

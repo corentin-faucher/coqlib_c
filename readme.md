@@ -37,7 +37,7 @@
 5. Au projet (xc_coqlib_test la racine des fichiers), ajouter les groupes (`New Group`) : `coqlib` ; `Resources` ; `code`.
 
 6. Au groupe `coqlib`, ajouter (Add Files to xc_coqlib_test) les repertoires `src` et `src_apple` de `coqlib` (remonter au dossier racine de coqlib_c). Choisir "Create groups" pour "Added folders".
-   Retirer le sous-groupe `src/opengl_openal` (Remove references). On utilise en fait Metal et AVFoundation au lieu d'OpenGL et d'OpenAL respectivement (voirs les fichiers dans `src_apple`). 
+   Retirer le sous-groupe `src/opengl_openal` (Remove references). On utilise en fait Metal et AVFoundation au lieu d'OpenGL et d'OpenAL respectivement (voirs les fichiers dans `src_apple`).
    Retirer aussi les fichiers pour iOS : `src_apple/ios_...`.
    Les fichiers retiré, peuvent aussi seulement être retiré du "Target membership" (dans l'onglet "File inspector").
 
@@ -55,15 +55,21 @@ Cliquer le target `xc_coqlib_test` -> `Edit Scheme...` -> `Build` -> `Post actio
 perl "${PROJECT_DIR}/../coqlib_test/res_apple/sort_xcode_project" "${PROJECT_FILE_PATH}/project.pbxproj"
 ```
 
-## Notations sur les fonctions
+## Notations sur les structures et leurs méthodes.
 
+Soit la structure
+```c
+typedef struct A { int myInt; } A;
+```
+Une instance sera définie par `a` (i.e. en minuscules).
+Pour les méthodes, on a :
 - `A_doStuf()` : Majuscule, une fonction global de la struct A, e.g. `A_create()` -> crée une instance de A.
 - `a_doStuf(A* a)` : Minuscule, une fonction appliquée à une instance de la struct A, e.g. `a_update(my_a)`.
 - `a_doPrivateStuff_(A* a)` : Underscore, pour les variables ou fonction "privées"/"internes". (On met à la fin car au début c'est réservé...)
-- `A_create(...)` : create -> Création (alloc) et initialisation d'un objet avec allocation de mémoire *malloc*/*calloc*. On est responsable de detruire l'objet -> `a_destroy`/`a_release`.
+- `A_create(...)` : create -> Création (alloc) *et* initialisation d'un objet avec allocation de mémoire *malloc*/*calloc*. On est responsable de detruire l'objet -> `a_destroy`/`a_release`.
 - `A_spawn(...)` : Création (et init) d'un objet qui s'autodétruit (pas besoin de deinit/destroy).
 - `a_init(A* a)` : Initialisation (seulement) d'un objet existant.
-- `a_deinit(A* a)` : Préparation pour déallocation (dealloc les sous-objets).
+- `a_deinit(A* a)` : Préparation pour déallocation (Ne dealloc que les sous-objets, pas l'objet lui-même).
 - `a_destroy(A* a)` : Deinit et deallocation, e.g. call *deinit* et *free* sur l'objet.
 - `a_set...` : Setters, définir une/des variable(s) d'un objet, e.g. `void a_setIsOn(A *a, Bool isOn)`.
 - `a_(action)...` : Fonction quelconque appliquée à l'objet, e.g. void chrono_pause(Chrono *c).
@@ -86,7 +92,7 @@ perl "${PROJECT_DIR}/../coqlib_test/res_apple/sort_xcode_project" "${PROJECT_FIL
 - `count` vs `size` : On utilise "Count" pour le nombre d'éléments et "Size" pour la taille en bytes de l'array,
 e.g. `A myArray[myArray_count]; myArray_size = myArray_count * sizeof(A);`
 
-## Notes diverses sur le C...
+## Notes et trucs diverses sur le C...
 
 - Pour afficher en hexadecimal (dans une formated string), on utilise,
   e.g. "%#010x". # pour 0x, x pour hexadec, 10 pour 10 chars (en comptant 0x).
@@ -96,13 +102,27 @@ e.g. `A myArray[myArray_count]; myArray_size = myArray_count * sizeof(A);`
 __attribute__((deprecated("utiliser `coq_calloc` + `node_init_` + `drawable_init_`.")))
 ```
 
+-Pour init une variable style Kotlin (.also, .let), utiliser `({});`.
+```
+int my_var = ({
+    int b = 5;
+    int c = 3;
+    b + c;  // -> my_var = b + c
+});
+```
+
+-Truc pour initialiser un const dans une struct (ou pour `cast away the const`): `*(uint32_t*)&my_struct->constCount = theCount;`.
+
 -Attention ! Pour les array en 2D et plus... ! Il faut aller des crochets exterieur vers les crochets intérieurs...
 Ou premier crochet -> grand pas, dernier crochet -> petit pas...
 e.g. `int mat[4][3]` => `[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]`,
 ou encore `const char someSmallStrings[][4] = { "ab", "cd", "ef", "jk", "lm", "no", "pq" };`.
 On accède au "haut" niveau en premier.
 
+-Pour retrouver la taille d'un array :
+```
+char* stringArray[] = { "allo", "un", ...};
+size_t arrayCount = sizeof(stringArray) / sizeof(char*);
+```
+
 -Itérateur dans array multi-D: Soit `int mat[4][3];`, l'itérateur de ligne serait `int (*ligne)[3] = &mat[0];`.
-
--Truc pour initialiser un const dans une struct (ou pour `cast away the const`): `*(uint32_t*)&my_struct->constCount = theCount;`.
-

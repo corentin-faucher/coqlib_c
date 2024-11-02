@@ -23,55 +23,34 @@ typedef struct GlyphInfo {
                  // e.g. des lettres attachées.)
 } GlyphInfo;
 
-
 #pragma mark - Map de glyphs (pour dessiner les strings), c'est une sous-struct de Texture...
-typedef struct FontGlyphMap FontGlyphMap;
-typedef struct FontGlyphMapCustomChars FontGlyphMapCustomChars;
-void           fontglyphmap_deinit(FontGlyphMap* gm);
+typedef struct GlyphMap GlyphMap;
+/// Infos pour init une FontGlyphMap.
+typedef struct GlyphMapInit {
+    const char* fontNameOpt;     // Si NULL, font par défaut du system.
+    float       fontSizeOpt;     // Si 0 -> 32.
+    size_t      textureWidthOpt; // Si 0, choix proportionnel à fontSize.
+    bool        nearest;         // Style pixélisé
+    // Liste de chars "custom" dessiner a partir d'une texture (optionnel)
+    // (mais si count > 0 -> tout doit être défini) 
+    Texture    *customChars_texOpt;   // Texture où trouver les customs chars
+    Character  *customChars_charsOpt; // Liste des chars customizés
+    Rectangle  *customChars_uvRectsOpt;// Liste des rectangles où trouver les chars customizés dans la texture
+    size_t      customChars_count; // Nombre de chars customizés.
+} GlyphMapInit;
+void            glyphmap_deinit(GlyphMap* gm);
 /// Une texture qui stocke les glyphs d'une police de caractères.
-FontGlyphMap*  FontGlyphMap_create(const char* fontNameOpt, double fontSize, 
-                      size_t textureWidthOpt, bool nearest, 
-                      FontGlyphMapCustomChars* customCharsOpt);
-void           fontglyphmapref_releaseAndNull(FontGlyphMap** fgmOptRef);
+GlyphMap*       GlyphMap_create(GlyphMapInit info);
+void            glyphmapref_releaseAndNull(GlyphMap** fgmOptRef);
 
+GlyphInfo       glyphmap_getGlyphInfoOfChar(GlyphMap* gm, Character c);
+Texture*        glyphmap_getTexture(GlyphMap* gm);
+coq_Font const* glyphmap_getFont(GlyphMap const*const gm);
 
-GlyphInfo      fontglyphmap_getGlyphInfoOfChar(FontGlyphMap* gm, Character c);
-Texture*       fontglyphmap_getTexture(FontGlyphMap* gm);
-float          fontglyphmap_getRelY(FontGlyphMap* gm);
-float          fontglyphmap_getRelHeight(FontGlyphMap* gm);
-
-#pragma mark - Sous structure de FontGlyphMap pour char customs (pris d'une texture)
-typedef struct FontGlyphMapCustomChars {
-    size_t     count;   // Nombre de chars customizés.
-    Texture*   texture; // Texture où trouver les customs chars (shared).
-    Character* chars;   // Liste des chars customizés.
-    Rectangle* uvRects; // Liste des rectangles où trouver les chars customizés dans la texture.
-} FontGlyphMapCustomChars;
-
-
-#pragma mark - Un caractère avec ses dimensions.
-/// Info du glyph d'un char à garder en mémoire pour l'affichage (utile pour overrider `updateModel`)
-typedef struct CharacterGlyphed {
-    Character c;
-    GlyphInfo info;
-    bool      firstOfWord;
-} CharacterGlyphed;
-
-
-#pragma mark - StringGlyphedInit : info à fournir pour créer une string avec glyphs.
-/// Structure temporaire pous initialiser une StringGlyphed (et une NodeString).
-typedef struct StringGlyphedInit {
-    /// (Ici, la `c_str` est un pointeur unowned/shared, i.e. sera copié mais pas deallocated.)
-    const char*   c_str;
-    /// Il faut chercher la version localisé avec `String_createLocalized`...
-    bool          isLocalized;
-    /// Optionnel, la glyph map à utiliser (un glyph map par font). 
-    /// Si absent une glyph map sera créée avec la police par défaut. 
-    FontGlyphMap *glyphMapOpt;
-    /// Espacement supplémentaire sur les côtés (en % de la hauteur, typiquement 0.5 est bien).
-    float         x_margin;
-    /// Espacement supplémentaire entre les caractères. (en % de la hauteur, 0 par défaut, peut être positif ou négatif)
-    float         spacing;
-} StringGlyphedInit;
+void            GlyphMap_setDefault(GlyphMapInit info);
+GlyphMap*       GlyphMap_getDefault(void);
+void            GlyphMap_unsetDefault(void);
+coq_Font const* GlyphMap_getDefaultFont(void);
+Texture*        GlyphMap_getDefaultTexture(void);
 
 #endif /* graph_glyphs_h */

@@ -47,7 +47,7 @@ typedef struct coq_View {
 } View;
 
 /// Init (init aussi les supers : Node et Fluid).
-void  view_initWithSuper(View* v, Root* root, flag_t flags);
+void  view_and_super_init(View* v, Root* root, flag_t flags);
 
 // Downcasting
 View* node_asViewOpt(Node *n);

@@ -12,7 +12,8 @@
 #include "node_sliding_menu.h"
 #include "../graphs/graph_glyphs.h"
 
-#pragma mark - Drawable d'un seul caractère. (pour test, utiliser plutôt NodeString) -
+#pragma mark - Drawable d'un seul caractère avec toutes les infos -
+// (pour test, utiliser plutôt NodeString ou Drawable_createCharacter)
 typedef struct DrawableChar {
     union {
         Node     n;
@@ -31,54 +32,96 @@ typedef struct DrawableChar {
 } DrawableChar;
 DrawableChar*   DrawableChar_create(Node* refOpt, Character c,
                                float x, float y, float twoDy, flag_t flags);
+                               
+#pragma mark - Drawable simple (sans extra) d'un caractère ou string -
+Drawable*  Drawable_createCharacter(Node* refOpt, Character c, GlyphMap* glyphMapOpt,
+                               float x, float y, float twoDy, flag_t flags);
+void       drawable_changeToCharacter(Drawable *d, Character c, GlyphMap *glyphMapOpt);
+/// *test* Drawable de string avec sa propre texture (pixels array)
+/// ( -> Utiliser de préférence NodeString) 
+Drawable*  Drawable_createString(Node* refOpt, const char *c_str, coq_Font const* cf,
+                                float x, float y, float twoDy, flag_t flags);
+                               
+#pragma mark - Un caractère avec ses dimensions (Élément de StringGlyphed)
+/// Info du glyph d'un char à garder en mémoire pour l'affichage (utile pour overrider `updateModel`)
+typedef struct CharacterGlyphed {
+    Character c;
+    GlyphInfo info;
+    bool      firstOfWord;
+} CharacterGlyphed;
 
 #pragma mark - StringGlyphed (String avec info pour dessiner)
 // Étapes pour dessiner une string.
 // 1. On a une c_str (char[] en utf8) que l'on convertie en CharacterArray:
 //     c_str -> charArray.
-// 2. Obtenir les dimensions des chars pour savoir l'espace occupé.
+// 2. De l'array de chars, obtenir des chars avec des dimensions et associé à une FontGlyphMap.
 //     charArray -> stringGlyphed.
 // 3. (Optionnel) On peut scinder la stringGlyphed en plusieurs lignes avec une largeur de ligne définie.
 //     stringGlyphed -> linesArray (array de StringGlyphed).
 // 4. Création d'un NodeString (un DrawableMulti où chaque instance est le glyph d'un char). 
 //     stringGlyphed -> NodeString
 /// Les infos pour dessiner une string (sur une ligne)
-typedef struct StringGlyphed StringGlyphed;
-StringGlyphed* StringGlyphed_create(StringGlyphedInit initData);
+typedef struct StringGlyphed {
+    size_t           charCount;
+    size_t const     maxCount;
+    GlyphMap    *glyphMap;     // La glyph map utilisée pour définir les dimensions des chars.
+    float            widthRel;     // Largeur (relative à solid height)
+    float            x_margin;     // Marge en x (relative à solid height)
+    float            spacing;      // Le scaling voulu (espace entre les CharacterGlyphed).
+    CharacterGlyphed chars[1];     // Les chars avec info de dimensions.
+} StringGlyphed;
 
-/// Setter la Glyph map a utiliser par défaut pour les StringGlyphed.
-/// L'ownership est transféré (fonction avec `give...`).
-void           StringGlyphed_giveDefaultFontGlyphMap(FontGlyphMap** defaultFontGlyphMapGivenRef);
-void           StringGlyphed_deinit(void);
-Texture*       StringGlyphed_defaultGlyphMapTexture(void);
+StringGlyphed* StringGlyphed_createEmpty(size_t maxCount, GlyphMap *glyphMapOpt, 
+                                        float spacing, float x_margin);
+StringGlyphed* StringGlyphed_create(const CharacterArray *ca, GlyphMap *glyphMapOpt,
+                                    float spacing, float x_margin);
+// (pas de stringglyphed_denit, on peut dealloc directement)
+void stringglyphed_setChars(StringGlyphed* sg, const CharacterArray *ca);
 
-#pragma mark - Noeud drawable d'une string.
+#pragma mark - NodeStringInit : info à fournir pour créer une string avec glyphs.
+/// Structure temporaire pous initialiser un NodeString.
+typedef struct NodeStringInit {
+    /// La string à afficher (shared/unowned)
+    const char*   c_str;
+    /// Il faut chercher la version localisé avec `String_createLocalized`...
+    bool          isLocalized;
+    /// Optionnel, la glyph map à utiliser (un glyph map par font). 
+    /// Si absent une glyph map sera créée avec la police par défaut. 
+    /// Doit rester disponible (static/shared) durant la durée de vie de la StringGlyphed.
+    GlyphMap *glyphMapOpt;
+    /// Espacement supplémentaire sur les côtés (en % de la hauteur, typiquement 0.5 est bien).
+    float         x_margin;
+    /// Espacement supplémentaire entre les caractères. (en % de la hauteur, 0 par défaut, peut être positif ou négatif)
+    float         spacing;
+    /// Pour strings éditables, le nombre maximal de chars.
+    size_t        maxCountOpt;
+} NodeStringInit;
+
+#pragma mark - NodeString : Noeud drawable affichant une string.
+// La String affichée est constante. (Ne serait pas thread safe si editable...)
 typedef struct NodeString {
     union {
         Node          n;
         Drawable      d;
         DrawableMulti dm;
     };
-    StringGlyphed*   _strGlyph; // String avec infos pour dessiner.
+    StringGlyphed *const sg; // String avec infos pour dessiner.
     /// Un chrono qui commence à l'ouverture (pour animation de la string)
-    Chrono           chrono;
+    Chrono            chrono;
+    float const       twoDxOpt;
 } NodeString;
-
-NodeString* NodeString_create(Node* ref, StringGlyphedInit data,
+NodeString* NodeString_create(Node* ref, NodeStringInit data,
                       float x, float y, float widthOpt, float height,
                       flag_t flags, uint8_t node_place);
 
-/// Espace occupé par la string (relativement à height).
-/// `o_y` est le shift relatif en y. `o_x` est la marge en x (x_margin).
-/// h est la hauteur relative : gm->glyphHeight / gm->solidHeight.
-/// w inclus le spacing et les marges (+2*x_margin).
-Rectangle         nodestring_getRelativeBox(NodeString* ns);
-/// Espace relatif entre les caractères.
-float             nodestring_getSpacing(NodeString* ns);
-/// Accès à la liste de caractère avec dimensions de glyph
-CharacterGlyphed* nodestring_firstCharacterGlyphed(NodeString* ns);
-/// Fonction utile pour avoir un planché sur la largeur d'un `GlyphInfo`.
-float SG_charWidth_(float width, float spacing);
+NodeString* node_asNodeStringOpt(Node* nOpt);
+void        nodestring_updateString(NodeString* ns, const char* newString);
+                      
+/// Custom updateModel pour NodeString : fait bouger les lettres.
+/// n.float0 est le delai d'apparition des lettres.
+/// n.float1 est la frequence d'oscillations (rotation) des lettres.
+void nodestring_renderer_updateIUsMoving(Node* const n);
+
 
 #pragma mark - StringWithGlyphMulti, String scindé en plusieurs lignes.
 typedef struct StringGlyphArr StringGlyphArr;
@@ -90,13 +133,13 @@ void            stringglypharr_deinit(StringGlyphArr* strArr);
 
 #pragma mark - Multi String
 /// Ajoute à un noeud la string scinder en plusieurs strings de largeur maximale lineWidth.
-void  node_addMultiStrings(Node* n, StringGlyphedInit const data,
+void  node_addMultiStrings(Node* n, NodeStringInit const data,
                            float const lineWidth, float const lineHeight,
                            uint32_t relativeFlags, Character trailingSpace);
                         
 
 #pragma mark - Multi String scrollable
-void slidingmenu_addMultiStrings(SlidingMenu* sm, StringGlyphedInit data);
+void slidingmenu_addMultiStrings(SlidingMenu* sm, NodeStringInit data);
 
 //typedef struct NodeStringSliding NodeStringSliding;
 //

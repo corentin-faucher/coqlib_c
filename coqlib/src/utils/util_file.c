@@ -9,8 +9,6 @@
 #include "util_base.h"
 #include <math.h>
 #include "../graphs/graph_base.h"
-//#include <sys/stat.h>
-//#include <unistd.h>
 
 static char*  FILE_buffer_ = NULL;
 static size_t FILE_buffer_size_ = 0;
@@ -48,7 +46,7 @@ const char* FILE_stringContentOptAt(const char* path) {
     }
     return FILE_buffer_;
 }
-const void* FILE_bufferContentOptAt(const char* path) {
+const void* FILE_bufferContentOptAt(const char* path) {    
     FILE_freeBuffer();
     if(!path) {  printerror("No path to open."); return NULL; }
     FILE* f = fopen(path, "rb");

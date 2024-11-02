@@ -43,15 +43,14 @@ extern Fluid* popingnode_last_notSharedOpt_;
 void popingnode_last_checkForScreenSpilling(void);
 
 
-#pragma mark - Quelques exemple de PopingNode...
+#pragma mark - Quelques exemples de PopingNode...
 
 #pragma mark - PopDisk, un disque de `progression`, disparaît une fois plein.
-
-void PopDisk_spawnAndOpen(Node *refOpt, PopingNode_** refererOpt, uint32_t pngId,
-                   uint32_t tile, float deltaT, float x, float y, float twoDy);
+void   PopDisk_spawnOverAndOpen(Node *const nodeOverOpt, PopingNode_ **const refererOpt,
+                   uint32_t const pngId, uint32_t const tile, float const deltaT,
+                   float x, float y, float twoDyRel);
 
 #pragma mark - Sparkles ! (des feux d artifices)
-
 void Sparkle_init(Texture* sparkleTex, uint32_t sparkleSoundId);
 /// Exemple d'implémentation de PopingNode...
 void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture *texOpt);
@@ -60,10 +59,10 @@ void Sparkle_spawnOverAndOpen(Node *nd, float deltaRatio);
 #pragma mark - PopMessage, message qui s autodétruit (e.g. error).
 /// Autre exemple d'implémentation de PopingNode...
 void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy,
-                        float timeSec, uint32_t framePngId, StringGlyphedInit str,
+                        float timeSec, uint32_t framePngId, NodeStringInit str,
                         FramedStringParams params);
 void PopMessage_spawnOverAndOpen(Node *n, float widthOpt_rel, float height_rel,
                           float timeSec, uint32_t framePngId,
-                          StringGlyphedInit str, FramedStringParams params);
+                          NodeStringInit str, FramedStringParams params);
 
 #endif /* pop_disk_h */

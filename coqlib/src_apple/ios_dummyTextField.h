@@ -9,7 +9,7 @@
 #define ios_dummyTextField_h
 
 #import <UIKit/UIKit.h>
-#import "metal_view.h"
+#import "apple_view_metal.h"
 
 @interface DummyTextField : UITextField <UITextFieldDelegate> {
     CoqMetalView* metalView;

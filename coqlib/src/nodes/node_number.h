@@ -57,13 +57,17 @@ typedef struct Number {
     float    extra_x_margin;
     bool     showPlus;
     bool     initAsBlank;
-//    float    _digitWidth;
     float    _xs[NUMBER_MAX_DIGITS_];
 } Number;
 
 extern Texture*    Number_defaultTex;
-extern void      (*Number_defaultUpdateModel)(Node*); 
+extern void      (*Number_renderer_defaultUpdateIUs)(Node*); 
 
+/// Init node as number (avec supers: Node, Drawable, DrawableMulti)
+void number_and_super_init_(Number* const nb, Node* refOpt, int32_t value,
+                      float x, float y, float height,
+                      flag_t flags, uint8_t node_place);
+/// Convenience constructor: alloc + init.
 Number*  Number_create(Node* ref, int32_t value,
                       float x, float y, float height,
                       flag_t flags, uint8_t node_place);

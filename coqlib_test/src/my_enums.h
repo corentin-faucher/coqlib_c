@@ -7,7 +7,7 @@
 #ifndef my_enums_h
 #define my_enums_h
 
-#include "graphs/graph_glyphs.h"
+#include "nodes/node_string.h"
 
 extern const uint32_t node_type_flag_particule;
 extern const uint32_t node_type_nf_particule;
@@ -24,7 +24,7 @@ typedef enum _Localizable {
     locstring_total_locstring,
 } Localizable;
 const char*       loc_stringKey(Localizable loc);
-StringGlyphedInit loc_stringGlyphedInit(Localizable loc);
+NodeStringInit loc_stringGlyphedInit(Localizable loc);
 
 typedef enum {
     png_bar_gray,

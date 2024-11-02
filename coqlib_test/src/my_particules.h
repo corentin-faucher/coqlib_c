@@ -7,7 +7,6 @@
 #ifndef my_particules_h
 #define my_particules_h
 
-#include "coq_math.h"
 #include "coq_nodes.h"
 
 typedef struct _Particule {
@@ -49,7 +48,7 @@ typedef struct PPNode {
     ParticulesPool* pp;
 //    DrawableMulti*  dm;
     int64_t         last_time;
-    Timer*          timer;
+    Timer           timer;
 } PPNode;
 
 PPNode* PPNode_create(Node* ref);

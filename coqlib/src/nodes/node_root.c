@@ -17,35 +17,39 @@ void root_updateModel_(Node* const n) {
     Root* rt = (Root*)n;
     // Positionnement par rapport à la caméra
     Camera* const c = &rt->camera;
-    float yShift = fl_pos(&rt->yShift);
+    float yShift = fl_evalPos(rt->yShift);
     Vector3 eye = fl_array_toVec3(c->pos);
     eye.y += yShift;
     Vector3 center = fl_array_toVec3(c->center);
     center.y += yShift;
     Vector3 up =     fl_array_toVec3(c->up);
     // Projection ordinaire (pyramide de perspective...)
-    float middleZ = fl_pos(&rt->camera.pos[2]);
-    float deltaX = 0.5*fl_pos(&rt->fullSizeWidth);
-    float deltaY = 0.5*fl_pos(&rt->fullSizeHeight);
+    float middleZ = fl_evalPos(rt->camera.pos[2]);
+    float deltaX = 0.5*fl_evalPos(rt->fullSizeWidth);
+    float deltaY = 0.5*fl_evalPos(rt->fullSizeHeight);
     
+    // Si on veut garder projection et view séparés...
+//    matrix4_initAsPerspectiveDeltas(&rt->projectionOpt, 0.1, 50, middleZ, deltaX, deltaY);
 //    matrix4_initAsLookAt(&n->model, eye, center, up);
-    matrix4_initAsPerspectiveAndLookAt(&n->model, eye, center, up, 0.1, 50, middleZ, deltaX, deltaY);
+    
+    matrix4_initAsPerspectiveAndLookAt(&n->_iu.model, eye, center, up, 0.1, 50, middleZ, deltaX, deltaY);
 }
 
 void  root_deinit_(Node* n) {
     timer_cancel(&((Root*)n)->_timer);
 }
-void  root_init(Root* root, Root* parentRootOpt) {
-    if(root->n._parent) {
-        if(parentRootOpt == NULL) printerror("Non absolute root without parent root.");
-        root->rootParentOpt = parentRootOpt;
-    } else {
-        if(parentRootOpt) printerror("Absolute root have no need for parentRoot.");
-        root->rootParentOpt = NULL;
+void  root_and_super_init(Root* const root, Root* const parentRootOpt, Node* const parentRootChildOpt) {
+    Node* parent;
+    if(parentRootOpt && parentRootChildOpt)
+        parent = parentRootChildOpt;
+    else {
+        if(parentRootChildOpt) printerror("Missing parrentRoot");
+        parent = (Node*)parentRootOpt;
     }
+    node_init(&root->n, parent, 0, 0, 4, 4, flags_rootDefault, 0);
+    root->n._type |= node_type_flag_root;
+    root->rootParentOpt = parentRootOpt;
     root->n.deinitOpt = root_deinit_;
-//    root->fullSize =   (Vector2){{ 2.2f, 2.2f }};
-//    root->_yShift = 0;
     fl_init(&root->fullSizeWidth, 2.2f, 20.f, false);
     fl_init(&root->fullSizeHeight, 2.2f, 20.f, false);
     fl_init(&root->yShift, 0.f, 20.f, false);
@@ -55,18 +59,33 @@ void  root_init(Root* root, Root* parentRootOpt) {
     fl_array_init(root->back_RGBA, color4_gray2.f_arr, 4, 5.f);
     fl_init(&root->ambiantLight, 0, 5, false);
     // Override de l'update du model.
-    root->n.updateModel = root_updateModel_;
+    root->n.renderer_updateInstanceUniforms = root_updateModel_;
 }
 Root* node_asRootOpt(Node* const nOpt) {
     if(!nOpt) return NULL;
     if(nOpt->_type & node_type_flag_root) return (Root*)nOpt;
     return NULL;
 }
+
+void   root_deleteOldActiveView_callback_(void* rootIn) {
+    Root *r = (Root*)rootIn;
+    if(!r->toDeleteViewNodeOpt) return;
+    noderef_destroyAndNull(&r->toDeleteViewNodeOpt);
+}
+
 void   root_releaseActiveView_(Root* rt) {
-    Node* n = &(rt->viewActiveOpt->n);
+    View * const oldActiveView = rt->viewActiveOpt;
+    if(!oldActiveView) return;
     rt->viewActiveOpt = NULL;
-    if(!n) return;
-    noderef_slowDestroyAndNull(&n, 600);
+    node_tree_close(&oldActiveView->n);
+    if(oldActiveView->n.flags & flag_viewPersistent)
+        return;
+    rt->toDeleteViewNodeOpt = &oldActiveView->n;
+    if(rt->_timer) { 
+        printwarning("Root timer already used.");
+        timer_doNowAndCancel(&rt->_timer);
+    }
+    timer_scheduled(&rt->_timer, 600, false, rt, root_deleteOldActiveView_callback_);
 }
 void   root_setActiveView_(Root* rt, View* const newView) {
     rt->viewActiveOpt = newView;
@@ -245,8 +264,8 @@ Vector2   root_absposFromViewPos(Root *rt, Vector2 viewPos, bool invertedY) {
 }
 
 //void      matrix4_initProjectionWithRoot(Matrix4 *m, Root *rt) {
-//    float middleZ = fl_pos(&rt->camera.pos[2]);
-//    float fullSizeWidth = fl_pos(&rt->fullSizeWidth);
-//    float fullSizeHeight = fl_pos(&rt->fullSizeHeight);
+//    float middleZ = fl_evalPos(rt->camera.pos[2]);
+//    float fullSizeWidth = fl_evalPos(rt->fullSizeWidth);
+//    float fullSizeHeight = fl_evalPos(rt->fullSizeHeight);
 //    matrix4_initAsPerspectiveDeltas(m, 0.1f, 50.f, middleZ, fullSizeWidth, fullSizeHeight);
 //}

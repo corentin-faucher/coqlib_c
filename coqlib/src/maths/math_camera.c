@@ -7,7 +7,7 @@
 
 #include "math_camera.h"
 
-Vector3 camera_def_pos = {{0, 0, 10}};
+Vector3 camera_def_pos = {{0, 0, 5 }};
 
 static float _up[3] = {0, 1, 0};
 

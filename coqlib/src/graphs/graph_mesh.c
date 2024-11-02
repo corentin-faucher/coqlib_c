@@ -14,24 +14,24 @@
 const Vector3 mesh_defNorm = {{ 0, 0, 1 }};
 
 // Point central avec normal vers le haut.
-static const Vertex vertex_default_origin_ = {
-    0.f, 0.f, 0.f,  0.5f,0.5f,  0.f,0.f,1.f
-};
+static const Vertex vertex_default_origin_ = {{
+    0.f, 0.f, 0.f,  0.5f, 0.5f,  0.f,0.f,1.f
+}};
 static const Vertex mesh_sprite_vertices_[4] = {
-    {-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1},
-    {-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1},
-    { 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1},
-    { 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1},
+    {{-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1}},
+    {{-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1}},
+    {{ 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1}},
+    {{ 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1}},
 };
 static const Vertex mesh_shaderQuad_vertices_[4] = {
-    {-1.0, 1.0, 0, 0.0, 0.0, 0,0,1},
-    {-1.0,-1.0, 0, 0.0, 1.0, 0,0,1},
-    { 1.0, 1.0, 0, 1.0, 0.0, 0,0,1},
-    { 1.0,-1.0, 0, 1.0, 1.0, 0,0,1},
+    {{-1.0, 1.0, 0, 0.0, 0.0, 0,0,1}},
+    {{-1.0,-1.0, 0, 0.0, 1.0, 0,0,1}},
+    {{ 1.0, 1.0, 0, 1.0, 0.0, 0,0,1}},
+    {{ 1.0,-1.0, 0, 1.0, 1.0, 0,0,1}},
 };
 
-Mesh*  mesh_sprite = NULL;
-Mesh*  mesh_shaderQuad_ = NULL;
+Mesh   mesh_sprite = {} ;
+Mesh   mesh_shaderQuad_ = {};
 
 void   mesh_init(Mesh* const mesh, const Vertex* const verticesOpt, uint32_t const vertexCount,
                 const uint16_t* const indicesOpt, uint32_t const indexCount,
@@ -45,36 +45,34 @@ void   mesh_init(Mesh* const mesh, const Vertex* const verticesOpt, uint32_t con
     mesh_engine_initBuffers_(mesh, verticesOpt, indicesOpt);
 }
 
-void   Mesh_init(void) {
-    if(mesh_sprite) { printerror("Mesh already init."); return; }
+void   Mesh_init_(void) {
+    if(mesh_sprite.vertex_count) { printerror("Mesh already init."); return; }
     // Mesh par défaut (sprite)
-    mesh_sprite = coq_callocTyped(Mesh);
-    mesh_init(mesh_sprite, mesh_sprite_vertices_, 4, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, true);
-    mesh_shaderQuad_ = coq_callocTyped(Mesh);
-    mesh_init(mesh_shaderQuad_, mesh_shaderQuad_vertices_, 4, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, true);
+    mesh_init(&mesh_sprite, mesh_sprite_vertices_, 4, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, true);
+    mesh_init(&mesh_shaderQuad_, mesh_shaderQuad_vertices_, 4, NULL, 0, mesh_primitive_triangleStrip, mesh_cullMode_none, true);
 }
 
 #pragma mark - "Bar" i.e. `====`
 
 static const Vertex mesh_bar_vertices_[8] = {
-    {-0.5000, 0.5, 0,  0.000,0,  0,0,1},
-    {-0.5000,-0.5, 0,  0.000,1,  0,0,1},
-    {-0.1667, 0.5, 0,  0.333,0,  0,0,1},
-    {-0.1667,-0.5, 0,  0.333,1,  0,0,1},
-    { 0.1667, 0.5, 0,  0.667,0,  0,0,1},
-    { 0.1667,-0.5, 0,  0.667,1,  0,0,1},
-    { 0.5000, 0.5, 0,  1.000,0,  0,0,1},
-    { 0.5000,-0.5, 0,  1.000,1,  0,0,1},
+    {{-0.5000, 0.5, 0,  0.000,0,  0,0,1}},
+    {{-0.5000,-0.5, 0,  0.000,1,  0,0,1}},
+    {{-0.1667, 0.5, 0,  0.333,0,  0,0,1}},
+    {{-0.1667,-0.5, 0,  0.333,1,  0,0,1}},
+    {{ 0.1667, 0.5, 0,  0.667,0,  0,0,1}},
+    {{ 0.1667,-0.5, 0,  0.667,1,  0,0,1}},
+    {{ 0.5000, 0.5, 0,  1.000,0,  0,0,1}},
+    {{ 0.5000,-0.5, 0,  1.000,1,  0,0,1}},
 };
 static const Vertex mesh_vbar_vertices_[8] = {
-    { 0.5, 0.5000, 0,  1, 0.000,  0,0,1},
-    {-0.5, 0.5000, 0,  0, 0.000,  0,0,1},
-    { 0.5, 0.1667, 0,  1, 0.333,  0,0,1},
-    {-0.5, 0.1667, 0,  0, 0.333,  0,0,1},
-    { 0.5,-0.1667, 0,  1, 0.667,  0,0,1},
-    {-0.5,-0.1667, 0,  0, 0.667,  0,0,1},
-    { 0.5,-0.5000, 0,  1, 1.000,  0,0,1},
-    {-0.5,-0.5000, 0,  0, 1.000,  0,0,1},
+    {{ 0.5, 0.5000, 0,  1, 0.000,  0,0,1}},
+    {{-0.5, 0.5000, 0,  0, 0.000,  0,0,1}},
+    {{ 0.5, 0.1667, 0,  1, 0.333,  0,0,1}},
+    {{-0.5, 0.1667, 0,  0, 0.333,  0,0,1}},
+    {{ 0.5,-0.1667, 0,  1, 0.667,  0,0,1}},
+    {{-0.5,-0.1667, 0,  0, 0.667,  0,0,1}},
+    {{ 0.5,-0.5000, 0,  1, 1.000,  0,0,1}},
+    {{-0.5,-0.5000, 0,  0, 1.000,  0,0,1}},
 };
 Mesh*  Mesh_createHorizontalBar(void) {
     Mesh* const bar = coq_callocTyped(Mesh);
@@ -90,22 +88,22 @@ Mesh*  Mesh_createVerticalBar(void) {
 #pragma mark - Frame (e.g. cadre stretchable) ----------------
 
 static const Vertex   mesh_frame_vertices_[] = {
-    {-0.5000, 0.5000, 0,  0.000,0.000,  0,0,1},
-    {-0.5000, 0.1667, 0,  0.000,0.333,  0,0,1},
-    {-0.5000,-0.1667, 0,  0.000,0.667,  0,0,1},
-    {-0.5000,-0.5000, 0,  0.000,1.000,  0,0,1},
-    {-0.1667, 0.5000, 0,  0.333,0.000,  0,0,1},
-    {-0.1667, 0.1667, 0,  0.333,0.333,  0,0,1},
-    {-0.1667,-0.1667, 0,  0.333,0.667,  0,0,1},
-    {-0.1667,-0.5000, 0,  0.333,1.000,  0,0,1},
-    { 0.1667, 0.5000, 0,  0.667,0.000,  0,0,1},
-    { 0.1667, 0.1667, 0,  0.667,0.333,  0,0,1},
-    { 0.1667,-0.1667, 0,  0.667,0.667,  0,0,1},
-    { 0.1667,-0.5000, 0,  0.667,1.000,  0,0,1},
-    { 0.5000, 0.5000, 0,  1.000,0.000,  0,0,1},
-    { 0.5000, 0.1667, 0,  1.000,0.333,  0,0,1},
-    { 0.5000,-0.1667, 0,  1.000,0.667,  0,0,1},
-    { 0.5000,-0.5000, 0,  1.000,1.000,  0,0,1},
+    {{-0.5000, 0.5000, 0,  0.000,0.000,  0,0,1}},
+    {{-0.5000, 0.1667, 0,  0.000,0.333,  0,0,1}},
+    {{-0.5000,-0.1667, 0,  0.000,0.667,  0,0,1}},
+    {{-0.5000,-0.5000, 0,  0.000,1.000,  0,0,1}},
+    {{-0.1667, 0.5000, 0,  0.333,0.000,  0,0,1}},
+    {{-0.1667, 0.1667, 0,  0.333,0.333,  0,0,1}},
+    {{-0.1667,-0.1667, 0,  0.333,0.667,  0,0,1}},
+    {{-0.1667,-0.5000, 0,  0.333,1.000,  0,0,1}},
+    {{ 0.1667, 0.5000, 0,  0.667,0.000,  0,0,1}},
+    {{ 0.1667, 0.1667, 0,  0.667,0.333,  0,0,1}},
+    {{ 0.1667,-0.1667, 0,  0.667,0.667,  0,0,1}},
+    {{ 0.1667,-0.5000, 0,  0.667,1.000,  0,0,1}},
+    {{ 0.5000, 0.5000, 0,  1.000,0.000,  0,0,1}},
+    {{ 0.5000, 0.1667, 0,  1.000,0.333,  0,0,1}},
+    {{ 0.5000,-0.1667, 0,  1.000,0.667,  0,0,1}},
+    {{ 0.5000,-0.5000, 0,  1.000,1.000,  0,0,1}},
 };
 static const uint16_t mesh_frame_indices_[] = {
     0, 1, 4,    1, 5, 4,
@@ -142,11 +140,11 @@ Mesh*  Mesh_createFan(void) {
     Vertex* const end = &vertices[10];
     float i = 0.f;
     while(p < end) {
-        p->x = -0.5f * sinf(2.f * M_PI * i / 8.f);
-        p->y =  0.5f * cosf(2.f * M_PI * i / 8.f);
-        p->u = 0.5f - 0.5f * sinf(2.f * M_PI * i / 8.f);
-        p->v = 0.5f - 0.5f * cosf(2.f * M_PI * i / 8.f);
-        p->nz = 1.f;
+        p->pos.x = -0.5f * sinf(2.f * M_PI * i / 8.f);
+        p->pos.y =  0.5f * cosf(2.f * M_PI * i / 8.f);
+        p->uv.x = 0.5f - 0.5f * sinf(2.f * M_PI * i / 8.f);
+        p->uv.y = 0.5f - 0.5f * cosf(2.f * M_PI * i / 8.f);
+        p->norm.z = 1.f;
         i++;
         p++;
     }
@@ -163,10 +161,10 @@ void   mesh_fan_update(Mesh* fan, float ratio) {
     Vertex* const end = &vertices[10];
     float i = 1.f;
     while(p < end) {
-        p->x = -0.5f * sinf(ratio * 2.f * M_PI * i / 8.f);
-        p->y =  0.5f * cosf(ratio * 2.f * M_PI * i / 8.f);
-        p->u = 0.5f - 0.5f * sinf(ratio * 2.f * M_PI * i / 8.f);
-        p->v = 0.5f - 0.5f * cosf(ratio * 2.f * M_PI * i / 8.f);
+        p->pos.x = -0.5f * sinf(ratio * 2.f * M_PI * i / 8.f);
+        p->pos.y =  0.5f * cosf(ratio * 2.f * M_PI * i / 8.f);
+        p->uv.x = 0.5f - 0.5f * sinf(ratio * 2.f * M_PI * i / 8.f);
+        p->uv.y = 0.5f - 0.5f * cosf(ratio * 2.f * M_PI * i / 8.f);
         i++;
         p++;
     }
@@ -194,11 +192,11 @@ Mesh*  Mesh_createPlot(float* xs, float* ys, uint32_t count, float delta, float 
         float theta = atanf((*yn - *y) / (*xn - *x));
         float deltax = delta * sinf(theta) / ratio;
         float deltay = delta * cosf(theta);
-        *v = (Vertex) {*x - deltax, *y + deltay, 0,     0, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) {*x + deltax, *y - deltay, 0,     0, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {{ *x - deltax, *y + deltay, 0,     0, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ *x + deltax, *y - deltay, 0,     0, 1,  0, 0, 1 }};  v++;
         x++; y++;  xn++; yn++;
-        *v = (Vertex) {*x - deltax, *y + deltay, 0,  0.75, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) {*x + deltax, *y - deltay, 0,  0.75, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {{ *x - deltax, *y + deltay, 0,  0.75, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ *x + deltax, *y - deltay, 0,  0.75, 1,  0, 0, 1 }};  v++;
         *ind = 4*i;      ind++;
         *ind = 4*i + 1;  ind++;
         *ind = 4*i + 2;  ind++;
@@ -212,10 +210,10 @@ Mesh*  Mesh_createPlot(float* xs, float* ys, uint32_t count, float delta, float 
     uint16_t const ind_dec = 4*n_lines;
     x =  &xs[0]; y =  &ys[0]; // (courant)
     for(uint32_t i = 0; i < n_points; i++) {
-        *v = (Vertex) {*x - pts_deltax, *y + pts_deltay, 0,     1, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) {*x - pts_deltax, *y - pts_deltay, 0,     1, 1,  0, 0, 1 };  v++;
-        *v = (Vertex) {*x + pts_deltax, *y + pts_deltay, 0,     2, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) {*x + pts_deltax, *y - pts_deltay, 0,     2, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {{ *x - pts_deltax, *y + pts_deltay, 0,     1, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ *x - pts_deltax, *y - pts_deltay, 0,     1, 1,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ *x + pts_deltax, *y + pts_deltay, 0,     2, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ *x + pts_deltax, *y - pts_deltay, 0,     2, 1,  0, 0, 1 }};  v++;
         x++; y++;
         *ind = ind_dec + 4*i;      ind++;
         *ind = ind_dec + 4*i + 1;  ind++;
@@ -250,10 +248,10 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
     // Ligne verticales (divisions en x)
     for(uint32_t i = 0; i < m; i++) {
         float x = x0 + (float)i * deltaX;
-        *v = (Vertex) {x - xlinedelta, ymax, 0,     0, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) {x - xlinedelta, ymin, 0,     0, 1,  0, 0, 1 };  v++;
-        *v = (Vertex) {x + xlinedelta, ymax, 0,     1, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) {x + xlinedelta, ymin, 0,     1, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {{ x - xlinedelta, ymax, 0,     0, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ x - xlinedelta, ymin, 0,     0, 1,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ x + xlinedelta, ymax, 0,     1, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ x + xlinedelta, ymin, 0,     1, 1,  0, 0, 1 }};  v++;
         *ind = 4*i;      ind++;
         *ind = 4*i + 1;  ind++;
         *ind = 4*i + 2;  ind++;
@@ -265,10 +263,10 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
     uint16_t const ind_dec = 4*m;
     for(uint32_t i = 0; i < n; i++) {
         float y = y0 + (float)i * deltaY;
-        *v = (Vertex) { xmin, y + ylinedelta, 0,     0, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) { xmin, y - ylinedelta, 0,     0, 1,  0, 0, 1 };  v++;
-        *v = (Vertex) { xmax, y + ylinedelta, 0,     1, 0,  0, 0, 1 };  v++;
-        *v = (Vertex) { xmax, y - ylinedelta, 0,     1, 1,  0, 0, 1 };  v++;
+        *v = (Vertex) {{ xmin, y + ylinedelta, 0,     0, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ xmin, y - ylinedelta, 0,     0, 1,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ xmax, y + ylinedelta, 0,     1, 0,  0, 0, 1 }};  v++;
+        *v = (Vertex) {{ xmax, y - ylinedelta, 0,     1, 1,  0, 0, 1 }};  v++;
         *ind = ind_dec + 4*i;      ind++;
         *ind = ind_dec + 4*i + 1;  ind++;
         *ind = ind_dec + 4*i + 2;  ind++;
@@ -286,21 +284,21 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
 #pragma mark - Courbe ------------
 #warning TODO...
 
-static const Vertex _vertex_uv00 = {
+static const Vertex _vertex_uv00 = {{
     0.f, 0.f, 0.f,  0.f,0.f,  0.f,0.f,1.f
-};
-static const Vertex _vertex_uv01 = {
+}};
+static const Vertex _vertex_uv01 = {{
     0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
-};
-static const Vertex _vertex_uv10 = {
+}};
+static const Vertex _vertex_uv10 = {{
     0.f, 0.f, 0.f,  0.f,1.f,  0.f,0.f,1.f
-};
-static const Vertex _vertex_uv11 = {
+}};
+static const Vertex _vertex_uv11 = {{
     0.f, 0.f, 0.f,  1.f,1.f,  0.f,0.f,1.f
-};
+}};
 Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
     if(v_count < 2) {
-        printerror("Mesh curve with less than 2 pos."); return mesh_sprite;
+        printerror("Mesh curve with less than 2 pos."); return &mesh_sprite;
     }
     uint32_t vertex_count = 4*(v_count - 1);
     Mesh* const curve = coq_callocTyped(Mesh);
@@ -356,16 +354,16 @@ Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
         }
         // Ajout des 4 vertex du segment.
         (*vertices) = _vertex_uv00;
-        (*vertices).x = vul.x; (*vertices).y = vul.y;
+        (*vertices).pos.x = vul.x; (*vertices).pos.y = vul.y;
         vertices++;
         (*vertices) = _vertex_uv01;
-        (*vertices).x = vdl.x; (*vertices).y = vdl.y;
+        (*vertices).pos.x = vdl.x; (*vertices).pos.y = vdl.y;
         vertices++;
         (*vertices) = _vertex_uv10;
-        (*vertices).x = vur.x; (*vertices).y = vur.y;
+        (*vertices).pos.x = vur.x; (*vertices).pos.y = vur.y;
         vertices++;
         (*vertices) = _vertex_uv11;
-        (*vertices).x = vdr.x; (*vertices).y = vdr.y;
+        (*vertices).pos.x = vdr.x; (*vertices).pos.y = vdr.y;
         vertices++;
         vul = vul_next;
         vdl = vdl_next;

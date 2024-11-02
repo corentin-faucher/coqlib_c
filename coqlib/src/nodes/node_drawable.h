@@ -15,9 +15,9 @@
 
 /// Noeud affichable (image, string).
 /// Pour un drawable les dimensions sont données par scaleX et scaleY.
-/// w et h sont relatif à 1 pour donner l'overlapping/spacing.
-/// (et espace occupé est alors `deltaX = w * scaleX`.)
-/// Voir `_drawable_updateScaleXAndWidth` et `node_updateModelMatrixWithParentModel`.
+/// Un drawable est un noeud feuille ou w et h sont fixés à 1 a priori.
+/// (w, h peuvent être différent de 1 pour avoir une hitbox différente de la sprite affichée,
+///  voir `DrawableChar` comme exemple.)
 typedef struct Coq_Drawable {
     Node     n;  // Upcasting as Node.
     
@@ -37,18 +37,19 @@ typedef struct Coq_Drawable {
 
 /// Init (ne fait que setter les variables et méthodes de Drawable)
 /// A priori, utiliser les constructeur `Drawable_create...`.
+/// Un drawable est un noeud feuille ou w et h sont fixés à 1 a priori. (Largeur et hauteur sont settés avec sx / sy.)
 void      drawable_init(Drawable* d, Texture* tex, Mesh* mesh, float twoDxOpt, float twoDy);
 /// Deinit de drawable (pour sub-struct)
 void      drawable_deinit_(Node* nd);
 /// Voir `noderef_fastDestroyAndNull`.
-void      drawableref_fastDestroyAndNull(Drawable** const drawableOptRef);
+void      drawableref_destroyAndNull(Drawable** const drawableOptRef);
 /// Downcasting node as drawable.
 Drawable* node_asDrawableOpt(Node* nOpt);
 void      drawable_changeMeshTo(Drawable* d, Mesh* newMesh);
 
 /// La fonction utilisée pour mettre à jour la matrice modèle avant l'affichage.
 /// (Peut être remplacé par un fonction custom)
-extern void (*Drawable_defaultUpdateModel)(Node*);
+extern void (*Drawable_renderer_defaultUpdateInstanceUniforms)(Node*);
 
 
 #pragma mark -- Surface d'image (png) : tile d'un png... -----------------
@@ -73,22 +74,30 @@ Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
 /// Convenience constructor : image de `coqlib_test_frame.png` pour testing.                   
 Drawable* Drawable_createTestFrame(Node* parent, float x, float y, float twoDx, float twoDy);
 
-void      drawable_updatePngId(Drawable* d, uint32_t newPngId, bool updateDims);
+/// Change la texture présente pour la texture d'un autre png.
+/// Il faut probablement ajuster le rectangle UV ou le ratio de l'image ensuite -> `drawable_setTile`,
+/// `drawable_checkRatioWithUVrectAndTexture`, ...
+void      drawable_changeTexToPngId(Drawable* d, uint32_t const newPngId);
 
 
 #pragma mark -- Setters ------------
 //void      drawable_updateTargetDims(Drawable* d, float newTwoDxOpt, float newTwoDy, float newXMargin);
 // Convenience setters...
+/// Met à jour le uvRect pour être la tile (i,j) de la texture présente (avec m x n subdivisions).
 void      drawable_setTile(Drawable* d, uint32_t i, uint32_t j);
+/// Ne fait que mettre à jour `uvRect.o_x` (ne vérifie pas le reste du uvRect).
 void      drawable_setTileI(Drawable* d, uint32_t i);
+/// Ne fait que mettre à jour `uvRect.o_y` (ne vérifie pas le reste du uvRect).
 void      drawable_setTileJ(Drawable* d, uint32_t j);
-//void      drawable_setTileFull(Drawable *d, InstanceTile tile);
 /// Set le rectangle uv. (on peut aussi le setter directement...)
-void      drawable_setUVRect(Drawable* d, Rectangle const uvrect, bool checkRatio);
+void      drawable_setUVRect(Drawable* d, Rectangle const uvrect);
+/// Met à jour le scaling en x `n.sx` pour respecter le ratio w/h de la texture et du rectangle UV.
+/// On peut en profiter pour mettre à jour la dimension (sy = 2Dy).
+void      drawable_checkRatioWithUVrectAndTexture(Drawable* d, float newTwoDyOpt);
 // Modifs supplémentaires sur le dernier drawable créé.
 //extern Drawable* drawable_last_;
 void      drawable_last_setTile(uint32_t i, uint32_t j);
-void      drawable_last_setEmph(float emph); // Superflu ?
+void      drawable_last_setExtra1(float emph); // Superflu ?
 void      drawable_last_setShowOptions(bool isHard, bool isPoping);
 void      drawable_last_setColor(Vector4 color);
 

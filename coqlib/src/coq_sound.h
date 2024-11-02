@@ -14,7 +14,7 @@
 
 extern bool Sound_isMute; // = false
 
-void  Sound_initWithWavNames(const char* wav_names[], uint32_t wav_count);
+void  Sound_initWithWavNames(const char** wav_namesOpt, uint32_t wav_count);
 void  Sound_play(uint32_t soundId, float volume, int pitch, uint32_t volumeId);
 
 void  Sound_resume(void);

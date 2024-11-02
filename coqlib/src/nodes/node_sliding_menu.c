@@ -10,7 +10,6 @@
 #include "node_tree.h"
 #include "node_root.h"
 #include "../utils/util_base.h"
-//#include "coq_event.h"
 
 #pragma mark - Scroll bar du sliding menu
 
@@ -24,8 +23,7 @@ ScrollBar* _ScrollBar_create(Node* ref, float width) {
     float parWidth =  ref->w;
     float parHeight = ref->h;
     ScrollBar* sb = coq_callocTyped(ScrollBar);
-    node_init(&sb->n, ref, 0.5f*parWidth - 0.5f*width, 0, width, parHeight, 
-               node_type_node, 0, 0);
+    node_init(&sb->n, ref, 0.5f*parWidth - 0.5f*width, 0, width, parHeight, 0, 0);
     
     // Back of scrollBar
     Frame_create(&sb->n, 1.f, 0.5*width, 0.f, parHeight,
@@ -77,7 +75,7 @@ typedef struct SlidingMenu {
     float       vitYm1;
     Chrono      deltaT;
     Chrono      flingChrono;
-    Timer*      timer; // (pour checker le fling)
+    Timer       timer; // (pour checker le fling)
 } SlidingMenu;
 
 
@@ -139,7 +137,7 @@ void  slidingmenu_checkFling_callBack_(void* smIn) {
     }
     float elapsedSec = chrono_elapsedSec(&sm->deltaT);
     if(elapsedSec > 0.030f) {
-        float deltaY = elapsedSec * fl_pos(&sm->vitY);
+        float deltaY = elapsedSec * fl_evalPos(sm->vitY);
         _slidingmenu_setMenuYpos(sm, fl_real(&sm->menu->y) + deltaY, false, false);
         chrono_start(&sm->deltaT);
     }
@@ -250,8 +248,10 @@ SlidingMenu* SlidingMenu_create(Node* ref, SlidingMenuInit sid,
                         flag_t flags, const uint8_t node_place) {
     // Init as Node.
     SlidingMenu* const sm = coq_callocTyped(SlidingMenu);
-    node_init(&sm->n, ref, x, y, width, height, node_type_scrollable, 
+    node_init(&sm->n, ref, x, y, width, height, 
                flags|flag_parentOfButton, node_place);
+    // Init as sliding menu
+    sm->n._type |= node_type_flag_scrollable;
     node_tree_addRootFlags(&sm->n, flag_parentOfButton|flag_parentOfScrollable|flag_parentOfReshapable);
     sm->n.openOpt = _slidingmenu_open;
     sm->n.closeOpt = slidingmenu_close_;
@@ -271,8 +271,9 @@ SlidingMenu* SlidingMenu_create(Node* ref, SlidingMenuInit sid,
                          sid.backFrameTexOpt ? sid.backFrameTexOpt :
                          Texture_sharedImageByName("coqlib_sliding_menu_back"), 
                          frame_option_getSizesFromParent);
-    if(sid.backFrameTexOpt)
-        drawable_setUVRect(&sm->back->d, sid.backFrameUVrect, false);
+    if(sid.backFrameTexOpt) {
+        drawable_setUVRect(&sm->back->d, sid.backFrameUVrect);
+    }
     float menuX = sid.withoutScrollBar ? 0.f : -0.5f*scrollBarWidth;
     sm->menu = Fluid_create(&sm->n, menuX, 0.f,
                             width - (sid.withoutScrollBar ? 0 : scrollBarWidth), height, 20.f,
@@ -320,7 +321,7 @@ void  slidingmenu_last_addItem(Node* toAdd) {
 }
 void  slidingmenu_removeAll(SlidingMenu* sm) {
     while(sm->menu->n._firstChild)
-        node_throwToGarbage_callback_(sm->menu->n._firstChild);
+        node_throwToGarbage_(sm->menu->n._firstChild);
     sm->totalItemCount = 0;
     sm->deltaYMax = 0;
 }

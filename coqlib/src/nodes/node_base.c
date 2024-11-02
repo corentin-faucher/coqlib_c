@@ -17,7 +17,7 @@
 #pragma mark -- Constructors... ----------------------------------
 void node_disconnect_(Node * const node) {
     // Retrait
-    
+
     Node* const big =    node->_bigBro;
     Node* const little = node->_littleBro;
     Node* const parent = node->_parent;
@@ -31,7 +31,7 @@ void node_disconnect_(Node * const node) {
 //    node->_parent = NULL;
 //    node->_bigBro = NULL;
 //    node->_littleBro = NULL;
-    
+
 }
 /** Connect au parent. (Doit être fullyDeconnect.) */
 void node_connectToParent_(Node* const node, Node * const parentOpt, const bool asElder) {
@@ -91,37 +91,43 @@ void node_connectToBro_(Node* const node, Node* const bro, const bool asBigbro) 
     }
 }
 
-Node* node_last_nonDrawable = NULL;
+Node* Node_last = NULL;
 #ifdef DEBUG
 static uint32_t Node_currentId_ = 0;
 #endif
 
 void node_init(Node* n, Node* const refOpt,
                  float x, float y, float width, float height,
-                 const uint32_t type, const flag_t flags, const uint8_t node_place) {
-    n->model = matrix4_identity;
-    n->sizes = (Vector2) {width, height};
+                 const flag_t flags, const uint8_t node_place) {
+    n->_iu.model = matrix4_identity;
+    n->sizes = (Vector2) {{ width, height }};
     n->scales = vector2_ones;
     // Vecteur position avec 4e coordonnée (1 pour point, 0 pour vecteur). Mais bon, de toute façon on n'utilise pas w...
-    n->pos4 = (Vector4) { x, y, 0, 1 };
-    n->flags =  flags;
-    n->_type =  type;
-    n->updateModel = node_updateModelMatrixDefault;
+    n->pos4 = (Vector4) {{ x, y, 0, 1 }};
+    n->flags =  flags & (~flags_initFlags);
+    n->renderer_updateInstanceUniforms = Node_renderer_defaultUpdateInstanceUniforms;
 #ifdef DEBUG
     n->_nodeId = Node_currentId_;
     Node_currentId_ ++;
 #endif
-    if(!(type & node_type_flag_drawable))
-        node_last_nonDrawable = n;
+    if(flags & flag_nodeLast)
+        Node_last = n;
     if(!refOpt) {
-        if(!(flags & flag_noParent) && !(type & node_type_flag_root))
-            printwarning("Node in void (non root without parent or brother ref).");
+        if(!(flags & flag_noParent))
+            printwarning("Node in void.");
         return;
     }
     if(node_place & node_place_asBro)
         node_connectToBro_(n, refOpt, node_place & node_place_asElderBig);
     else
-        node_connectToParent_(n, refOpt, node_place & node_place_asElderBig);    
+        node_connectToParent_(n, refOpt, node_place & node_place_asElderBig);
+}
+
+Node* Node_create(Node* refOpt, float x, float y, float width, float height,
+            flag_t flags, uint8_t node_place) {
+    Node *n = coq_callocTyped(Node);
+    node_init(n, refOpt, x, y, width, height, flags, node_place);
+    return n;
 }
 
 
@@ -182,8 +188,7 @@ void garbage_burnDown_(struct Garbage_* garbage) {
 static bool   garbageA_active_ = true;
 static struct Garbage_ garbageA_ = {NULL, 0, 0};
 static struct Garbage_ garbageB_ = {NULL, 0, 0};
-void  node_throwToGarbage_callback_(void* const nIn) {
-    Node* const node = (Node*)nIn;
+void  node_throwToGarbage_(Node* const node) {
     if(node->flags & flag_toDelete_) {
         printerror("Node already in garbage."); return;
     }
@@ -225,28 +230,23 @@ void  NodeGarbage_burn(void) {
     garbageA_active_ = !garbageA_active_;
 }
 
-void  noderef_fastDestroyAndNull(Node** const nodeOptRef) {
+void  noderef_destroyAndNull(Node** const nodeOptRef) {
     Node* const toDelete = *nodeOptRef;
     if(toDelete == NULL) return;
     *nodeOptRef = NULL;
-    if(toDelete->flags & (flag_toDelete_|flag_toDeleteScheduled_)) {
-        printwarning("Already to delete."); 
-        return;
-    }
-    node_throwToGarbage_callback_(toDelete);
+    node_throwToGarbage_(toDelete);
 }
-void  noderef_slowDestroyAndNull(Node** const nodeOptRef, int64_t deltaTimeMSOpt) {
+void  noderef_slowDestroyAndNull(Node** const nodeOptRef, Timer *parentDestroyTimer, int64_t deltaTimeMSOpt) {
     Node* const toDelete = *nodeOptRef;
     if(toDelete == NULL) return;
     *nodeOptRef = NULL;
-    if(toDelete->flags & (flag_toDelete_|flag_toDeleteScheduled_)) {
-        printwarning("Already to delete."); 
-        return;
-    }
-    toDelete->flags |= flag_toDeleteScheduled_;
+//    if(toDelete->flags & flag_toDelete_) {
+//        printwarning("Already to delete.");
+//        return;
+//    }
     if(deltaTimeMSOpt == 0) deltaTimeMSOpt = 400;
     node_tree_close(toDelete);
-    timer_scheduled(NULL, deltaTimeMSOpt, false, toDelete, node_throwToGarbage_callback_);
+    timer_scheduled(parentDestroyTimer, deltaTimeMSOpt, false, toDelete, node_throwToGarbage__);
 }
 
 
@@ -412,7 +412,7 @@ void    node_moveWithinBro(Node* const node, bool asElder) {
         if(little) little->_bigBro = big;
         else       parent->_lastChild = big;
     }
-    
+
     if(asElder) {
         Node* const oldFirstChild = parent->_firstChild;
         // Insertion
@@ -427,8 +427,7 @@ void    node_moveWithinBro(Node* const node, bool asElder) {
         node->_littleBro = NULL;
         node->_bigBro = oldLastChild;
         // Branchement
-        if(oldLastChild)
-            oldLastChild->_littleBro = node;
+        if(oldLastChild) oldLastChild->_littleBro = node;
         parent->_lastChild = node;
     }
 }
@@ -486,19 +485,18 @@ void    node_moveToBro(Node* n, Node* new_bro, bool asBigBro) {
     node_connectToBro_(n, new_bro, asBigBro);
 }
 
-
-#pragma mark -- Vector, Matrix... --------------------------------------
+#pragma mark - Model matrix --
 /// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.
-/// Equivalent de : 
+/// Equivalent de :
 ///     M = (parent.M T) S,
 /// i.e. On a scaling, puis translation, puis place dans ref du parent.
-void node_updateModelMatrixDefault(Node *n) {
+void node_renderer_defaultUpdateInstanceUniforms_(Node *n) {
     // Cas feuille, skip...
     if(n->_firstChild == NULL) {
         return;
     }
     const Matrix4* const pm = node_parentModel(n);
-    Matrix4* const m = &n->model;
+    Matrix4* const m = &n->_iu.model;
     Vector3 pos = node_pos(n);
     Vector2 scl = node_scales(n);
     m->v0.v = pm->v0.v * scl.x;
@@ -511,6 +509,15 @@ void node_updateModelMatrixDefault(Node *n) {
         pm->v3.w,
     }};
 }
+void (*Node_renderer_defaultUpdateInstanceUniforms)(Node*) = node_renderer_defaultUpdateInstanceUniforms_;
+const Matrix4* node_parentModel(Node* n) {
+    Node* const parent = n->_parent;
+    if(!parent) { printerror("Node without parent."); return &matrix4_identity; }
+    return &parent->_iu.model;
+}
+
+#pragma mark -- Vector, Matrix... --------------------------------------
+
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
 Vector2 node_posInParentReferential(Node* n, const Node* const parentOpt) {
@@ -523,6 +530,7 @@ Vector2 node_posInParentReferential(Node* n, const Node* const parentOpt) {
     printerror("No parent encountered.");
     return sq.v;
 }
+
 /// Donne la position et les dimension (en demi-largeur/demi-hauteur)
 /// du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
@@ -543,7 +551,14 @@ Box  box_toAbsolute(Box box, Node* nRef) {
     Squirrel sq;
     sq_initWithRelPos(&sq, nRef, box.center, sq_scale_ones);
     while(sq_goUpPS(&sq)) {}
-    return (Box){ .center = sq.v, .deltas = { sq.s.x * box.Dx, sq.s.y * box.Dy } };
+    return (Box){ .center = sq.v, .deltas = {{ sq.s.x * box.Dx, sq.s.y * box.Dy }} };
+}
+/// Position absolue (i.e. remonté à la root) d'une position dans le même référentiel que n (i.e. dans le ref de n->parent.)
+Vector2 vector2_toAbsolute(Vector2 pos, Node* n) {
+    Squirrel sq;
+    sq_initWithRelPos(&sq, n, pos, sq_scale_ones);
+    while(sq_goUpPS(&sq)) {}
+    return sq.v;
 }
 /// Convertie une position absolue (au niveau de la root) en une position
 ///  dans le réferentiel de nodeOpt (si NULL -> reste absPos).
@@ -553,11 +568,6 @@ Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 const absPos, Node* nodeO
     sq_init(&sq, nodeOpt, sq_scale_scales);
     while (sq_goUpPS(&sq));
     return vector2_inReferentialOfSquirrel(absPos, &sq);
-}
-const Matrix4* node_parentModel(Node* n) {
-    Node* const parent = n->_parent;
-    if(!parent) { printerror("Node without parent."); return &matrix4_identity; }
-    return &parent->model;
 }
 
 

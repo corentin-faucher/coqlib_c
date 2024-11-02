@@ -21,17 +21,17 @@ void      number_open_(Node* n) {
     Number* nb = (Number*)n;
     number_setTo(nb, nb->value);
 }
-void number_updateModels_(Node* const n) {
+void number_renderer_updateIUs_(Node* const n) {
     Number* nb = (Number*)n;
     float const show = smtrans_setAndGetValue(&nb->d.trShow, (n->flags & flag_show) != 0);
     if(show < 0.001f) {
-        n->flags &= ~flag_drawableActive;
+        n->_iu.render_flags &= ~renderflag_toDraw;
         return;
     }
-    n->flags |= flag_drawableActive;
+    n->_iu.render_flags |= renderflag_toDraw;
     const Matrix4* const pm = node_parentModel(n);
     
-    float const pop = (nb->n.flags & flag_poping) ? show : 1.f;
+    float const pop = (nb->n.flags & flag_drawablePoping) ? show : 1.f;
     float const pos_y = nb->n.y;
     float const pos_z = nb->n.z;
     Vector2 const scales = nb->n.scales;
@@ -53,24 +53,26 @@ void number_updateModels_(Node* const n) {
         }};
     }
 }
-void (*Number_defaultUpdateModel)(Node*) = number_updateModels_; 
-Number*   Number_create(Node* ref, int32_t value,
+void (*Number_renderer_defaultUpdateIUs)(Node*) = number_renderer_updateIUs_;
+void number_and_super_init_(Number* const nb, Node* refOpt, int32_t value,
                       float x, float y, float height,
                       flag_t flags, uint8_t node_place) {
-    Number* nb = coq_callocTyped(Number);
-    node_init(&nb->n, ref, x, y, 1, 1, node_type_ndm_number, flags, node_place);
+    node_init(&nb->n, refOpt, x, y, 1, 1, flags, node_place);
     nb->n.sx = height; nb->n.sy = height;
     if(Number_defaultTex == NULL)
         Number_defaultTex = Texture_sharedImageByName("coqlib_digits_black");
-    drawable_init(&nb->d, Number_defaultTex, mesh_sprite, 0, 1);
-    drawablemulti_init_(&nb->dm, NUMBER_MAX_DIGITS_);
-    InstanceUniforms iu = InstanceUnifoms_default;
-    iu.uvRect.size = texture_tileDuDv(Number_defaultTex);
-    piusbuffer_setAllTo(&nb->dm.iusBuffer, iu);
+    drawable_init(&nb->d, Number_defaultTex, &mesh_sprite, 0, 1);
+    drawablemulti_init(&nb->dm, NUMBER_MAX_DIGITS_);
+    
+    // Init as Number...
+    nb->n._type |= node_type_flag_number;
+    InstanceUniforms iu = InstanceUnifoms_drawableDefaultIU;
+    iu.draw_uvRect.size = texture_tileDuDv(Number_defaultTex);
+    iusbuffer_setAllTo(&nb->dm.iusBuffer, iu);
     nb->dm.iusBuffer.actual_count = 0;
     // Init as number
     nb->n.openOpt =     number_open_;
-    nb->n.updateModel = Number_defaultUpdateModel;
+    nb->n.renderer_updateInstanceUniforms = Number_renderer_defaultUpdateIUs;
     nb->value = value;
     nb->separator = digit_dot;
     nb->digit_x_margin =     -0.25;
@@ -79,6 +81,12 @@ Number*   Number_create(Node* ref, int32_t value,
     nb->n.sx = height * texture_tileRatio(nb->d._tex);
     nb->n.sy = height;
     number_last_ = nb;
+} 
+Number*   Number_create(Node* ref, int32_t value,
+                      float x, float y, float height,
+                      flag_t flags, uint8_t node_place) {
+    Number* nb = coq_callocTyped(Number);
+    number_and_super_init_(nb, ref, value, x, y, height, flags, node_place);  
     
     return nb;
 }
@@ -103,8 +111,8 @@ void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
     }
     nbit->x1 += deltaX;
     *nbit->xit = nbit->x1;
-    nbit->iu->uvRect.o_x = (digit % nbit->m) * nbit->Duv.w;
-    nbit->iu->uvRect.o_y = (digit / nbit->m) * nbit->Duv.h;
+    nbit->iu->draw_uvRect.o_x = (digit % nbit->m) * nbit->Duv.w;
+    nbit->iu->draw_uvRect.o_y = (digit / nbit->m) * nbit->Duv.h;
     nbit->iu++; nbit->xit++; nbit->i++;
     nbit->x1 += deltaX;
 }

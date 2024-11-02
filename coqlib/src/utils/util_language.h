@@ -7,6 +7,8 @@
 #ifndef COQ_UTIL_LANGUAGE_H
 #define COQ_UTIL_LANGUAGE_H
 
+#include "util_string.h"
+
 typedef enum {
     language_french,
     language_english,
@@ -36,11 +38,17 @@ typedef enum {
     language_undefined_language,
 } Language;
 
+extern const Language Language_defaultLanguage; // language_english
 
-void     Language_init(void);
+/// (private -> init inclus dans `CoqSystem_init`)
+void     Language_init_(void);
+bool     Language_system_tryToSetTo_(Language const language);
+
+/// Sychronise avec la langue actuel du system.
 void     Language_checkSystemLanguage(void);
+/// Langue de l'OS
 Language Language_systemLanguage(void);
-
+/// Langue setter par l'usager.
 Language Language_current(void);
 /// Setter la langue courante, init par défaut à celle de l'OS (ou anglais...)
 void     Language_setCurrent(Language newCurrentLanguage);
@@ -53,7 +61,6 @@ float    Language_currentDirectionFactor(void);
 bool     Language_currentUseMaruCheck(void);
 const char* Language_currentIso(void);
 const char* Language_currentCode(void);
-
 /// Obtenir l'enum Language a partir du code iso, e.g. "en" -> `language_english`.
 Language    Language_languageWithIso(const char* iso);
 /// Semblable à `Language_languageWithIso` mais ne contient que le code de langue.
@@ -63,13 +70,26 @@ Language    Language_languageWithCode(const char* const code);
 const char* language_iso(Language language);
 const char* language_name(Language language);
 
-/*-- Pour la localisation des strings. ----------------*/
+#pragma mark - Pour la localisation des strings. ----------------
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
 const char* String_createLocalized(const char* stringKey);
 void        String_copyLocalizedTo(const char* stringKey, char* buffer, size_t size_max_opt);
 /// Version par defaut de la string, e.g. localization anglaise.
 const char* String_createLocalizedDefault(const char* stringKey);
+
+#pragma mark - Les fonts possible pour les différentes langues -
+typedef struct {
+    char    name[40];
+    char    short_name[20];
+    float   deltaYAdj;
+    float   extraDesc;
+} LanguageFontInfo;
+SharedStringsArray LanguageFont_allFontNamesForLanguage(Language language);
+const char*        LanguageFont_defaultFontNameForLanguage(Language language);
+const LanguageFontInfo* LanguageFont_getFontInfoOpt(const char* fontNameOpt);
+
+void Language_test_fontLanguage_(void);
 
 
 #endif

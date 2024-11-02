@@ -318,7 +318,7 @@ Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typ
     while(true) {
         if(sq.pos->flags & flag_show) {
             Button* b = node_asButtonOpt(sq.pos);
-            if(b) if(b->n.uint0 == data0) {
+            if(b) if(b->n._iu.nodraw_uint0 == data0) {
                 if(!typeOpt) return b;
                 if(b->n._type & typeOpt)
                     return b;

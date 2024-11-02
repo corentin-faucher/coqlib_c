@@ -5,7 +5,23 @@
 //
 
 #include "graph_base.h"
+
 #include "graph_texture.h"
+#include "graph_mesh.h"
+#include "../utils/util_base.h"
+#include "../utils/util_file.h"
+
+char*  FileManager_getPngPathOpt(const char* pngName, bool isCoqlib, bool isMini) {
+    if(!pngName) { printerror("Texture without name."); return NULL; }
+    const char* png_dir;
+    if(isCoqlib) {
+        png_dir = isMini ? "pngs_coqlib/minis" : "pngs_coqlib";
+    } else {
+        png_dir = isMini ? "pngs/minis" : "pngs";
+    }
+    // Pas d'erreur si mini.
+    return FileManager_getResourcePathOpt(pngName, "png", png_dir);
+}
 
 //#define PIU_DEFAULT \
 //{{{ 1.f, 0.f, 0.f, 0.f, \
@@ -15,27 +31,27 @@
 // {{ 1.f, 1.f, 1.f, 1.f }}, \
 // {{ 0.f, 0.f, 1.f, 1.f }}, \
 //   0u, 1.f, 0.f, 0.f }
-const InstanceUniforms InstanceUnifoms_default = {
- {{ 1.f, 0.f, 0.f, 0.f,
-    0.f, 1.f, 0.f, 0.f, 
-    0.f, 0.f, 1.f, 0.f, 
-    0.f, 0.f, 0.f, 1.f }}, 
- {{ 1.f, 1.f, 1.f, 1.f }}, 
- {{ 0.f, 0.f, 1.f, 1.f }}, 
-    0u, 1.f, 0.f, 0.f 
+const InstanceUniforms InstanceUnifoms_drawableDefaultIU = {
+    .model = {{ 1.f, 0.f, 0.f, 0.f,
+        0.f, 1.f, 0.f, 0.f, 
+        0.f, 0.f, 1.f, 0.f, 
+        0.f, 0.f, 0.f, 1.f }}, 
+    .show = 1.f,
+    .draw_color = {{ 1.f, 1.f, 1.f, 1.f }},
+    .draw_uvRect = {{ 0.f, 0.f, 1.f, 1.f }}, 
 };
 
-uint32_t piu_getTileI(const InstanceUniforms* piu) {
-    return (uint32_t)roundf(piu->uvRect.o_x / piu->uvRect.w);
-}
+//uint32_t piu_getTileI(const InstanceUniforms* piu) {
+//    return (uint32_t)roundf(piu->uvRect.o_x / piu->uvRect.w);
+//}
 
-void   piusbuffer_setAllTo(IUsBuffer* const iusBuffer, InstanceUniforms const iu) {
+void   iusbuffer_setAllTo(IUsBuffer* const iusBuffer, InstanceUniforms const iuRef) {
     InstanceUniforms* end = &iusBuffer->ius[iusBuffer->max_count];
-    for(InstanceUniforms* piu = iusBuffer->ius; piu < end; piu++) {
-        *piu = iu;
+    for(InstanceUniforms* iu = iusBuffer->ius; iu < end; iu++) {
+        *iu = iuRef;
     }
 }
-void   piusbuffer_setAllActiveTo(IUsBuffer* const iusBuffer, InstanceUniforms const iu) {
+void   iusbuffer_setAllActiveTo(IUsBuffer* const iusBuffer, InstanceUniforms const iu) {
     InstanceUniforms* end = &iusBuffer->ius[iusBuffer->actual_count];
     for(InstanceUniforms* piu = iusBuffer->ius; piu < end; piu++) {
         *piu = iu;
@@ -54,6 +70,12 @@ void   piusbuffer_setAllActiveTo(IUsBuffer* const iusBuffer, InstanceUniforms co
 //    };
 //}
 
+float coqfont_getRelY(coq_Font const*const cf) {
+    return cf->deltaY / cf->solidHeight;
+}
+float coqfont_getRelHeight(coq_Font const*const cf) {
+    return cf->glyphHeight / cf->solidHeight;
+}
 
 const PixelBGRA pixelbgra_black = { 0xFF000000 };
 const PixelBGRA pixelbgra_white = { 0xFFFFFFFF };

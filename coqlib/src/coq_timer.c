@@ -9,25 +9,28 @@
 #include "maths/math_chrono.h"
 #include "utils/util_base.h"
 
-typedef struct _Timer {
-    void  (*callBack)(void*);
-    void*   targetOpt;
-    Timer** referer;
-    int64_t deltaTimeMS;  // Si 0, pas de repetition.
-    int64_t ringTimeMS;
-} Timer;
+typedef struct coq_TimerStruct ** TimerRef;
+struct coq_TimerStruct {
+    void   (*callBack)(void*);
+    void    *targetOpt;
+    TimerRef referer;
+    int64_t  deltaTimeMS;  // Si 0, pas de repetition.
+    int64_t  ringTimeMS;
+};
+
 
 #define Timer_count_ 64
 static uint32_t     _Timer_active_count = 0;  // (pour debuging)
-static Timer        _Timer_list[Timer_count_];
-static Timer* const _Timer_listEnd =     &_Timer_list[Timer_count_];
-static Timer*       _Timer_freeFirst =   _Timer_list;
-static Timer*       _Timer_activeFirst = _Timer_list;  // Premier timer actif.
-static Timer*       _Timer_activeEnd =   _Timer_list;  // Fin (apres le dernier actif), mieux activeLast ?
+static struct coq_TimerStruct        _Timer_list[Timer_count_];
+static struct coq_TimerStruct* const _Timer_listEnd =     &_Timer_list[Timer_count_];
+static struct coq_TimerStruct*       _Timer_freeFirst =    _Timer_list;
+static struct coq_TimerStruct*       _Timer_activeFirst =  _Timer_list;  // Premier timer actif.
+static struct coq_TimerStruct*       _Timer_activeEnd =    _Timer_list;  // Fin (apres le dernier actif), mieux activeLast ?
 
 
-void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
-                     void* targetObjectOpt, void (*callBack)(void* targetObjectOpt)) {
+void timer_scheduled(Timer *const timerRef, int64_t deltaTimeMS, bool const isRepeating,
+                     void *const targetObjectOpt, void (*const callBack)(void* targetObjectOpt)) {
+    // Checks...
     if(callBack == NULL) {
         printerror("Missing target_object or callBack.");
         return;
@@ -41,21 +44,21 @@ void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
         printwarning("deltaTimeMS < 1.");
         deltaTimeMS = 1;
     }
+    if(timerRef) if(*timerRef) {
+        printwarning("Timer should be canceled before scheduling a new job.");
+        timer_cancel(timerRef);
+    }
     // Setter le nouveau active timer.
-    Timer* newTimer = _Timer_freeFirst;
+    Timer newTimer = _Timer_freeFirst;
     newTimer->callBack = callBack;
     newTimer->targetOpt = targetObjectOpt;
     newTimer->deltaTimeMS = isRepeating ? deltaTimeMS : 0;
     newTimer->ringTimeMS = ChronoApp_elapsedMS() + deltaTimeMS;
+    newTimer->referer = timerRef;
+    if(timerRef) *timerRef = newTimer;
+    else printwarning("Call to timer_schedule without keeping ref.");
     _Timer_active_count ++;
-    if(timerRefOpt) {
-        if(*timerRefOpt) {
-            printwarning("Timer should be canceled before scheduling a new job.");
-            timer_cancel(timerRefOpt);
-        }
-        *timerRefOpt = newTimer;
-    }
-    newTimer->referer = timerRefOpt;
+    
     // Replacer les pointeurs debut et fin actives.
     if(_Timer_activeFirst > newTimer) {
         _Timer_activeFirst = newTimer;
@@ -72,16 +75,16 @@ void timer_scheduled(Timer** timerRefOpt, int64_t deltaTimeMS, bool isRepeating,
     }
 }
 
-void timer_deinit_(Timer* removed) {
+void timer_deinit_(Timer const removed) {
     if(removed->callBack == NULL) {
         printwarning("Already denit.");
         return;
     }
     // Dereferencer le timer.
     if(removed->referer)
-        *(removed->referer) = (Timer*)NULL;
+        *removed->referer = (Timer)NULL;
     // Clear.
-    memset(removed, 0, sizeof(Timer));
+    memset(removed, 0, sizeof(struct coq_TimerStruct));
     _Timer_active_count --;
     if(removed < _Timer_freeFirst) {
         _Timer_freeFirst = removed;
@@ -109,18 +112,31 @@ void timer_deinit_(Timer* removed) {
         }
     }
 }
-void timer_cancel(Timer** timerRef) {
-    if(*timerRef == NULL) return;
-    if(timerRef != (*timerRef)->referer) {
+void timer_cancel(Timer *const timer) {
+    if(*timer == NULL) return;
+    if(timer != (*timer)->referer) {
         printerror("timerRef is not the timer referer.");
         return;
     }
-    timer_deinit_(*timerRef);
+    timer_deinit_(*timer);
 }
+
+void timer_doNowAndCancel(Timer *const timer) {
+    if(*timer == NULL) return;
+    Timer t = *timer;
+    if(timer != t->referer) {
+        printerror("timerRef is not the timer referer.");
+        return;
+    }
+    if(t->callBack) t->callBack(t->targetOpt);
+    else { printerror("Timer without callback."); }
+    timer_deinit_(t);
+}
+
 void Timer_check(void) {
     if(_Timer_activeEnd == 0) return;
-    Timer* t =         _Timer_activeFirst;
-    Timer* const end = _Timer_activeEnd;
+    struct coq_TimerStruct* t =         _Timer_activeFirst;
+    struct coq_TimerStruct* const end = _Timer_activeEnd;
     int64_t currentTime = ChronoApp_elapsedMS();
     for(; t < end; t++) {
         if(t->callBack == NULL)
@@ -141,7 +157,6 @@ void Timer_check(void) {
         if(t->deltaTimeMS == 0) {
             timer_deinit_(t);
         }
-        
         // **-------------------------------------------------------------------------------------------** //
         // ** Ici, le call back peut cancel le timer, ou meme recreer un nouveau timer au meme endroit. **
         callBack(targetOpt);

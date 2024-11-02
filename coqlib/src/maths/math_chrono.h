@@ -19,9 +19,7 @@
 #define MS_PER_SEC        1000
 #define SEC_PER_MS       0.001
 
-#pragma mark - Chrono global mis à jour à chaque frame de (typiquement) +1/60 sec.
-
-/*--Chrono global pour le rendering --*/
+#pragma mark - ChronoRender : chrono global pour le rendering mis à jour à chaque frame de (typiquement) +1/60 sec (pas le vrai temps écoulé)
 /// Mise à jour à chaque frame, e.g. +1/60 sec ~= 16ms au elapsed time.
 void     ChronoRender_update(int64_t deltaTMS);
 void     ChronoRender_setPaused(bool isPaused);
@@ -34,13 +32,10 @@ float    ChronoRender_elapsedSec(void);
 /// Temps entre 0 et 24pi sec (pour les fonctions sin).
 float    ChronoRender_elapsedAngleSec(void);
 
-
-#pragma mark -Chrono global pour le temps réel de l'app. --
-
+#pragma mark - ChronoApp : chrono global pour le temps réel écoulé depuis l'ouverture de l'app. --
 /// Le delai des "tics", i.e. temps entre les timer update, empty Garbage...
 /// À 50 ms par defaut,  i.e. 20 refresh / second.
 extern int64_t Chrono_UpdateDeltaTMS; // = 50;
-
 void     ChronoApp_setPaused(bool isPaused);
 /// Vrai nombre de ms écoulées depuis l'ouverture de l'app.
 /// (Pas juste une somme de +1/60sec...)
@@ -50,7 +45,6 @@ int64_t  ChronoApp_lastSleepTimeMS(void);
 
 
 #pragma mark - Chrono ordinaire. Se base sur ChronoApp a priori (temps réel). --
-
 typedef struct CoqChrono {
     int64_t _time;
     bool isActive;
@@ -69,7 +63,7 @@ void    chrono_addMS(Chrono *c, int64_t ms);
 void    chrono_removeMS(Chrono *c, int64_t ms);
 void    chrono_addSec(Chrono *c, float sec);
 
-// Minuterie, peut être casté comme Chrono (mêmes début de struct).
+#pragma mark - Minuterie (peut être casté comme Chrono)
 typedef struct CoqCountdown {
     /// Upcasting as Chrono.
     Chrono  c;
@@ -85,8 +79,7 @@ int64_t countdown_remainingMS(const Countdown *cd);
 /// Ça sonne, i.e. elapsedMS >= ringTime.
 bool    countdown_isRinging(const Countdown *cd);
 
-/// Convenience de countdown_remainingMS pour avoir un ratio (entre 0 et 1) de se qu'il reste de temps.
-
+#pragma mark - ChronoTiny : un mini chrono de 2 octets -
 /// Mini chrono de 2 octets (basé sur ChronoRendering)
 /// Lapse max de 2^16 ms, i.e. de -32s à +32s.
 /// La sruct est simplement {int16_t time}.
@@ -98,10 +91,11 @@ ChronoTiny chronotiny_elapsedChrono(int16_t elapsedMS);
 int16_t    chronotiny_elapsedMS(ChronoTiny t);
 float      chronotiny_elapsedSec(ChronoTiny t);
 
+#pragma mark - ChronoChecker : Chrono simple pour debugging (calculer les ms écoulées) -
 typedef struct {
     int64_t _time;
 } ChronoChecker;
-
+/// Chrono simple pour debugging (calculer les ms écoulées)
 void    chronochecker_set(ChronoChecker* cc);
 int64_t chronochecker_elapsedMS(const ChronoChecker* cc);
 void    chronochecker_toc_(const ChronoChecker* cc, const char* filename, uint32_t line);

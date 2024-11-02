@@ -38,7 +38,7 @@ typedef struct coq_Button {
 Button* Button_create(Node* refOpt, void (*action)(Button*),
                       float x, float y, float height, float lambda, flag_t flags);
 /// Sub-struct init.
-void    button_init_(Button* b, void (*action)(Button*));
+void    button_init(Button* b, void (*action)(Button*));
 
 /// Reprendre le dernier bouton créé.
 Button* const Button_getLastOpt(void);
@@ -49,20 +49,23 @@ Button* node_asButtonOpt(Node* n);
 
 // Convenience setters
 //void    button_last_setData(union ButtonData data);
-void    button_last_setDataUint0(uint32_t data_uint0);
+//void    button_last_setDataUint0(uint32_t data_uint0);
 
-#pragma mark - Switch ON/OFF et Slider
-/// Bouton ON/OFF. La valeur ON/OFF est le premier bit de `uint3`.
+#pragma mark - Switch ON/OFF
+/// Bouton ON/OFF. La valeur ON/OFF est le premier bit de `uint_arr[11]`.
 Button* Button_createSwitch(Node* refOpt, void (*action)(Button*), bool isOn,
                             float x, float y, float height, float lambda, flag_t flags);
-void    button_switch_fix(Button* b, bool isOn);
+void    button_switch_set(Button* b, bool isOn);
+bool    button_switch_value(Button* b);
 Button* Button_createDummySwitch(Node* refOpt, void (*action)(Button*), uint32_t data,
                                  float x, float y, float height, float lambda, flag_t flags);
-/// Bouton de "fine-tuning". la valeur du slider est dans `float3` et varie de
+#pragma mark - Slider ---
+/// Bouton de "fine-tuning". la valeur du slider est dans `float_arr[11]` et varie de
 /// 0 (gauche) à 1 (droite).
 Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
                             float value, float x, float y, float width, float height,
                             float lambda, flag_t flags);
+float   button_slider_value(Button* b);
 /// Pour les sous-struct qui veulent overrider le drag du slider.
 void    button_slider_drag_(Button* b, Vector2 pos_rel);
 
@@ -73,11 +76,11 @@ typedef struct  {
     uint32_t       popPngId;
     uint32_t       popTile;
     uint32_t       failPopFramePngId;
-    StringGlyphedInit failMessage;
+    NodeStringInit failMessage;
 } SecurePopInfo;
 
 Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
-                SecurePopInfo spi, uint32_t popFramePngId, StringGlyphedInit popMessage,
+                SecurePopInfo spi, uint32_t popFramePngId, NodeStringInit popMessage,
                 float x, float y, float height, float lambda, flag_t flags);
 
 /// Juste secure pas de pop-over lors du survol.
@@ -85,7 +88,7 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
                 SecurePopInfo spi, float x, float y, float height, float lambda, flag_t flags);
 /// Juste hoverable (pop-over) pas de secure (hold to activate).
 Button* ButtonHoverable_create(Node* refOpt, void (*action)(Button*),
-                uint32_t popFramePngId, StringGlyphedInit popMessage,
+                uint32_t popFramePngId, NodeStringInit popMessage,
                 float x, float y, float height, float lambda, flag_t flags);
 //void    buttonhoverable_last_setToPopInFrontView(void);
 
@@ -98,19 +101,19 @@ typedef struct ButtonSecureHov_ {
         Fluid     f;
         Button    b;
     };
-    Timer*        timer;
+    Timer         timer;
     // Hoverable
     uint32_t       popFramePngId;
-    StringGlyphedInit popMessage;
+    NodeStringInit popMessage;
     // Secure
-    SecurePopInfo spi; // Info supplementaire pour un bouton secure. (plus commode en un packet)
-    PopingNode_*  poping;
+    SecurePopInfo spi;    // Info supplementaire pour un bouton secure. (plus commode en un packet)
+    PopingNode_*  poping; // Ref au poping disk de progres (pour cancel)
     bool          didActivate;
 } ButtonSecureHov_;
 
 void buttonsecurehov_initJustSecure_(ButtonSecureHov_* bsh, SecurePopInfo spi);
 void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFramePngId, 
-                                        StringGlyphedInit popMessage);
+                                        NodeStringInit popMessage);
 
 //extern Button* button_last_;
 // Finalement superflu -> inclus dans Node.

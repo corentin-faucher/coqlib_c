@@ -16,15 +16,15 @@ void drawablemulti_updateModelsDefault_(Node* const n) {
     DrawableMulti* const dm = (DrawableMulti*)n;
     float const show = smtrans_setAndGetValue(&dm->d.trShow, (n->flags & flag_show) != 0);
     if(show < 0.001f) { // Rien à afficher...
-        n->flags &= ~flag_drawableActive;
+        n->_iu.render_flags &= ~renderflag_toDraw;
         return;
     }
-    n->flags |= flag_drawableActive;
+    n->_iu.render_flags |= renderflag_toDraw;
     const Matrix4* const pm = node_parentModel(n);
     
     uint32_t const count = (uint32_t)ceilf(sqrtf(dm->iusBuffer.actual_count));
     float const delta = 0.5*(float)(count-1);
-    float const pop = (dm->n.flags & flag_poping) ? show : 1.f;
+    float const pop = (dm->n.flags & flag_drawablePoping) ? show : 1.f;
     Vector2 const scl = dm->n.scales;
     Vector3 const pos0 = {{ -delta * scl.x + dm->n.x, -delta * scl.y + dm->n.y, 0 }};
     uint32_t tex_m = dm->d._tex->m;
@@ -32,11 +32,11 @@ void drawablemulti_updateModelsDefault_(Node* const n) {
     // Boucle sur les piu.
     uint32_t i = 0;
     InstanceUniforms* const end = &dm->iusBuffer.ius[dm->iusBuffer.actual_count];
-    for(InstanceUniforms* piu = dm->iusBuffer.ius; piu < end; piu++, i++) {
-        piu->uvRect.o_x =  (i % tex_m) * piu->uvRect.w;
-        piu->uvRect.o_y = ((i / tex_m) % tex_n) * piu->uvRect.h;
-        piu->show = show;
-        Matrix4* m = &piu->model;
+    for(InstanceUniforms* iu = dm->iusBuffer.ius; iu < end; iu++, i++) {
+        iu->draw_uvRect.o_x =  (i % tex_m) * iu->draw_uvRect.w;
+        iu->draw_uvRect.o_y = ((i / tex_m) % tex_n) * iu->draw_uvRect.h;
+        iu->show = show;
+        Matrix4* m = &iu->model;
         float pos_x = pos0.x + scl.x*(float)(i%count);
         float pos_y = pos0.y + scl.y*(float)(i/count);
         m->v0.v = pm->v0.v * scl.x * pop;
@@ -50,33 +50,25 @@ void drawablemulti_updateModelsDefault_(Node* const n) {
         }};
     }
 }
-void drawablemulti_deinit_(Node* n) {
+void drawablemulti_deinit(Node* n) {
     DrawableMulti* dm = (DrawableMulti*)n;
+    // (Drawable super)
     if(!dm->d._mesh->isShared) {
-        mesh_deinit(dm->d._mesh);
+        mesh_engine_deinit(dm->d._mesh);
         dm->d._mesh = NULL;
     }
     textureref_releaseAndNull_(&dm->d._tex);
-    piusbuffer_deinit_(&dm->iusBuffer);
+    // Release buffer.
+    iusbuffer_engine_deinit_(&dm->iusBuffer);
 }
-void drawablemulti_init_(DrawableMulti* dm, uint32_t maxInstanceCount) {
-    dm->n.deinitOpt = drawablemulti_deinit_;  // (override drawable deinit)
-    piusbuffer_init_(&dm->iusBuffer, maxInstanceCount);
-    dm->n.updateModel = drawablemulti_updateModelsDefault_;
+void drawablemulti_init(DrawableMulti* dm, uint32_t maxInstanceCount) {
+    dm->n._type |= node_type_flag_drawMulti;
+    if(maxInstanceCount < 2) { printerror("maxInstances < 2 ?"); maxInstanceCount = 2; }
+    dm->n.deinitOpt = drawablemulti_deinit;  // (override drawable deinit)
+    iusbuffer_engine_init_(&dm->iusBuffer, maxInstanceCount);
+    dm->n.renderer_updateInstanceUniforms = drawablemulti_updateModelsDefault_;
 }
 
-DrawableMulti* DrawableMulti_create(Node* const refOpt,
-                          Texture* tex, Mesh* const mesh, uint32_t maxInstanceCount,
-                          float x, float y, float twoDy,
-                          flag_t flags, uint8_t node_place) {
-    if(maxInstanceCount < 1) { printerror("No insantce count ?"); maxInstanceCount = 2; }
-    DrawableMulti* dm = coq_callocTyped(DrawableMulti);
-    node_init(&dm->n, refOpt, x, y, 1, 1, node_type_nd_multi, flags, node_place);
-    drawable_init(&dm->d, tex, mesh, 0, twoDy);
-    drawablemulti_init_(dm, maxInstanceCount);
-    
-    return dm;
-}
                           
 DrawableMulti*  node_asDrawableMultiOpt(Node* n) {
     if(n->_type & node_type_flag_drawMulti) return (DrawableMulti*)n;

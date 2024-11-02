@@ -21,10 +21,10 @@ void   bar_update_(Frame* bar, Vector2 deltas) {
     bar->n.sy = 2.f*delta;
     float xPos = 0.5f * smallDeltaX / actualDx;
     Vertex* vertices = mesh_engine_retainVertices(bar->d._mesh);
-    vertices[2].x = -xPos;
-    vertices[3].x = -xPos;
-    vertices[4].x =  xPos;
-    vertices[5].x =  xPos;
+    vertices[2].pos.x = -xPos;
+    vertices[3].pos.x = -xPos;
+    vertices[4].pos.x =  xPos;
+    vertices[5].pos.x =  xPos;
     mesh_engine_releaseVertices(bar->d._mesh);
 }
 void   vbar_update_(Frame* vbar, Vector2 deltas) {
@@ -38,14 +38,13 @@ void   vbar_update_(Frame* vbar, Vector2 deltas) {
     vbar->n.sy = 2.f*actualDy;
     float yPos = 0.5f * smallDeltaY / actualDy;
     Vertex* vertices = mesh_engine_retainVertices(vbar->d._mesh);
-    vertices[2].y =  yPos;
-    vertices[3].y =  yPos;
-    vertices[4].y = -yPos;
-    vertices[5].y = -yPos;
+    vertices[2].pos.y =  yPos;
+    vertices[3].pos.y =  yPos;
+    vertices[4].pos.y = -yPos;
+    vertices[5].pos.y = -yPos;
     mesh_engine_releaseVertices(vbar->d._mesh);
 }
 void   frame_update_(Frame* frame, Vector2 deltas) {
-    printdebug("Updating frame to %s.", vector2_toString(deltas));
     float inside = fminf(1.f, fmaxf(0.f, frame->inside));
     float delta = frame->delta;
     float smallDeltaX = fmaxf(0.f, deltas.x - delta * inside);
@@ -58,23 +57,23 @@ void   frame_update_(Frame* frame, Vector2 deltas) {
     frame->n.sy = 2.f*actualDy;
     Vertex* vertices = mesh_engine_retainVertices(frame->d._mesh);
     float xPos = 0.5f * smallDeltaX / (smallDeltaX + delta);
-    vertices[4].x = -xPos;
-    vertices[5].x = -xPos;
-    vertices[6].x = -xPos;
-    vertices[7].x = -xPos;
-    vertices[8].x =  xPos;
-    vertices[9].x =  xPos;
-    vertices[10].x = xPos;
-    vertices[11].x = xPos;
+    vertices[4].pos.x = -xPos;
+    vertices[5].pos.x = -xPos;
+    vertices[6].pos.x = -xPos;
+    vertices[7].pos.x = -xPos;
+    vertices[8].pos.x =  xPos;
+    vertices[9].pos.x =  xPos;
+    vertices[10].pos.x = xPos;
+    vertices[11].pos.x = xPos;
     float yPos = 0.5f * smallDeltaY / (smallDeltaY + delta);
-    vertices[1].y =   yPos;
-    vertices[5].y =   yPos;
-    vertices[9].y =   yPos;
-    vertices[13].y =  yPos;
-    vertices[2].y =  -yPos;
-    vertices[6].y =  -yPos;
-    vertices[10].y = -yPos;
-    vertices[14].y = -yPos;
+    vertices[1].pos.y =   yPos;
+    vertices[5].pos.y =   yPos;
+    vertices[9].pos.y =   yPos;
+    vertices[13].pos.y =  yPos;
+    vertices[2].pos.y =  -yPos;
+    vertices[6].pos.y =  -yPos;
+    vertices[10].pos.y = -yPos;
+    vertices[14].pos.y = -yPos;
     mesh_engine_releaseVertices(frame->d._mesh);
     
     if(!(frame->n.flags & flag_giveSizeToParent)) return;
@@ -97,6 +96,7 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
     smtrans_init(&frame->d.trShow);
     smtrans_init(&frame->d.trExtra);
     frame->d._tex = tex;
+    frame->n._type |= node_type_flag_drawable|node_type_flag_frame;
     // Mesh (owner) et fonction pour setter les dimensions du frame.
     if(options & frame_option_horizotalBar) {
         frame->d._mesh = Mesh_createHorizontalBar();
@@ -108,10 +108,10 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
         frame->d._mesh = Mesh_createFrame();
         frame->setDims = frame_update_;
     }
-    frame->n.updateModel = Drawable_defaultUpdateModel;
+    frame->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms;
     frame->n.deinitOpt = drawable_deinit_;
-    frame->n._iu = InstanceUnifoms_default;
-    frame->n._iu.uvRect.size = texture_tileDuDv(tex);
+    frame->n._iu = InstanceUnifoms_drawableDefaultIU;
+    frame->n._iu.draw_uvRect.size = texture_tileDuDv(tex);
     // Init as frame
     frame->delta = delta;
     frame->inside = inside;
@@ -127,7 +127,7 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
 Frame* Frame_create(Node* const refOpt, float inside, float delta, 
                     float twoDxOpt, float twoDyOpt, Texture* tex, uint16_t options) {
     Frame* frame = coq_callocTyped(Frame);
-    node_init(&frame->n, refOpt, 0, 0, 1, 1, node_type_nd_frame, 0, 0);
+    node_init(&frame->n, refOpt, 0, 0, 1, 1, 0, 0);
     drawable_and_frame_init_(frame, tex, inside, delta, options);
     // Setter tout de suite les dimensions ?
     if(twoDxOpt <= 0.f && twoDyOpt <= 0.f)

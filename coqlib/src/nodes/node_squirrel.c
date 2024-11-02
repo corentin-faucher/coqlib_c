@@ -214,10 +214,12 @@ bool sq_goToNext(Squirrel *sq) {
   }
   return true;
 }
-bool sq_goToNextToDisplay(Squirrel *sq) {
+bool sq_renderer_goToNextToDisplay(Squirrel *sq) {
   // 1. Aller en profondeur, pause si branche à afficher.
-  if (sq->pos->_firstChild && (sq->pos->flags & (flag_show | flag_parentOfToDraw))) {
-    sq->pos->flags &= ~flag_parentOfToDraw;
+  if (sq->pos->_firstChild && 
+      ((sq->pos->flags & flag_show ) || (sq->pos->_iu.render_flags & renderflag_toDraw)))
+  {
+    sq->pos->_iu.render_flags &= ~renderflag_toDraw;
     sq_goDown(sq);
     return true;
   }
@@ -225,8 +227,8 @@ bool sq_goToNextToDisplay(Squirrel *sq) {
   do {
     // Si le noeud présent est encore actif -> le parent doit l'être aussi.
     Node* const parent = sq->pos->_parent;
-    if((sq->pos->flags & (flag_show|flag_parentOfToDraw|flag_drawableActive)) && parent) {
-      parent->flags |= flag_parentOfToDraw;
+    if(parent) if((sq->pos->flags & flag_show ) || (sq->pos->_iu.render_flags & renderflag_toDraw)) {
+        parent->_iu.render_flags |= renderflag_toDraw;
     }
     if (sq_goRight(sq))
       return true;
@@ -239,12 +241,12 @@ bool sq_throwToGarbageThenGoToBroOrUp(Squirrel *sq) {
   //    Node *bro = toLittle ? sq->pos->littleBro : sq->pos->bigBro;
   if (bro) {
     sq->pos = bro;
-    node_throwToGarbage_callback_(toDelete);
+    node_throwToGarbage_(toDelete);
     return true;
   }
   if (sq->pos->_parent) {
     sq->pos = sq->pos->_parent;
-    node_throwToGarbage_callback_(toDelete);
+    node_throwToGarbage_(toDelete);
     return false;
   }
   printerror("Ne peut deconnecter, nul part ou aller.");

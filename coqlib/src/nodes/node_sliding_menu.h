@@ -9,6 +9,7 @@
 #define coq_node_sliding_menu_h
 
 #include "node_base.h"
+#include "../graphs/graph_texture.h"
 
 typedef struct SlidingMenu SlidingMenu;
 typedef struct SlidingMenuInit {

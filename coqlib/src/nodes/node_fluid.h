@@ -38,7 +38,7 @@ Fluid*  Fluid_create(Node* const refOpt, float x, float y, float w, float h,
 // Downcasting
 Fluid* node_asFluidOpt(Node* n);
 // Pour initialiser les sub-structs.
-void    fluid_init_(Fluid* f, float lambda);
+void    fluid_init(Fluid* f, float lambda);
 
 // Getters
 Vector3 fluid_pos(Fluid* s);

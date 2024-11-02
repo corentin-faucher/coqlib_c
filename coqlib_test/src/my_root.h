@@ -7,7 +7,7 @@
 #ifndef my_root_h
 #define my_root_h
 
-#include "coq_nodes.h"
+#include "nodes/node_root.h"
 
 Root* Root_initAndGetProjectRoot(void);
 

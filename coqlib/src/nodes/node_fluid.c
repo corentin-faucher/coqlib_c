@@ -11,7 +11,8 @@
 
 float Fluid_defaultFadeInDelta = 2.2f;
 
-void fluid_init_(Fluid* f, float lambda) {
+void fluid_init(Fluid* f, float lambda) {
+    f->n._type |= node_type_flag_fluid;
     fl_array_init(&f->sx, &f->n.sx, COQ_FLUID_DIMS_N, lambda);
     // Fonction de positionnement pour les node smooth.
     if(f->n.flags & flags_fluidOpen)
@@ -24,8 +25,8 @@ void fluid_init_(Fluid* f, float lambda) {
 Fluid* Fluid_create(Node* const refOpt, float x, float y, float w, float h,
                               float lambda, flag_t flags, uint8_t node_place) {
     Fluid* f = coq_callocTyped(Fluid);
-    node_init(&f->n, refOpt, x, y, w, h, node_type_n_fluid, flags, node_place);
-    fluid_init_(f, lambda);
+    node_init(&f->n, refOpt, x, y, w, h, flags, node_place);
+    fluid_init(f, lambda);
     return f;
 }
 Fluid* node_asFluidOpt(Node* n) {

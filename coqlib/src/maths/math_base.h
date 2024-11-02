@@ -12,17 +12,28 @@
 #include <stddef.h>
 #include <stdint.h>
 
+//#if !defined(MAX)
+//#define MAX(a, b) \
+//    ({ __typeof__(a) _a_ = a; \
+//       __typeof__(b) _b_ = b; \
+//       (_a_ < _b_) ? _b_ : _a_;  \
+//    })
+//#endif
+
 // Si on veut l'allignement, utiliser
 // struct __attribute__((aligned(16))) Vector { union {...};};
 // Simd ou just __attribute__((aligned(16))) ??
 
-
 #pragma mark-- Vector2 -------------------------------------------------
-
-/// Paire de 2 float. (Non aligned)
+// Il y a 4 sortes de produits avec les vecteurs :
+//  - avec scalaire : _times ;
+//  - membre à membre : _product ;
+//  - produit scalaire : _dot ;
+//  - produit vectoriel : _cross.
+/// Vector2 : Paire de 2 float. (Non aligned)
 /// Pour une paire de unsigned, voir UintPair plus bas.
-/// On met le float array en premier pour une init plus simple. e.g. Vector2 v =
-/// {1,2}.
+/// On met le float array en premier pour une init plus simple,
+/// e.g. `Vector2 v = {1,2}`.
 typedef union {
   float f_arr[2];
   struct {
@@ -34,55 +45,47 @@ typedef union {
   struct {
     float theta, radial; // Coordonées polaires (voir conversion `vector2_polarToCartesian` et `vector2_cartesianToPolar`).
   };
-  // Version alignée superflu ?
+  // Pas de version alignée. Sinon on une `struct { Vector2 v1, v2;};` prendrait 8 floats au lieu de 4...?
   //    float __attribute__((vector_size(8))) v;
   //    simd_float2    v;
 } Vector2;
 extern const Vector2 vector2_ones;
 extern const Vector2 vector2_zeros;
 // Operations usuelles (similaire à celles de simd...)
-float vector2_norm(Vector2 v);
-float vector2_norm2(Vector2 v);
+// Semble mieux de faire des inlines pour les fonctions simples... (voir math_base.inl)
+static inline float vector2_norm(Vector2 const v);
+static inline float vector2_norm2(Vector2 const v);
+static inline float vector2_distance(Vector2 const v1, Vector2 const v2);
+static inline Vector2 vector2_minus(Vector2 const v, Vector2 const toSubtract);
+static inline Vector2 vector2_add(Vector2 const v, Vector2 const toAdd);
+static inline Vector2 vector2_mean(Vector2 const a, Vector2 const b);
+/// Produit membre à membre avec scalaire (i.e. float).
+static inline Vector2 vector2_times(Vector2 const v, float const f);
+static inline Vector2 vector2_opposite(Vector2 const v);
+/// Produit vectoriel avec vec k (i.e. Rotation de 90deg dans le sens horaire).
+static inline Vector2 vector2_cross(Vector2 const v);
+/// Produit scalaire.
+static inline float   vector2_dot(Vector2 const v1, Vector2 const v2);
+/// Produit membre à membre.
+static inline Vector2 vector2_product(Vector2 const v1, Vector2 const v2);
+static inline Vector2 vector2_polarToCartesian(Vector2 const v);
+static inline Vector2 vector2_cartesianToPolar(Vector2 const v);
+
 /// Projection de v sur target, i.e. proj = (v • t) * t / ||t||^2.
 Vector2 vector2_projOn(Vector2 v, Vector2 target);
-float vector2_distance(Vector2 v1, Vector2 v2);
 /// Normalise le vecteur (longueur == 1).
 /// Si ~= 0 -> retourne un vecteur unitaire random (voir `rand_vector2_ofNorm,`.)
 Vector2 vector2_normalize(Vector2 v);
-Vector2 vector2_minus(Vector2 v, Vector2 toSubtract);
-Vector2 vector2_add(Vector2 v, Vector2 toAdd);
-Vector2 vector2_mean(Vector2 a, Vector2 b);
-Vector2 vector2_opposite(Vector2 v);
-// Il y a 4 sortes de produits avec les vecteurs :
-//  - avec scalaire : _times ;
-//  - membre à membre : _product ;
-//  - produit scalaire : _dot ;
-//  - produit vectoriel : _cross.
-Vector2 vector2_times(Vector2 v, float f);
-/// Produit vectoriel avec vec k (i.e. Rotation de 90deg dans le sens horaire).
-Vector2 vector2_cross(Vector2 v);
-/// Produit scalaire.
-float   vector2_dot(Vector2 v1, Vector2 v2);
-/// Produit membre à membre.
-Vector2 vector2_product(Vector2 v1, Vector2 v2);
-
-Vector2 vector2_polarToCartesian(Vector2 v);
-Vector2 vector2_cartesianToPolar(Vector2 v);
-
 /// Pour l'affichage en debug.
 const char* vector2_toString(Vector2 const v); 
 
-
 #pragma mark - Paire de unsigned  --------------------------------------
-
 /// Paire de unsigned.
 typedef struct UintPair {
   uint32_t uint0, uint1;
 } UintPair;
 
-
 #pragma mark - Rectangle -----------------------------------------------
-
 /// Structure "Rectangle" pour les zone de NSView, view SDL, etc.
 /// L'origine peut être le coin *supérieur* gauche (y inversé)
 /// OU le coin *inférieur* gauche  (y normal) dépendant de l'OS/environnement...
@@ -108,9 +111,7 @@ typedef union {
   };
 } RectangleUint;
 
-
 #pragma mark - Box (hitbox) --------------------------------------------
-
 /// Similaire à "Rectangle", mais avec le centre du rectangle et les *demis*
 /// largeurs/hauteurs. (plus pratique pour savoir si à l'intérieur... Box peut
 /// etre caster comme Rectangle et vice-versa, ça reste des arrays de 4
@@ -126,9 +127,7 @@ typedef union {
   };
 } Box;
 
-
 #pragma mark - Marges (autour d une view) ------------------------------
-
 /// Marges en pixels.
 typedef struct {
   double top;
@@ -137,9 +136,7 @@ typedef struct {
   double right;
 } Margins;
 
-
 #pragma mark - Vector3 -------------------------------------------------
-
 typedef union {
   float f_arr[3];
   struct {
@@ -152,15 +149,13 @@ typedef union {
 extern const Vector3 vector3_ones;
 extern const Vector3 vector3_zeros;
 
-// Operations usuelles (similaire à celles de simd...)
-Vector3 vector3_normalize(Vector3 v);
-Vector3 vector3_minus(Vector3 v, Vector3 toSubtract);
-Vector3 vector3_add(Vector3 v, Vector3 toAdd);
-Vector3 vector3_cross(Vector3 v1, Vector3 v2);
-float   vector3_dot(Vector3 v1, Vector3 v2);
-/// Produit membre à membre
-Vector3 vector3_product(Vector3 v1, Vector3 v2);
+static inline Vector3 vector3_minus(Vector3 v, Vector3 toSubtract);
+static inline Vector3 vector3_add(Vector3 v, Vector3 toAdd);
+static inline Vector3 vector3_cross(Vector3 v1, Vector3 v2);
+static inline float   vector3_dot(Vector3 v1, Vector3 v2);
+static inline Vector3 vector3_product(Vector3 v1, Vector3 v2);
 
+Vector3 vector3_normalize(Vector3 v);
 /// Pour l'affichage, retourne un shared `const char*` (ne peut donc qu'afficher un vecteur à la fois).
 const char* vector3_toString(Vector3 v);
 
@@ -172,7 +167,7 @@ typedef union {
   float f_arr[4];
   /// En tant qu'objet `__attribute__((vector_size(16)))` float,
   /// i.e. sorte de "super" float où on peut faire les operation arithmetiques
-  /// sur 4 floats en même temps, e.g. v3 = v1 + v2;
+  /// sur 4 floats en même temps, e.g. v3.v = v1.v + v2.v;
   /// (L'optimisation fait en sorte d'utiliser le SIMD du processeur.)
   float __attribute__((vector_size(16))) v;
   //    simd_float4    v;
@@ -218,7 +213,7 @@ void matrix4_initAsLookAt(Matrix4 *m, Vector3 eye, Vector3 center, Vector3 up);
 void matrix4_initAsPerspective(Matrix4 *m, float theta, float ratio,
                                float nearZ, float farZ);
 void matrix4_initAsPerspectiveDeltas(Matrix4 *m, float nearZ, float farZ,
-                                     float middleZ, float twoDeltaX, float twoDeltaY);
+                                     float middleZ, float deltaX, float deltaY);
 /// Init typique pour la matrice de la root : Une projection ordinaire et un point de vue.
 /// M = P x V. (projection x view)
 void matrix4_initAsPerspectiveAndLookAt(Matrix4* m,
@@ -252,60 +247,69 @@ void matrix4_rotateYandTranslateYZ(Matrix4 *m, float thetaY, float ty,
 // Print
 void matrix4_print(const Matrix4 *m);
 
-#pragma mark-- Extensions de rand. -------------------------------*/
-
+#pragma mark-- Extensions de rand. -------------------------------
 /// Nombre aléatoire (distr. lin.) dans l'interval [min, max] inclusivement.
-float rand_floatIn(float min, float max);
+static inline float rand_floatIn(float min, float max);
 /// Nomber aléatoire (distr. lin.) dans l'interval [mean - delta, mean + delta]
 /// inclusivement.
-float rand_floatAt(float mean, float delta);
+static inline float rand_floatAt(float mean, float delta);
 /// Nombre aléatoire positif (distr. lin. discrete)
 /// dans l'interval [min, max] inclusivement, i.e. un dé.
-uint32_t rand_uint(uint32_t min, uint32_t max);
+static inline uint32_t rand_uint(uint32_t min, uint32_t max);
 /// Nombre aléatoire entier (distr. lin. discrete)
 /// dans l'interval [min, max] inclusivement.
-int32_t rand_int(int32_t min, int32_t max);
+static inline int32_t rand_int(int32_t min, int32_t max);
+/// Boolean random. Probabilite "p" d'etre true.
+static inline bool rand_bool(float p);
+/// Position random dans la "box" (region rectangulaire voir plus haut).
+static inline Vector2 rand_vector2_inBox(Box box);
+
 /// Melanger un array de uint
 void rand_uintarr_shuffle(uint32_t *u_arr, uint32_t count);
-/// Boolean random. Probabilite "p" d'etre true.
-bool rand_bool(float p);
 /// "Arrondie" un float en int en gardant la meme valeur moyenne,
 /// e.g.  5.75 -> 5 ou 6 avec P[5] = 25% et P[6] = 75%.
 int64_t rand_float_toInt(float f);
 /// Retourne un vecteur quelconque de rayon norm (de direction random).
 Vector2 rand_vector2_ofNorm(float norm);
-/// Position random dans la "box" (region rectangulaire voir plus haut).
-Vector2 rand_vector2_inBox(Box box);
 
-#pragma mark -- Extension de bool --
+
+#pragma mark -- Bool Extension --
 
 const char* bool_toString(bool b);
 
-#pragma mark-- Extensions de uint. -------------------------------*/
+#pragma mark-- Unsigned Extensions -----------------------------
+// max, min : En faire des define ?
+static inline uint32_t umaxu(uint32_t const a, uint32_t const b);
+static inline uint32_t uminu(uint32_t const a, uint32_t const b);
+/// Vérifie si `a` est entre min et max, i.e. équivalent de umaxu(min, uminu(max, a)). 
+static inline uint32_t uint_clamp(uint32_t const u, uint32_t const min, uint32_t const max);
+/// Cast away the const pour init un unsigned const.
+static inline void  uint_initConst(const uint32_t* const u, uint32_t const initValue);
+static inline void  size_initConst(const size_t* const s, size_t const initValue);
 
 uint32_t uint_highestDecimal(uint32_t u);
 uint32_t uint_digitAt(uint32_t u, uint32_t decimal);
-uint32_t umaxu(uint32_t a, uint32_t b);
-uint32_t uminu(uint32_t a, uint32_t b);
-/// Vérifie si `a` est entre min et max, i.e. équivalent de umaxu(min, uminu(max, a)). 
-uint32_t ubetweenu(uint32_t min, uint32_t a, uint32_t max);
+
 void uintarr_linspace(uint32_t *u_arr, uint32_t u_arr_count, uint32_t first,
                       uint32_t delta);
 void uintarr_print(const uint32_t *u_arr, uint32_t u_arr_count);
 
-/// Cast away the const pour init un float const.
-void  uint_initConst(const uint32_t* f, uint32_t initValue);
-void  size_initConst(const size_t* s, size_t initValue);
-
-
 #pragma mark - Extension de int
-
-int32_t imaxi(int32_t a, int32_t b);
+static inline int32_t imaxi(int32_t const a, int32_t const b);
 
 #pragma mark-- Extensions de float. -------------------------------*/
+/// Retourne une angle dans l'interval ]-pi, pi].
+static inline float float_toNormalizedAngle(float const f);
+/// Fonction exponentielle decroissante avec pente de zéro au début, i.e. cas
+/// particulier de l'amortissementd critique. lambda * (x + 1/lambda) *
+/// exp(-lambda*x).
+/// (A priori valide pour x >= 0)
+static inline float float_smoothOut(float const x, float const lambda);
+/// Cast away the const pour init un float const.
+static inline void  float_initConst(float const*const f, float const initValue);
+/// Vérifie si `a` est entre min et max, i.e. équivalent de fmaxf(min, fminf(max, a)). 
+static inline float float_clamp(float const a, float const min, float max);
 
-/// Retourne une angle dans l'interval [-pi, pi].
-float float_toNormalizedAngle(float f);
 /** Retourne la plus grosse "subdivision" pour le nombre présent en base 10.
  * Le premier chiffre peut être : 1, 2 ou 5. Utile pour les axes de graphiques.
  * e.g.: 792 -> 500, 192 -> 100, 385 -> 200. */
@@ -313,21 +317,11 @@ float float_toRoundedSubDiv(float f);
 /// Fonction droite "coupé", "en S", i.e.    __/
 ///                                         /
 float float_truncated(float f, float delta);
-
 /// Variante de fonction sigma. ____/‾‾‾‾
 /// Commance à x0 et fini à x0 + deltaX.
 float float_appearing(float x, float x0, float deltaX);
 
-/// Fonction exponentielle decroissante avec pente de zéro au début, i.e. cas
-/// particulier de l'amortissementd critique. lambda * (x + 1/lambda) *
-/// exp(-lambda*x).
-/// (A priori valide pour x >= 0)
-float float_smoothOut(float x, float lambda);
-
-/// Cast away the const pour init un float const.
-void  float_initConst(const float* f, float initValue);
-
-/// Vérifie si `a` est entre min et max, i.e. équivalent de fmaxf(min, fminf(max, a)). 
-float fbetweenf(float min, float a, float max);
+// Définitions des inlines
+#include "math_base.inl"
 
 #endif /* maths_h */

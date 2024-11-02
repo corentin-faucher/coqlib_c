@@ -11,36 +11,33 @@
 #include "../utils/util_base.h"
 #include "../graphs/graph_colors.h"
 
-void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
-                       uint32_t iconPngId, uint32_t iconTile) {
-    Node* nd = node_last_nonDrawable;
-    if(nd == NULL) {
-        printerror("No last node."); return;
-    }
-    float height = nd->h;
-    Drawable* d = Drawable_createImage(nd, diskPngId, 0, 0, height, 0);
-    drawable_setTile(d, diskTile, 0);
-    d->n._iu.extra1 = 0.1f;
-    d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
-    drawable_setTile(d, iconTile, 0);
-}
-void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile) {
-    Node* nd = node_last_nonDrawable;
-    if(nd == NULL) { printerror("No last node."); return; }
-    float height = nd->h;
-    Drawable* d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
-    drawable_setTile(d, iconTile, 0);
-    d->n._iu.extra1 = 0.1f;
-}
-void node_last_addIconLanguage(uint32_t pngId) {
-    Node* nd = node_last_nonDrawable;
-    if(nd == NULL) {
-        printerror("No last node."); return;
-    }
-    float height = nd->h;
-    Drawable* d = Drawable_createImageLanguage(nd, pngId, 0, 0, height, 0);
-    d->n._iu.extra1 = 0.1f;
-}
+//#warning Superflu... A faire pour un projet particulier...
+//void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
+//                       uint32_t iconPngId, uint32_t iconTile) {
+//    Node* const nd = Node_last;
+//    if(nd == NULL) { printerror("No last node."); return; }
+//    float height = nd->h;
+//    Drawable* d = Drawable_createImage(nd, diskPngId, 0, 0, height, 0);
+//    drawable_setTile(d, diskTile, 0);
+//    d->n._iu.extra1 = 0.1f;
+//    d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
+//    drawable_setTile(d, iconTile, 0);
+//}
+//void node_last_addIconSingle(uint32_t iconPngId, uint32_t iconTile) {
+//    Node* const nd = Node_last;
+//    if(nd == NULL) { printerror("No last node."); return; }
+//    float height = nd->h;
+//    Drawable* d = Drawable_createImage(nd, iconPngId, 0.f, 0.f, height, 0);
+//    drawable_setTile(d, iconTile, 0);
+//    d->n._iu.extra1 = 0.1f;
+//}
+//void node_last_addIconLanguage(uint32_t pngId) {
+//    Node* const nd = Node_last;
+//    if(nd == NULL) { printerror("No last node."); return; }
+//    float height = nd->h;
+//    Drawable* d = Drawable_createImageLanguage(nd, pngId, 0, 0, height, 0);
+//    d->n._iu.extra1 = 0.1f;
+//}
 
 /// Text noir par défaut.
 Vector4 text_color;
@@ -66,7 +63,7 @@ const FramedStringParams framedString_defPars = {
 /// Ajoute un frame et string (string encadrée) au noeud.
 /// Voir `FramedStringParams` pour les options.
 /// Retourne le drawable string créé.
-NodeString* node_addFramedString(Node* n, uint32_t framePngId, StringGlyphedInit str,
+NodeString* node_addFramedString(Node* n, uint32_t framePngId, NodeStringInit str,
                           FramedStringParams params) {
     float strH;
     float delta;
@@ -87,7 +84,7 @@ NodeString* node_addFramedString(Node* n, uint32_t framePngId, StringGlyphedInit
                  params.updateParentSizes ? frame_option_giveSizesToParent : 0);
     return NodeString_create(n, str, 0, 0, strW, strH, flag_giveSizeToBigbroFrame, 0);
 }
-void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringGlyphedInit* str_arr, uint32_t str_count,
+void Node_createFramedMultiString(Node* parent, uint32_t framePngId, NodeStringInit* str_arr, uint32_t str_count,
                                   float x, float y, float twoDxOpt, float strHeight,
                                   FramedStringParams params) {
     float delta = params.frame_ratio * strHeight;
@@ -95,11 +92,9 @@ void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringGlyph
     if(!params.frame_isSpilling && strW) {
         strW = fmaxf(0.f, strW - 2.f*delta*(1.f - params.frame_inside));
     }
-    Node* n = coq_callocTyped(Node);
-    node_init(n, parent, x, y, 1, 1, 0, 0, 0);
+    Node* n = Node_create(parent, x, y, 1, 1, 0, 0);
     Frame_create(n, params.frame_inside, delta, 0, 0, Texture_sharedImage(framePngId), frame_option_giveSizesToParent);
-    Node* strsRoot = coq_callocTyped(Node);
-    node_init(strsRoot, n, 0, 0, 1, 1, 0, flag_giveSizeToBigbroFrame, 0);
+    Node* strsRoot = Node_create(n, 0, 0, 1, 1, flag_giveSizeToBigbroFrame, 0);
     for(uint32_t i = 0; i < str_count; i ++) {
         NodeString_create(strsRoot, str_arr[i], 0, 0, strW, strHeight, 0, 0);
     }
@@ -108,9 +103,9 @@ void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringGlyph
 
 /// Ajoute au dernier noeud créé une frame et string.
 /// On donc last->{..., frame, string}. Voir `node_addFramedString`.
-void node_last_addFramedString(uint32_t framePngId, StringGlyphedInit str,
+void node_last_addFramedString(uint32_t framePngId, NodeStringInit str,
                                FramedStringParams params) {
-    Node* nd = node_last_nonDrawable;
+    Node* const nd = Node_last;
     if(nd == NULL) {
         printerror("No last node."); return;
     }

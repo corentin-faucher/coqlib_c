@@ -13,12 +13,13 @@
 #include "../utils/util_base.h"
 #include <string.h>
 
-
+#pragma mark - Button ------
 void   button_default_action_(Button* b) {
     printwarning("Button %p action not overrided.", b);
 }
 static Button* button_last_ = NULL;
-void    button_init_(Button* b, void (*action)(Button*)) {
+void    button_init(Button* b, void (*action)(Button*)) {
+    b->n._type |= node_type_flag_button;
     if(action)
         b->action = action;
     else {
@@ -31,9 +32,9 @@ void    button_init_(Button* b, void (*action)(Button*)) {
 Button* Button_create(Node* refOpt, void (*action)(Button*),
                                   float x, float y, float height, float lambda, flag_t flags) {
     Button* b = coq_callocTyped(Button);
-    node_init(&b->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
-    fluid_init_(&b->f, lambda);
-    button_init_(b, action);
+    node_init(&b->n, refOpt, x, y, height, height, flags, 0);
+    fluid_init(&b->f, lambda);
+    button_init(b, action);
     return b;
 }
 Button* node_asActiveButtonOpt(Node* n) {
@@ -50,10 +51,10 @@ Button* node_asButtonOpt(Node* n) {
 //    if(!button_last_) { printerror("No last button."); return; }
 //    button_last_->data = data;
 //}
-void    button_last_setDataUint0(uint32_t data_uint0) {
-    if(!button_last_) { printerror("No last button."); return; }
-    button_last_->n.uint0 = data_uint0;
-}
+//void    button_last_setDataUint0(uint32_t data_uint0) {
+//    if(!button_last_) { printerror("No last button."); return; }
+//    button_last_->n._iu.nodraw_uint0 = data_uint0;
+//}
 //void    button_last_overrideAction(void (*newAction)(Button*)) {
 //    if(!button_last_) { printerror("No last button."); return; }
 //    button_last_->action = newAction;
@@ -62,13 +63,15 @@ Button* const Button_getLastOpt(void) {
     return button_last_;
 }
 
+
+#pragma mark - Switch ON/OFF ---------
 enum {
     button_switch_flag_isOn =     0x01,
     button_switch_flag_didDrag =  0x02,
     button_switch_flag_inverted = 0x04,
 };
 void button_switch_grab_(Button* b, Vector2 pos_init) {
-    b->n.uint3 &= ~ button_switch_flag_didDrag;
+    b->n._iu._nodraw_uint7 &= ~ button_switch_flag_didDrag;
 }
 /** Déplacement en cours du "nub", aura besoin de letGoNub.
 * newX doit être dans le ref. du SwitchButton.
@@ -80,17 +83,17 @@ void button_switch_drag_(Button* b, Vector2 pos_rel) {
     // 1. Ajustement de la position du nub.
     fluid_setX(nub, fminf(fmaxf(pos_rel.x, -0.375), 0.375), false);
     // 2. Vérif si changement
-    bool oldIsOn = (b->n.uint3 & button_switch_flag_isOn) != 0;
+    bool oldIsOn = (b->n._iu._nodraw_uint7 & button_switch_flag_isOn) != 0;
     bool newIsOn = pos_rel.x >= 0;
     if(oldIsOn != newIsOn) {
         if(newIsOn)
-            b->n.uint3 |= button_switch_flag_isOn;
+            b->n._iu._nodraw_uint7 |= button_switch_flag_isOn;
         else
-            b->n.uint3 &= ~ button_switch_flag_isOn;
-        back->n._iu.color = newIsOn ? color4_green_electric : color4_red_vermilion;
+            b->n._iu._nodraw_uint7 &= ~ button_switch_flag_isOn;
+        back->n._iu.draw_color = newIsOn ? color4_green_electric : color4_red_vermilion;
         b->action(b);
     }
-    b->n.uint3 |= button_switch_flag_didDrag;
+    b->n._iu._nodraw_uint7 |= button_switch_flag_didDrag;
 }
 void button_switch_letGo_(Button* b) {
     Fluid* nub = node_asFluidOpt(b->n._lastChild);
@@ -98,59 +101,61 @@ void button_switch_letGo_(Button* b) {
     if(!nub || !back) { printerror("Switch without nub or back."); return; }
     // Pas dragé ? suppose simple touche pour permuter
     bool isOn;
-    if(!(b->n.uint3 & button_switch_flag_didDrag)) {
-        isOn = !(b->n.uint3 & button_switch_flag_isOn);
+    if(!(b->n._iu._nodraw_uint7 & button_switch_flag_didDrag)) {
+        isOn = !(b->n._iu._nodraw_uint7 & button_switch_flag_isOn);
         if(isOn)
-            b->n.uint3 |= button_switch_flag_isOn;
+            b->n._iu._nodraw_uint7 |= button_switch_flag_isOn;
         else
-            b->n.uint3 &= ~ button_switch_flag_isOn;
-        back->n._iu.color = isOn ? color4_green_electric : color4_red_vermilion;
+            b->n._iu._nodraw_uint7 &= ~ button_switch_flag_isOn;
+        back->n._iu.draw_color = isOn ? color4_green_electric : color4_red_vermilion;
         b->action(b);
     } else {
-        isOn = b->n.uint3 & button_switch_flag_isOn;
+        isOn = b->n._iu._nodraw_uint7 & button_switch_flag_isOn;
     }
     fluid_setX(nub, isOn ? 0.375 : -0.375, false);
 }
 Button* Button_createSwitch(Node* refOpt, void (*action)(Button*), bool isOn,
                             float x, float y, float height, float lambda, flag_t flags) {
     Button* b = coq_callocTyped(Button);
-    node_init(&b->n, refOpt, x, y, 2, 1, node_type_nf_button, flags, 0);
+    node_init(&b->n, refOpt, x, y, 2, 1, flags, 0);
     b->n.sx = height;
     b->n.sy = height;
-    fluid_init_(&b->f, lambda);
-    button_init_(b, action);
+    fluid_init(&b->f, lambda);
+    button_init(b, action);
     // Init as switch
-    b->n.uint3 = isOn ? 1 : 0;
+    b->n._iu._nodraw_uint7 = isOn ? 1 : 0;
     // La switch est un bouton "draggable"...
     b->grabOpt = button_switch_grab_;
     b->dragOpt = button_switch_drag_;
     b->letGoOpt = button_switch_letGo_;
     // Structure de switch
     Drawable* back = Drawable_createImageWithName(&b->n, "coqlib_switch_back", 0, 0, 1, 0);
-    back->n._iu.color = isOn ? color4_green_electric : color4_red_vermilion;
+    back->n._iu.draw_color = isOn ? color4_green_electric : color4_red_vermilion;
     Fluid* nub = Fluid_create(&b->n, isOn ? 0.375 : -0.375, 0, 1, 1, 10, 0, 0);
     Drawable_createImageWithName(&nub->n, "coqlib_switch_front", 0, 0, 1, 0);
     
     return b;
 }
-void button_switch_fix(Button* b, bool isOn) {
+void button_switch_set(Button* b, bool isOn) {
     Drawable* back = node_asDrawableOpt(b->n._firstChild);
     if(!back) { printerror("Switch without back."); return; }
     if(isOn)
-        b->n.uint3 |= button_switch_flag_isOn;
+        b->n._iu._nodraw_uint7 |= button_switch_flag_isOn;
     else
-        b->n.uint3 &= ~ button_switch_flag_isOn;
-    back->n._iu.color = isOn ? color4_green_electric : color4_red_vermilion;
+        b->n._iu._nodraw_uint7 &= ~ button_switch_flag_isOn;
+    back->n._iu.draw_color = isOn ? color4_green_electric : color4_red_vermilion;
 }
-
+bool    button_switch_value(Button* b) {
+    return b->n._iu._nodraw_uint7 & button_switch_flag_isOn;
+}
 Button* Button_createDummySwitch(Node* refOpt, void (*action)(Button*), uint32_t data,
                                  float x, float y, float height, float lambda, flag_t flags) {
     Button* b = coq_callocTyped(Button);
-    node_init(&b->n, refOpt, x, y, 2, 1, node_type_nf_button, flags, 0);
+    node_init(&b->n, refOpt, x, y, 2, 1, flags, 0);
     b->n.sx = height;
     b->n.sy = height;
-    fluid_init_(&b->f, lambda);
-    button_init_(b, action);
+    fluid_init(&b->f, lambda);
+    button_init(b, action);
     
     // Structure de switch
     Drawable_createImageWithName(&b->n, "coqlib_switch_back", 0, 0, 1, 0);
@@ -161,6 +166,7 @@ Button* Button_createDummySwitch(Node* refOpt, void (*action)(Button*), uint32_t
     return b;
 }
 
+#pragma mark - Slider ------------------
 void button_slider_grab_(Button* b, Vector2 pos_init) {
     // pass
 }
@@ -171,7 +177,7 @@ void button_slider_drag_(Button* b, Vector2 pos_rel) {
     float nub_x = fminf(fmaxf(pos_rel.x, -half_w), half_w);
     float value = 0.5f*(nub_x / half_w + 1.f);
     fluid_setX(nub, nub_x, false);
-    b->n.float3 = value;
+    b->n._iu._nodraw_float7 = value;
     // b->action(b); // Non, en fait c'est juste au let go a priori.
     // Si on veut vraiment en peut redéfinir aussi le drag.
 }
@@ -186,15 +192,15 @@ Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
     float slide_width = width - height;
     // Init node, fluid, button
     Button* b = coq_callocTyped(Button);
-    node_init(&b->n, refOpt, x, y, width, height, node_type_nf_button, flags, 0);
-    fluid_init_(&b->f, lambda);
-    button_init_(b, action);
+    node_init(&b->n, refOpt, x, y, width, height, flags, 0);
+    fluid_init(&b->f, lambda);
+    button_init(b, action);
     // Init as slider
     b->grabOpt = button_slider_grab_;
     b->dragOpt = button_slider_drag_;
     b->letGoOpt = button_slider_letGo_;
     value = fminf(fmaxf(value, 0.f), 1.f);
-    b->n.float3 = value;
+    b->n._iu._nodraw_float7 = value;
     // Structure
     Frame_create(&b->n, 0, 0.25*height, slide_width, height,
                  Texture_sharedImageByName("coqlib_bar_in"), frame_option_horizotalBar);
@@ -204,9 +210,11 @@ Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
     
     return b;
 }
+float   button_slider_value(Button* b) {
+    return b->n._iu._nodraw_float7;
+}
 
 #pragma mark - Secure/Hoverable button
-
 // As Hoverable... (Nom du bouton qui apparaaît)
 void buttonhov_showPopMessage_callback_(void* hvIn) {
     ButtonSecureHov_* hv = (ButtonSecureHov_*)hvIn;
@@ -223,7 +231,6 @@ void buttonhov_stopHovering_(Button* b) {
 }
 
 // As secure (hold to activate)
-
 void buttonsecure_action_callback_(void* bsIn) {
     ButtonSecureHov_* bt = (ButtonSecureHov_*)bsIn;
     popingnoderef_cancel(&bt->poping);
@@ -234,8 +241,8 @@ void buttonsecure_grab_(Button* sel, Vector2 pos) {
     ButtonSecureHov_* bt = (ButtonSecureHov_*)sel;
     bt->didActivate = false;
     popingnoderef_cancel(&bt->poping);
-    PopDisk_spawnAndOpen(&bt->n, &bt->poping, bt->spi.popPngId, bt->spi.popTile,
-                  bt->spi.holdTimeSec, 0, 0, bt->n.h);
+    PopDisk_spawnOverAndOpen(&bt->n, &bt->poping, bt->spi.popPngId, bt->spi.popTile, bt->spi.holdTimeSec,
+                             0, 0, 1);
     timer_scheduled(&bt->timer, (int64_t)(bt->spi.holdTimeSec * 1000.f), false,
                     &bt->n, buttonsecure_action_callback_);
 }
@@ -255,13 +262,14 @@ void buttonsecurehov_deinit_(Node* n) {
     timer_cancel(&((ButtonSecureHov_*)n)->timer);
 }
 Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
-                SecurePopInfo const spi, uint32_t popFramePngId, StringGlyphedInit const popMessage,
+                SecurePopInfo const spi, uint32_t popFramePngId, NodeStringInit const popMessage,
                 float x, float y, float height, float lambda, flag_t flags) {
     ButtonSecureHov_ *sec = coq_callocTyped(ButtonSecureHov_);
-    node_init(&sec->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
-    fluid_init_(&sec->f, lambda);
-    button_init_(&sec->b, action);
+    node_init(&sec->n, refOpt, x, y, height, height, flags, 0);
+    fluid_init(&sec->f, lambda);
+    button_init(&sec->b, action);
     // Init des privates methods
+//    sec->n._type |= node_type_flag_secHov;
     sec->b.startHoveringOpt = buttonhov_startHovering_;
     sec->b.stopHoveringOpt =  buttonhov_stopHovering_;
     sec->b.grabOpt =          buttonsecure_grab_;
@@ -275,6 +283,7 @@ Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
     return &sec->b;
 }
 void buttonsecurehov_initJustSecure_(ButtonSecureHov_* bsh, SecurePopInfo spi) {
+//    bsh->n._type |= node_type_flag_secHov;
     bsh->b.grabOpt =          buttonsecure_grab_;
     bsh->b.dragOpt =          buttonsecure_drag_;
     bsh->b.letGoOpt =         buttonsecure_letGo_;
@@ -282,8 +291,9 @@ void buttonsecurehov_initJustSecure_(ButtonSecureHov_* bsh, SecurePopInfo spi) {
     bsh->spi =                spi;
 }
 void buttonsecurehov_initJustHoverable_(ButtonSecureHov_* bsh, uint32_t popFramePngId, 
-                                        StringGlyphedInit popMessage) 
+                                        NodeStringInit popMessage) 
 {
+//    bsh->n._type |= node_type_flag_secHov;
     bsh->b.startHoveringOpt = buttonhov_startHovering_;
     bsh->b.stopHoveringOpt =  buttonhov_stopHovering_;
     bsh->n.deinitOpt =        buttonsecurehov_deinit_;
@@ -295,9 +305,9 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
                             SecurePopInfo spi, float x, float y, float height, 
                             float lambda, flag_t flags) {
     ButtonSecureHov_ *sec = coq_callocTyped(ButtonSecureHov_);
-    node_init(&sec->n, refOpt, x, y, height, height, node_type_nf_button, flags, 0);
-    fluid_init_(&sec->f, lambda);
-    button_init_(&sec->b, action);
+    node_init(&sec->n, refOpt, x, y, height, height, flags, 0);
+    fluid_init(&sec->f, lambda);
+    button_init(&sec->b, action);
     
     buttonsecurehov_initJustSecure_(sec, spi);
     
@@ -305,21 +315,13 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
 }
 /// Juste hoverable (pop-over) pas de secure (hold to activate).
 Button* ButtonHoverable_create(Node* refOpt, void (*action)(Button*),
-                uint32_t popFramePngId, StringGlyphedInit popMessage,
+                uint32_t popFramePngId, NodeStringInit popMessage,
                 float x, float y, float height, float lambda, flag_t flags) {
     ButtonSecureHov_ *sec = coq_callocTyped(ButtonSecureHov_);
-    node_init(&sec->n, refOpt, x, y, height, height, node_type_nfb_secHov, flags, 0);
-    fluid_init_(&sec->f, lambda);
-    button_init_(&sec->b, action);
-    
+    node_init(&sec->n, refOpt, x, y, height, height, flags, 0);
+    fluid_init(&sec->f, lambda);
+    button_init(&sec->b, action);
     buttonsecurehov_initJustHoverable_(sec, popFramePngId, popMessage);
     
     return &sec->b;
 }
-//void buttonhoverable_last_setToPopInFrontView(void) {
-//    if(!button_last_) { printerror("No last button."); return; }
-//    if(!(button_last_->n._type & node_type_flag_secHov)) {
-//        printerror("Not a secure/hoverable button."); return;
-//    }
-//    ((ButtonSecureHov_*)button_last_)->popInFrontView = true;
-//}

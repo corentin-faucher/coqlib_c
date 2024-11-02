@@ -9,6 +9,7 @@
 #define COQ_UTIL_CHAR_AND_KEYCODES_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <stdbool.h>
 
 #define CHARACTER_MAX_SIZE 7
@@ -27,11 +28,11 @@ enum {
     character_type_greek,     // 1
     character_type_cyrillic,  // 2
     character_type_armenian,  // 3
-    
+
     character_type_arabic,    // 4
     character_type_korean,    // 5
     character_type_kana,      // 6
-    
+
     character_type__last_capitalizable_ = character_type_armenian,
 };
 
@@ -39,7 +40,7 @@ enum {
 extern const Character spchar_null; // = {0}
 extern const Character spchar_delete; // = "\u{8}"
 extern const Character spchar_deleteSymbol; // = "␈"
-extern const Character spchar_questionMark; // "?" 
+extern const Character spchar_questionMark; // "?"
 extern const Character spchar_tab; // = "\t"
 extern const Character spchar_tabSymbol; // = "␉"
 extern const Character spchar_return_; // = "\r"
@@ -52,12 +53,16 @@ extern const Character spchar_spaceIdeographic; // = "　"
 extern const Character spchar_spaceThin; // = "\u{2009}"
 extern const Character spchar_bottomBracket; // = "⎵"
 extern const Character spchar_underscore; // = "_"
-extern const Character spchar_overline;//  = "‾" 
+extern const Character spchar_overline;//  = "‾"
 extern const Character spchar_openBox; // = "␣"
 extern const Character spchar_interpunct; // = "·"
 extern const Character spchar_dot; // = "•"
 extern const Character spchar_butterfly; // = "🦋"
 extern const Character spchar_dodo; // = "🦤"
+extern const Character spchar_maru; // "◯"
+extern const Character spchar_batu; // "❌"
+extern const Character spchar_checkmark; // "✓" };
+extern const Character spchar_greenCheckmark; // "✅"
 
 // Pour le upper/lower, on ne fait que scanner la liste pour l'instant. (Besoin de hash map ?)
 Character const character_upperCased(Character c, unsigned character_type);
@@ -210,7 +215,7 @@ enum {
     modifier_control =   0x040000,
     modifier_option =    0x080000,
     modifier_command =   0x100000,
-    
+
     modifiers_optionShift = modifier_shift|modifier_option,
 };
 
@@ -221,8 +226,7 @@ enum {
     // 12...23 -> ligne de Q à ]
     // 24...34 -> ligne de A à '
     // 35...44 -> ligne de Z à /
-    // 45...51 -> ANSI_Grave, ISO_Section, JIS_Underscore, JIS_Yen, ANSI_Backslash, ISO_Backslash, Space.
-    // Touches usuelles (racourcis...) :
+    // Touches usuelles de racourcis clavier...
     mkc_Q = 12,
     mkc_W = 13,
     mkc_E = 14,
@@ -235,13 +239,21 @@ enum {
     mkc_X = 36,
     mkc_C = 37,
     mkc_V = 38,
+    // Internationals
+    mkc_ansi_grave = 45,
+    mkc_iso_section = 46,
+    mkc_jis_underscore = 47,
+    mkc_jis_yen = 48,
+    mkc_ansi_backslash = 49,
+    mkc_iso_backslash = 50,
+    // Espace
     mkc_space = 51,  // Dernier keycode "standard".
-    
+
     // Keycodes spéciaux ayant une string associable
     mkc_backspace = 52,
     mkc_return_ = 53,
     mkc_tab = 54,
-    
+
     // Keycodes de contrôle
     mkc_modifier_first = 60,
     mkc_capsLock = 60,
@@ -254,12 +266,13 @@ enum {
     mkc_rightOption = 67,
     mkc_rightCommand = 68,
     mkc_modifier_last = 68,
-    
+
     // Autre Keycodes Spéciaux
     mkc_escape = 70,
     mkc_jis_eisu = 71,
     mkc_jis_kana = 72,
-    
+    // mkc_app ? le "menu" dans windows...
+
     // Clavier numerique
     // 74~79  -> ".", enter, "+", "-", "*", "/".
     // 80~89  -> 0 à 9
@@ -267,15 +280,15 @@ enum {
     mkc_numpad_enter = 75,
     mkc_numpad_0 = 80, // 1, 2, 3,...
     mkc_numpad_9 = 89,
-    
+
     // Touches de directions
     mkc_arrowLeft =  90,
     mkc_arrowRight = 91,
     mkc_arrowDown =  92,
     mkc_arrowUp =    93,
     // Ajouter ? genre 94 à 97
-//    mkc_pageUp, mkc_pageDown, mkc_home, mkc_end,
-    
+//    mkc_pageUp, mkc_pageDown, mkc_home, mkc_end, mkc_delete,
+
     // Text input (virtual)
     mkc__text = 98,
     // Pour les "autres" non définie (e.g. fn, quelconque...)

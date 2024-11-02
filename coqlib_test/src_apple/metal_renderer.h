@@ -6,7 +6,6 @@
 //
 
 #import <MetalKit/MetalKit.h>
-#include "coq_graphs.h"
 #include "coq_nodes.h"
 
 #define EFFECTS_COUNT 100
@@ -33,8 +32,7 @@ typedef struct FinalFragmentUniforms {
     FinalFragmentUniforms fu;
     
     FluidPos         smDeltaT;     // Calcul du temps entre les frame.
-    Chrono           chronoDeltaT; 
-    Chrono           chrono;      // Temps écoulé (pour shader)
+    Chrono           chronoDeltaT;
 @public
     BOOL             noSleep;
 }

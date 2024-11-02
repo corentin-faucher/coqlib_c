@@ -10,10 +10,9 @@
 
 #include "graph_base.h"
 #include "../maths/math_chrono.h"
-#include "../utils/util_string.h"
-#include "../utils/util_char_and_keycode.h"
 
-#define TEXTURE_PNG_NAME_SIZE 32
+//#include "../utils/util_string.h"
+//#include "../utils/util_char_and_keycode.h"
 
 typedef struct Texture {
     uint32_t         m, n;  // Dimensions en "tuiles".
@@ -38,14 +37,6 @@ typedef struct Texture {
     };
 } Texture;
 
-// Infos à passer pour initialiser les images png.
-typedef struct {
-    char     name[TEXTURE_PNG_NAME_SIZE];
-    uint32_t m, n;
-    bool     nearest;
-    bool     isCoqlib;
-} PngInfo;
-
 #pragma mark - Texture Global
 
 // Texture par défaut (du blanc...), un peu comme la mesh par défaut (mesh_sprite, un carré)
@@ -53,7 +44,6 @@ extern Texture* Texture_white;
 // Textures du frame buffer (résultats de la première passe du renderer)
 extern Texture* Texture_frameBuffers[10];
 
-void            Texture_init(PngInfo const pngInfos[], const unsigned pngCount, bool loadCoqlibPngs);
 /// Mise en pause (libère les pixels des textures)
 void            Texture_suspend(void);
 /// Sortie de pause... ne fait pas grand chose...
@@ -63,7 +53,15 @@ void            Texture_resume(void);
 void            Texture_deinit(void);
 /// A faire de temps en temps pour dessiner pleinement les textures.
 void            Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp);
+/// Charger les textures du projet.
+void            Texture_loadProjectPngs(PngInfo const*const pngInfosOpt, const unsigned pngCount);
+/// (privé -> voir `CoqGraph_init...`)
+void            Texture_init_(bool loadCoqlibPngs);
 
+
+#pragma mark - Libérer une texture.
+/// Libérer (free) si n'est pas shared.
+void            textureref_releaseAndNull_(Texture** const texRef);
 
 #pragma mark - Texture de png --------
 Texture*        Texture_sharedImage(uint32_t const pngId);
@@ -83,6 +81,7 @@ RectangleUint  texture_pixelRegionFromUVrect(const Texture* tex, Rectangle UVrec
 /// Convertie les coord. pixels (dans [0, width/height]) en coord. UV (dans [0, 1])
 Rectangle      texture_UVrectFromPixelRegion(const Texture* tex, RectangleUint region);
 
+#pragma mark - Methode engine dependant... (Metal ou OpenGL)
 // Dépend de l'engine (Metal / OpenGL)...
 /// Copier un array de pixels dans la texture.
 void           texture_engine_writeAllPixels(Texture* tex, const void* pixelsBGRA8);
@@ -94,11 +93,6 @@ void           texture_engine_writeRegionToPixels(const Texture* tex, void* pixe
 void           texture_engine_copyRegionTo(const Texture* tex, Texture* texDest,
                                            RectangleUint srcRect, UintPair destOrig);
 
-#pragma mark - Libérer une texture.
-/// Libérer (free) si n'est pas shared.
-void            textureref_releaseAndNull_(Texture** const texRef);
-
-
 // Privé...
 #pragma mark - Privé, engine dependant methods (Implementer avec Metal ou OpenGL) --------------
 void           texture_engine_tryToLoadAsPng_(Texture* tex, bool isMini);
@@ -106,7 +100,6 @@ void           texture_engine_tryToLoadAsPng_(Texture* tex, bool isMini);
 /// Crée une texture OpenGL/Metal vide. 
 void           texture_engine_loadEmptyWithSize_(Texture* tex, size_t width, size_t height);
 
-                                  
 void           texture_engine_releaseAll_(Texture* tex);
 void           texture_engine_releasePartly_(Texture* tex);
 

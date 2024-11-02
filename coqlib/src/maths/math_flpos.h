@@ -10,20 +10,46 @@
 
 #include "math_base.h"
 
+// `Core` de FluidPos. 4 floats, i.e. `vecteur` simd de 128 bits.
+typedef union {
+    float __attribute__((vector_size(16))) v;
+    struct {
+        // Position vers où on tend (dernier set) ou "real" pos.
+        float    pos;
+        // Paramètres d'amplitude de la courbe (exponentielle typiquement)
+        // ~ écart par rapport à `pos` target.
+        float    A;
+        float    B;
+        uint32_t time; // Setting time (de `ChronoRender_elapsedMS`).
+    };
+} FluidPosCore_;
+
+// `Core` de FluidPos. 4 floats, i.e. `vecteur` simd de 128 bits.
+typedef union {
+    float __attribute__((vector_size(16))) v;
+    struct {
+        // Position par défaut (mémoire, editable)
+        float    def;
+        float    _lambda;
+        float    _beta;
+        uint32_t _flags;
+    };
+} FluidPosParams_;
+
 // N'est pas caché, sinon ne pourrait pas être placé dans d'autres structs.
-typedef struct _FluidPos {
-    // Position vers où on tend (dernier set) ou "real" pos.
-    float    _pos;
-    // Position par défaut (mémoire, editable)
-    float    def;
-    // Paramètres de la courbe (exponentielle typiquement)
-    float    _A;
-    float    _B;
-    float    _lambda;
-    float    _beta;
-    uint32_t _time;
-    uint32_t _flags;
-    // float* ref; Superflu ?? Si smoothpos est utilise en priorite.
+// De taile 256 bits / 8 floats / 2 `vecteurs`.
+typedef struct FluidPos {
+    FluidPosCore_ _c;
+    union {
+        FluidPosParams_ _p;
+        // Position par défaut (mémoire, editable)
+        struct {
+        float     def;
+        float    _lambda;
+        float    _beta;
+        uint32_t _flags;
+        };
+    };
 } FluidPos;
 
 void  fl_init(FluidPos *fl, float pos, float lambda, bool asAngle);
@@ -36,6 +62,7 @@ void  fl_updateToConstants(FluidPos *fl, float gamma, float k);
 /// Convenience de `fl_updateToConstants` ou `gamma = 2*lambda` et `k = lambda * lambda`.
 /// i.e. amortissement critique (pas de rebond).
 void  fl_updateToLambda(FluidPos *fl, float lambda);
+
 /// Setter "smooth" de FluidPos. La position va tendre vers `pos`.
 void  fl_set(FluidPos *fl, float pos);
 /// Setter "hard" de FluidPos. La position est fixée directement à `pos`.
@@ -52,7 +79,7 @@ void  fl_fadeInFromDef(FluidPos *fl, float delta);
 void  fl_fadeOut(FluidPos *fl, float delta);
 // Getters
 /// Position estimee
-float   fl_pos(const FluidPos *sp);
+float fl_evalPos(FluidPos const fp);
 /// Vrai derniere position entree
 float   fl_real(const FluidPos *sp);
 /// Si static -> n'est pas "fluid", reagit comme un float ordinaire.
@@ -73,12 +100,12 @@ Vector3 fl_array_toRealVec3(const FluidPos *sp);
 Vector4 fl_array_toVec4(const FluidPos *sp);
 
 typedef struct _FluidPosWithDrift {
-    FluidPos  fl;
+    FluidPos  fp;
     float     drift;
 } FluidPosWithDrift;
 
 void  fld_init(FluidPosWithDrift* fld, float pos, float lambda, bool asAngle);
 void  fld_set(FluidPosWithDrift* fld, float pos, float drift);
-float fld_pos(const FluidPosWithDrift* spd);
+float fld_evalPos(const FluidPosWithDrift fpd);
 
 #endif /* smpos_h */

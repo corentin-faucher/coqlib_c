@@ -21,7 +21,7 @@ enum {
     cg_d = 0x0008,
     cg_A = 0x0010,
     cg_B = 0x0020,
-    
+
 // Mathieu: Style diagonales avec petites "contraction"/"extensions" locales
 // ↖︎ ↗︎ ↘︎ ↙︎       ↘︎ ↙︎ ↖︎ ↗︎
 // ↙︎ ↘︎ ↗︎ ↖︎  <->  ↗︎ ↖︎ ↙︎ ↘︎  propagation / flickering
@@ -38,7 +38,7 @@ enum {
     cgm_states = 0x00F0,
 };
 
-#pragma mark - Méthodes d'une cellule 
+#pragma mark - Méthodes d'une cellule
 
 uint8_t   cel_evalCoq(uint8_t c, uint8_t left, uint8_t right, uint8_t down, uint8_t up) {
     // Propagation vers cette cellule...
@@ -76,7 +76,7 @@ uint8_t   cel_evalMathieu(uint8_t c, uint8_t ul, uint8_t ur, uint8_t dl, uint8_t
             new = cgm_ON;
         else if((ul & cgm_states) == cgm_ON && (ul & cgm_dirs) == cgm_dr)
             new = cgm_ON;
-    } 
+    }
     else if((c & cgm_states) == cgm_ON) {
         // ON -> go off ou collision -> deviennent "mur"
         if((c & cgm_dirs) == cgm_ur)
@@ -117,7 +117,7 @@ PixelBGRA cel_toPixelMathieu(uint8_t c) {
     if(c == cgm_dr)   return (PixelBGRA){0x1020FF20};
     if(c == cgm_dl)   return (PixelBGRA){0x10FF8020};
     if(c == cgm_ur)   return (PixelBGRA){0x102020FF};
-    
+
     return (PixelBGRA){0x80808080};
 }
 
@@ -132,10 +132,10 @@ typedef struct CelGrid {
     uint32_t const n;
     // Alternance entre grille 0 et 1 (lecture/écriture)
     bool      now01;
-    uint8_t   *cels0, *cels1; 
-    
+    uint8_t   *cels0, *cels1;
+
     bool      mathieu;
-    Timer*    timer;
+    Timer     timer;
     PixelBGRA pixels[1]; // Array des pixels pour l'affichage
 } CelGrid;
 
@@ -146,7 +146,7 @@ typedef struct CelGrid {
 // ↓ → ↓ →       → ↑ → ↑
 void   celgrid_setGridCoq(CelGrid* cg) {
     uint32_t const mn = cg->m*cg->n;
-    uint32_t const m = cg->m; uint32_t const n = cg->n; 
+    uint32_t const m = cg->m; uint32_t const n = cg->n;
     if(mn == 0) { printerror("Empty grid."); return; }
     // Boucle sur les cellules pour init.
     uint8_t            (*line)[m] = (uint8_t(*)[m])&cg->cels0[0];
@@ -242,7 +242,7 @@ void   celgrid_updateMathieu(CelGrid* cg) {
     uint8_t const        (*lineNext)[m] = line_beg + 1;
     uint8_t const        (*linePrev)[m] = line_beg + (n - 1); // On considère que ça loop.
     uint8_t               (*lineOut)[m] = (uint8_t(*)[m])(cg->now01 ? &cg->cels0[0]   : &cg->cels1[0]);
-    int j = 0;
+    // int j = 0;
     while(line < line_end) {
         uint8_t const *cel = (uint8_t*)line;
         uint8_t *celOut = (uint8_t*)lineOut;
@@ -251,22 +251,22 @@ void   celgrid_updateMathieu(CelGrid* cg) {
         uint8_t const *celUL = (uint8_t*)lineNext + (m - 1); // (loop)
         uint8_t const *celDR = (uint8_t*)linePrev + 1;
         uint8_t const *celDL = (uint8_t*)linePrev + (m - 1);
-        int i = 0;
+        // int i = 0;
         while(cel < cel_end) {
             *celOut = cel_evalMathieu(*cel, *celUL, *celUR, *celDL, *celDR);
             cel++; celOut++;
             celUL = celUR - 1;
-            celUR++;  
+            celUR++;
             celDL = celDR - 1;
             celDR++;
-            i++;
+            // i++;
             if(celUR >= (uint8_t*)lineNext + m) celUR = (uint8_t*)lineNext;
             if(celDR >= (uint8_t*)linePrev + m) celDR = (uint8_t*)linePrev;
         }
         linePrev = line;
         line ++; lineOut ++;
         lineNext = line + 1;
-        j ++;
+        // j ++;
         if(lineNext >= line_end) lineNext = line_beg; // (loop)
     }
     // Swap !
@@ -275,10 +275,10 @@ void   celgrid_updateMathieu(CelGrid* cg) {
 
 // Méthodes diverses de celgrid...
 void celgrid_drawPixels_(CelGrid* const cg) {
-    PixelBGRA (*cel_toPixel)(uint8_t) = cg->mathieu ? cel_toPixelMathieu : cel_toPixelCoq;  
+    PixelBGRA (*cel_toPixel)(uint8_t) = cg->mathieu ? cel_toPixelMathieu : cel_toPixelCoq;
     uint32_t const mn = cg->m * cg->n;
     uint8_t const *       cel     = cg->now01 ?  cg->cels1     :  cg->cels0;
-    uint8_t const * const cel_end = cg->now01 ? &cg->cels1[mn] : &cg->cels0[mn]; 
+    uint8_t const * const cel_end = cg->now01 ? &cg->cels1[mn] : &cg->cels0[mn];
     PixelBGRA* pixel = cg->pixels;
     while(cel < cel_end) {
         *pixel = cel_toPixel(*cel);
@@ -287,7 +287,7 @@ void celgrid_drawPixels_(CelGrid* const cg) {
 }
 void celgrid_callback_(void* cgIn) {
     CelGrid* cg = (CelGrid*)cgIn;
-    if(cg->mathieu) celgrid_updateMathieu(cg); 
+    if(cg->mathieu) celgrid_updateMathieu(cg);
     else celgrid_updateCoq(cg);
     celgrid_drawPixels_(cg);
     texture_engine_writeAllPixels(cg->d._tex, cg->pixels);
@@ -310,8 +310,8 @@ CelGrid* CelGrid_create(Node* parent, float x, float y, float height, uint32_t m
     if(count == 0) { printerror("No cells."); return NULL; }
     CelGrid* cg = coq_callocArray(CelGrid, PixelBGRA, count);
     // Super inits...
-    node_init(&cg->node, parent, x, y, height, height, node_type_n_drawable, 0, 0);
-    drawable_init(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), mesh_sprite, 0, height);
+    node_init(&cg->node, parent, x, y, height, height, 0, 0);
+    drawable_init(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), &mesh_sprite, 0, height);
     // Init as CelGrid
     cg->node.openOpt =   celgrid_open_;
     cg->node.closeOpt =  celgrid_close_;
@@ -322,6 +322,6 @@ CelGrid* CelGrid_create(Node* parent, float x, float y, float height, uint32_t m
     cg->cels0 = coq_calloc(m*n, sizeof(uint8_t));
     cg->cels1 = coq_calloc(m*n, sizeof(uint8_t));
     if(mathieu) celgrid_setGridMathieu(cg); else celgrid_setGridCoq(cg);
-    
+
     return cg;
 }
