@@ -9,7 +9,6 @@
 
 #include "node_tree.h"
 #include "../utils/util_base.h"
-#include "../graphs/graph_colors.h"
 
 //#warning Superflu... A faire pour un projet particulier...
 //void node_last_addIcon(uint32_t diskPngId, uint32_t diskTile,
@@ -39,25 +38,12 @@
 //    d->n._iu.extra1 = 0.1f;
 //}
 
-/// Text noir par défaut.
-Vector4 text_color;
-/// Largeur du cadre, e.g. 0.2 -> 0.2*h.
-float   frame_ratio;
-/// inside == 0 -> le cadre est à l'extérieur des lettres.
-float   frame_inside;
-/// Marge en x (0.5*h).
-float   x_margin;
-/// Pas de spilling -> Le frame est dans les dimension a priori.
-/// Si spilling -> le frame fait grossing les dimension a priori.
-bool    frame_isSpilling;
-/// On met à jours les dimension du parent.
-bool    updateParentSizes;
 
 const FramedStringParams framedString_defPars = {
-    0.2f,  // Largeur du cadre (0.2*h).
-    0.0f,   // inside == 0 -> le cadre est à l'extérieur des lettres.
-    false, // Pas de spiling -> Le frame est dans les dimension a priori.
-    true,  // On met à jours les dimension du parent.
+    .frame_ratio = 0.2f,  // Largeur du cadre (0.2*h).
+    .frame_inside = 0.0f,   // inside == 0 -> le cadre est à l'extérieur des lettres.
+    .frame_isSpilling = false, // Pas de spiling -> Le frame est dans les dimension a priori.
+    .updateParentSizes = true,  // On met à jours les dimension du parent.
 };
 
 /// Ajoute un frame et string (string encadrée) au noeud.

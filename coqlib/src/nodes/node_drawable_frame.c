@@ -6,7 +6,6 @@
 //
 
 #include "node_drawable.h"
-#include "node_fluid.h"
 #include "../utils/util_base.h"
 
 /*-- Surface de "Bar". Un segment de taille ajustable. Version 1D de "Frame". --------------*/
@@ -20,12 +19,13 @@ void   bar_update_(Frame* bar, Vector2 deltas) {
     bar->n.sx = 2.f*actualDx;
     bar->n.sy = 2.f*delta;
     float xPos = 0.5f * smallDeltaX / actualDx;
-    Vertex* vertices = mesh_engine_retainVertices(bar->d._mesh);
+    Vertex* vertices = mesh_retainVerticesOpt(bar->d._mesh);
+    if(!vertices) { printerror("No vertices for bar."); return; }
     vertices[2].pos.x = -xPos;
     vertices[3].pos.x = -xPos;
     vertices[4].pos.x =  xPos;
     vertices[5].pos.x =  xPos;
-    mesh_engine_releaseVertices(bar->d._mesh);
+    mesh_releaseVertices(bar->d._mesh, 0);
 }
 void   vbar_update_(Frame* vbar, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, vbar->inside));
@@ -37,12 +37,13 @@ void   vbar_update_(Frame* vbar, Vector2 deltas) {
     vbar->n.sx = 2.f*delta;
     vbar->n.sy = 2.f*actualDy;
     float yPos = 0.5f * smallDeltaY / actualDy;
-    Vertex* vertices = mesh_engine_retainVertices(vbar->d._mesh);
+    Vertex* vertices = mesh_retainVerticesOpt(vbar->d._mesh);
+    if(!vertices) { printerror("No vertices for vbar."); return; }
     vertices[2].pos.y =  yPos;
     vertices[3].pos.y =  yPos;
     vertices[4].pos.y = -yPos;
     vertices[5].pos.y = -yPos;
-    mesh_engine_releaseVertices(vbar->d._mesh);
+    mesh_releaseVertices(vbar->d._mesh, 0);
 }
 void   frame_update_(Frame* frame, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, frame->inside));
@@ -55,7 +56,8 @@ void   frame_update_(Frame* frame, Vector2 deltas) {
     frame->n.h = 1.f;
     frame->n.sx = 2.f*actualDx;
     frame->n.sy = 2.f*actualDy;
-    Vertex* vertices = mesh_engine_retainVertices(frame->d._mesh);
+    Vertex* vertices = mesh_retainVerticesOpt(frame->d._mesh);
+    if(!vertices) { printerror("No vertices for frame."); return; }
     float xPos = 0.5f * smallDeltaX / (smallDeltaX + delta);
     vertices[4].pos.x = -xPos;
     vertices[5].pos.x = -xPos;
@@ -74,8 +76,8 @@ void   frame_update_(Frame* frame, Vector2 deltas) {
     vertices[6].pos.y =  -yPos;
     vertices[10].pos.y = -yPos;
     vertices[14].pos.y = -yPos;
-    mesh_engine_releaseVertices(frame->d._mesh);
-    
+    mesh_releaseVertices(frame->d._mesh, 0);
+
     if(!(frame->n.flags & flag_giveSizeToParent)) return;
     Node* parent = frame->n._parent;
     if(parent == NULL) return;
@@ -93,10 +95,10 @@ void   frame_open_getSizesOfParent_(Node* nd) {
 }
 void   drawable_and_frame_init_(Frame* frame, Texture* tex,
                                 float inside, float delta, uint16_t options) {
-    smtrans_init(&frame->d.trShow);
-    smtrans_init(&frame->d.trExtra);
-    frame->d._tex = tex;
-    frame->n._type |= node_type_flag_drawable|node_type_flag_frame;
+    frame->d.trShow =  SmoothFlag_new();
+    frame->d.trExtra = SmoothFlag_new();
+    textureref2_init(&frame->d.texr, tex);
+    frame->n._type |= node_type_drawable|node_type_frame;
     // Mesh (owner) et fonction pour setter les dimensions du frame.
     if(options & frame_option_horizotalBar) {
         frame->d._mesh = Mesh_createHorizontalBar();
@@ -110,8 +112,8 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
     }
     frame->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms;
     frame->n.deinitOpt = drawable_deinit_;
-    frame->n._iu = InstanceUnifoms_drawableDefaultIU;
-    frame->n._iu.draw_uvRect.size = texture_tileDuDv(tex);
+    frame->n.renderIU = InstanceUniforms_default;
+    frame->n.renderIU.uvRect.size = frame->d.texr.dims.DuDv;
     // Init as frame
     frame->delta = delta;
     frame->inside = inside;
@@ -124,7 +126,7 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
 }
 /// Surface de "Frame". Un cadre ajustable.
 ///  Typiquement autour d'un autre noeud.
-Frame* Frame_create(Node* const refOpt, float inside, float delta, 
+Frame* Frame_create(Node* const refOpt, float inside, float delta,
                     float twoDxOpt, float twoDyOpt, Texture* tex, uint16_t options) {
     Frame* frame = coq_callocTyped(Frame);
     node_init(&frame->n, refOpt, 0, 0, 1, 1, 0, 0);
@@ -137,9 +139,7 @@ Frame* Frame_create(Node* const refOpt, float inside, float delta,
 }
 void  node_tryUpdatingAsFrameOfBro(Node* nodeOpt, Node* broOpt) {
     if(!nodeOpt || !broOpt) return;
-    if(!(nodeOpt->_type & node_type_flag_frame)) return;
+    if(!(nodeOpt->_type & node_type_frame)) return;
     Frame* f = (Frame*)nodeOpt;
     f->setDims(f, node_deltas(broOpt));
 }
-
-

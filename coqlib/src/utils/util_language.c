@@ -109,25 +109,25 @@ const char*    language_name(Language language) {
     return language_name_strings_[language];
 }
 
-#pragma mark - Font possibles par langues - 
+// MARK: - Font possibles par langues - 
 static const LanguageFontInfo fontInfo_arr_[] = {
-    {"American Typewriter", "Amer. Typ.",  -0.01 },
-    {"Chalkboard SE", "Chalkboard", -0.01},
-    {"Chalkduster", "Chalkduster",  0, 0.25 },
-    {"Comic Sans MS", "Comic Sans", },
-    {"Courier", "Courier", -0.04},
-    {"Futura", "Futura",},
-    {"Helvetica", "Helvetica",},
-    {"Luciole", "Luciole",},
-    {"Snell Roundhand", "Snell Round.",},
-    {"Times New Roman", "Times New R.",},
-    {"Verdana", "Verdana",},
+    {"American Typewriter", "Amer. Typ.", 0.05,   },
+    {"Chalkboard SE", "Chalkboard", },
+    {"Chalkduster", "Chalkduster", 0.15, 0.05 },
+    {"Comic Sans MS", "Comic Sans", 0.07, },
+    {"Courier", "Courier", 0.10, },
+    {"Futura", "Futura", 0.13, },
+    {"Helvetica", "Helvetica", 0.17, },
+    {"Luciole", "Luciole", },
+    {"Snell Roundhand", "Snell Round.", .1, },
+    {"Times New Roman", "Times New R.", 0.13, },
+    {"Verdana", "Verdana", 0.13, },
     {"Nanum Gothic", "NanumGothic",},
     //    {"Nanum Myeongjo", "NanumMyeongjo", 1.f, 1.2f},
     {"Nanum Pen Script", "Nanum Pen", },
     {"BM Kirang Haerang", "Kirang",   },
     {"GungSeo", "GungSeo",            },
-    {"PilGi", "PilGi",                },
+    {"PilGi", "PilGi", 0.25,          },
     {"Hiragino Maru Gothic ProN", "Hiragino MGP",},
     {"Klee", "Klee", },
     {"OpenDyslexic3", "Op. Dyslex3", },
@@ -283,8 +283,8 @@ const char*        LanguageFont_defaultFontNameForLanguage(Language language) {
 }
 const LanguageFontInfo* LanguageFont_getFontInfoOpt(const char *const fontNameOpt) {
     if(!fontNameOpt) return NULL;
-    // Init ?
     static StringMap* fontInfoOfNamed = NULL;
+    // Init ?
     if(fontInfoOfNamed == NULL) {
         fontInfoOfNamed = Map_create(40, sizeof(LanguageFontInfo));
         size_t count = sizeof(fontInfo_arr_)/sizeof(LanguageFontInfo);

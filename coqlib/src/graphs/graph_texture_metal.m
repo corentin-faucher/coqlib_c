@@ -10,149 +10,24 @@
 #import <Metal/Metal.h>
 #import <MetalKit/MetalKit.h>
 
-#include "math_base.h"
-#include "utils/util_base.h"
-#include "../utils/util_file.h"
 #include "graph__metal.h"
+#include "graph_texture_private.h"
+#include "math_base.h"
+#include "../utils/util_base.h"
+#include "../utils/util_file.h"
 #include "coq_map.h"
-
-#pragma mark - Metal Engine implemetations ----------------------
-void  texture_engine_releaseAll_(Texture* tex) {
-    if(tex->mtlTex_cptr) {    CFRelease(tex->mtlTex_cptr);    tex->mtlTex_cptr = NULL; }
-    if(tex->mtlTexTmp_cptr) { CFRelease(tex->mtlTexTmp_cptr); tex->mtlTexTmp_cptr = NULL; }
-    tex->flags &= ~ tex_flags_drawn_;
-}
-void  texture_engine_releasePartly_(Texture* tex) {
-    if(tex->mtlTex_cptr) {    CFRelease(tex->mtlTex_cptr);    tex->mtlTex_cptr = NULL; }
-    tex->flags &= ~ tex_flag_fullyDrawn_;
-}
-#pragma mark - Créer une MTLTexture à partir d'un png ---------------------
-static MTKTextureLoader*    MTLtextureLoader_ = nil;
-id<MTLTexture> MTLTexture_createPngImageOpt_(char const*const pngPathOpt) {
-    if(!pngPathOpt) return nil;
-    NSURL *pngURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:pngPathOpt] isDirectory:NO];
-    if(pngURL == nil) return nil;
-    NSError *error = nil;
-    id<MTLTexture> mtlTexture = [MTLtextureLoader_ newTextureWithContentsOfURL:pngURL
-                                       options:@{MTKTextureLoaderOptionSRGB: @false}
-                                         error:&error];
-    if(error != nil || mtlTexture == nil) {
-        printerror("Cannot create MTL texture from %s.", pngPathOpt);
-        return nil;
-    }
-    return mtlTexture;
-}
-void  texture_engine_tryToLoadAsPng_(Texture* tex, bool const isMini) {
-    // Ou avec chargement des pixels... ? Problablement mieux le Metal texture loader...
-//    PixelBGRAArray* pa = Pixels_engine_createOptFromPng(png_path);
-//    if(!pa) { printerror("No png %s at %s.", tex->string, png_path); return; }
-    char *pngPath = FileManager_getPngPathOpt(tex->string, tex->flags & tex_flag_png_coqlib, isMini);
-    id<MTLTexture> mtlTex = MTLTexture_createPngImageOpt_(pngPath);
-    if(!mtlTex) { 
-        if(!isMini) printerror("No png for %s.", tex->string);
-        return; 
-     }
-    const void** mtlCptrRef = isMini ? &tex->mtlTexTmp_cptr : &tex->mtlTex_cptr;
-    if(*mtlCptrRef) { CFRelease(*mtlCptrRef); *mtlCptrRef = NULL; }
-    *mtlCptrRef = CFBridgingRetain(mtlTex);
-    tex->flags |= isMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
-    // Mise à jour des dimensions
-    tex->sizes.w =  (float)[mtlTex width];
-    tex->sizes.h = (float)[mtlTex height];
-}
-
-void  texture_engine_loadEmptyWithSize_(Texture* tex, size_t width, size_t height) {
-    if(tex->mtlTex_cptr) {
-        printwarning("Texture already set.");
-        CFRelease(tex->mtlTex_cptr); tex->mtlTex_cptr = NULL; 
-    }
-    MTLTextureDescriptor* descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:CoqGraph_metal_getPixelFormat()
-                                                        width:width height:height mipmapped:NO];
-    id<MTLTexture> mtlTex = [CoqGraph_metal_getDevice() newTextureWithDescriptor:descr];
-    tex->mtlTex_cptr = CFBridgingRetain(mtlTex);
-    tex->flags |= tex_flag_fullyDrawn_;
-    // Mise à jour des dimensions
-    tex->width = (float)width;
-    tex->height = (float)height;
-}
-void  texture_engine_writeAllPixels(Texture* tex, const void* pixelsBGRA8) {
-    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0 
-             withBytes:pixelsBGRA8 bytesPerRow:mtlTex.width * 4];
-}
-void  texture_engine_writePixelsToRegion(Texture* tex, const void* pixelsBGRA8, RectangleUint region) {
-    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    [mtlTex replaceRegion:MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h) mipmapLevel:0 
-             withBytes:pixelsBGRA8 bytesPerRow:region.w * 4];
-}
-void  texture_engine_writeRegionToPixels(const Texture* const tex, void* pixelBGRA8, RectangleUint const region) {
-    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    [mtlTex getBytes:pixelBGRA8 bytesPerRow:region.w * 4 fromRegion:MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h) mipmapLevel:0];
-}
-void  texture_engine_copyRegionTo(const Texture* const tex, Texture* const texDest,
-                                  RectangleUint const srcRect, UintPair const destOrig) 
-{
-    if(!tex->mtlTex_cptr || !texDest->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    if((srcRect.o_x + srcRect.w > (uint32_t)tex->width) ||    (srcRect.o_y + srcRect.h > (uint32_t)tex->height) ||
-       (destOrig.uint0 + srcRect.w > (uint32_t)texDest->width) || (destOrig.uint1 + srcRect.h > (uint32_t)texDest->height)) {
-        printerror("Overflow"); return;
-    }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    id<MTLTexture> mtlTexDest = (__bridge id<MTLTexture>)texDest->mtlTex_cptr;
-    
-    MTLRegion regionSrc = MTLRegionMake2D(srcRect.o_x, srcRect.o_y, srcRect.w, srcRect.h);
-    MTLRegion regionDst = MTLRegionMake2D(destOrig.uint0, destOrig.uint1, srcRect.w, srcRect.h);
-    
-    PixelBGRA* pixels = coq_calloc(srcRect.w * srcRect.h, sizeof(PixelBGRA));
-    [mtlTex getBytes:pixels bytesPerRow:srcRect.w * 4 fromRegion:regionSrc mipmapLevel:0];
-    [mtlTexDest replaceRegion:regionDst mipmapLevel:0 withBytes:pixels bytesPerRow:srcRect.w * 4];
-    coq_free(pixels);
-}
-
-
-#pragma mark - Metal misc setter getter ----
-// Metal Texture par defaut.
-static uint32_t transparent_texture_pixels_[4] = {
+static uint32_t pixels_transparent_[4] = {
     0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF,
 };
-static id<MTLTexture>       mtltexture_transparent_ = nil;
-id<MTLTexture> texture_metal_asMTLTexture(Texture* tex) {
-    tex->touchTime = CR_elapsedMS_;
-    // Cas "OK"
-    if(tex->mtlTex_cptr) {
-        return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    }
-    // Il y a des texture en demande pas encore "fully drawn"...
-    Texture_needToFullyDraw_ = true;
-    if(tex->mtlTexTmp_cptr) {
-        return (__bridge id<MTLTexture>)tex->mtlTexTmp_cptr;
-    }
-//    #warning Utile ?
-//    printwarning("Texture %s has not been init.", tex->string);
-    return mtltexture_transparent_;
-}
-void Texture_metal_setFrameBufferToMTLTexture(uint32_t index, id<MTLTexture> mtlTex) {
-    if(index > 10) { printerror("Bad index."); return; }
-    if(Texture_frameBuffers[index] == NULL) {
-        Texture_frameBuffers[index] = coq_callocTyped(Texture);
-        *Texture_frameBuffers[index] = (Texture) {
-            1, 1, 
-            {(float)[mtlTex width], (float)[mtlTex height]},
-            tex_flag_shared|tex_flag_fullyDrawn_|tex_flag_static_, CR_elapsedMS_,
-        };
-    } else {
-        Texture_frameBuffers[index]->sizes = (Vector2){(float)[mtlTex width], (float)[mtlTex height]};
-        CFRelease(Texture_frameBuffers[index]->mtlTex_cptr);
-    }
-    Texture_frameBuffers[index]->mtlTex_cptr = CFBridgingRetain(mtlTex);
-}
-
-#pragma mark - Init Metal --------------------
-void           Texture_metal_init_(void) {
-    id<MTLDevice> device = CoqGraph_metal_getDevice();
+static uint32_t pixels_white_[4] = {
+    0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+};
+static void const* mtltexture_transparent_ = NULL;
+static void const* mtltexture_white_ = NULL;
+static MTKTextureLoader*    MTLtextureLoader_ = nil;
+// MARK: - Init Metal --------------------
+void Texture_metal_init_(void) {
+    id<MTLDevice> device = CoqGraph_metal_device;
     if(device == nil) {
         printerror("MTL_device_ not set.");
         return;
@@ -176,20 +51,200 @@ void           Texture_metal_init_(void) {
 //    paragraphStyle.alignment = NSTextAlignmentCenter;
 //    paragraphStyle.lineBreakMode = NSLineBreakByTruncatingTail;
 //    Font_paragraphStyle_ = paragraphStyle;
-//    Font_currentAttributes_ = [NSMutableDictionary 
+//    Font_currentAttributes_ = [NSMutableDictionary
 //        dictionaryWithObjects:@[Font_current_, Font_paragraphStyle_,  black,           Font_currentSpreading_]
 //        forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName, CoqSpreadingAttributeName]];
-//    Font_currentAttributesMini_ = [NSDictionary 
+//    Font_currentAttributesMini_ = [NSDictionary
 //        dictionaryWithObjects:@[Font_currentMini_, Font_paragraphStyle_, black,        Font_currentSpreading_]
 //        forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName, CoqSpreadingAttributeName]];
-        
+
     // 2. Texture par défaut
-    MTLTextureDescriptor* descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:CoqGraph_metal_getPixelFormat()
+    MTLTextureDescriptor* descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:CoqGraph_metal_pixelFormat
                                                         width:2 height:2 mipmapped:NO];
-    mtltexture_transparent_ = [CoqGraph_metal_getDevice() newTextureWithDescriptor:descr];
-    [mtltexture_transparent_ replaceRegion:MTLRegionMake2D(0, 0, 2, 2) mipmapLevel:0 
-             withBytes:transparent_texture_pixels_ bytesPerRow:2 * 4];
+    id<MTLTexture> mtlTexTmp = [CoqGraph_metal_device newTextureWithDescriptor:descr];
+    [mtlTexTmp replaceRegion:MTLRegionMake2D(0, 0, 2, 2) mipmapLevel:0
+             withBytes:pixels_transparent_ bytesPerRow:2 * 4];
+    mtltexture_transparent_ = CFBridgingRetain(mtlTexTmp);
+
+    descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:CoqGraph_metal_pixelFormat width:2 height:2 mipmapped:NO];
+    mtlTexTmp = [CoqGraph_metal_device newTextureWithDescriptor:descr];
+    [mtlTexTmp replaceRegion:MTLRegionMake2D(0, 0, 2, 2) mipmapLevel:0 withBytes:pixels_white_ bytesPerRow:2*4];
+    mtltexture_white_ = CFBridgingRetain(mtlTexTmp);
+    mtlTexTmp = nil;
 }
+void Texture_metal_deinit_(void) {
+    MTLtextureLoader_ = nil;
+    if(mtltexture_transparent_) {
+        CFRelease(mtltexture_transparent_);
+        mtltexture_transparent_ = NULL;
+    }
+    if(mtltexture_white_) {
+        CFRelease(mtltexture_white_);
+        mtltexture_white_ = NULL;
+    }
+}
+void Texture_metal_setFrameBufferToMTLTexture(uint32_t index, id<MTLTexture> mtlTex) {
+    if(index > 10) { printerror("Bad index."); return; }
+    if(Texture_frameBuffers[index] == NULL) {
+        Texture_frameBuffers[index] = coq_callocTyped(Texture);
+        *Texture_frameBuffers[index] = (Texture) {
+            .dims = {
+                .m = 1,  .n = 1,
+                .Du = 1, .Dv = 1,
+                .width = (float)[mtlTex width], .height = (float)[mtlTex height],
+                .tileRatio = (float)[mtlTex width] / (float)[mtlTex height],
+            },
+            tex_flag_shared|tex_flag_fullyDrawn_|tex_flag_static_, ChronosRender.render_elapsedMS,
+        };
+    } else {
+        Texture_frameBuffers[index]->dims.sizes = (Vector2){(float)[mtlTex width], (float)[mtlTex height]};
+        Texture_frameBuffers[index]->dims.tileRatio =  (float)[mtlTex width] / (float)[mtlTex height];
+        CFRelease(Texture_frameBuffers[index]->mtlTex_cptr);
+    }
+    Texture_frameBuffers[index]->mtlTex_cptr = CFBridgingRetain(mtlTex);
+}
+id<MTLTexture> Texture_metal_defaultWhiteMTLTexture(void) {
+    return (__bridge id<MTLTexture>)mtltexture_white_;
+}
+
+// MARK: - Metal Engine implemetations
+void  texture_engine_releaseAll_(Texture* tex) {
+    if(tex->mtlTex_cptr) {    CFRelease(tex->mtlTex_cptr);    tex->mtlTex_cptr = NULL; }
+    if(tex->mtlTexTmp_cptr) { CFRelease(tex->mtlTexTmp_cptr); tex->mtlTexTmp_cptr = NULL; }
+    tex->flags &= ~ tex_flags_drawn_;
+}
+void  texture_engine_releasePartly_(Texture* tex) {
+    if(tex->mtlTex_cptr) {    CFRelease(tex->mtlTex_cptr);    tex->mtlTex_cptr = NULL; }
+    tex->flags &= ~ tex_flag_fullyDrawn_;
+}
+
+// MARK: - Créer une MTLTexture à partir d'un png
+void           texture_engine_load_(Texture*const tex, size_t const width, size_t const height, bool const asMini, 
+                    PixelBGRA const*const pixelsOpt) 
+{
+    const void**const mtlTexRef = asMini ? &tex->mtlTexTmp_cptr : &tex->mtlTex_cptr;
+    if(*mtlTexRef) {
+        printwarning("Texture already set.");
+        CFRelease(*mtlTexRef); *mtlTexRef = NULL;
+    }
+    MTLTextureDescriptor* descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:CoqGraph_metal_pixelFormat
+                                                        width:width height:height mipmapped:NO];
+    id<MTLTexture> mtlTex = [CoqGraph_metal_device newTextureWithDescriptor:descr];
+    if(pixelsOpt) {
+        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0
+             withBytes:pixelsOpt bytesPerRow:mtlTex.width * 4];
+    }
+    *mtlTexRef = CFBridgingRetain(mtlTex);
+    tex->flags |= asMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
+    // Mise à jour des dimensions
+    tex->dims.width =  (float)width;
+    tex->dims.height = (float)height;
+    tex->dims.tileRatio =  (float)width / (float)height * (float)tex->dims.n / (float)tex->dims.m;
+}
+
+id<MTLTexture> MTLTexture_createPngImageOpt_(char const*const pngPathOpt) {
+    if(!pngPathOpt) return nil;
+    NSURL *pngURL = [NSURL fileURLWithPath:[NSString stringWithUTF8String:pngPathOpt] isDirectory:NO];
+    if(pngURL == nil) return nil;
+    NSError *error = nil;
+    id<MTLTexture> mtlTexture = [MTLtextureLoader_ newTextureWithContentsOfURL:pngURL
+                                       options:@{MTKTextureLoaderOptionSRGB: @false}
+                                         error:&error];
+    if(error != nil || mtlTexture == nil) {
+        printerror("Cannot create MTL texture from %s.", pngPathOpt);
+        return nil;
+    }
+    return mtlTexture;
+}
+void  texture_engine_tryToLoadAsPng_(Texture*const tex, bool const isMini) {
+    char *pngPath = FileManager_getPngPathOpt(tex->string, tex->flags & tex_flag_png_coqlib, isMini);
+    
+    // Chargement avec `MTLtextureLoader_`, est équivalent de :
+//    PixelBGRAArray*const pa = Pixels_engine_createOptFromPng(pngPath);
+//    if(!pa) { printerror("No png %s at %s.", tex->string, pngPath); return; }
+//    texture_engine_load_(tex, pa->width, pa->height, isMini, pa->pixels);
+//     free(pa);
+    
+    id<MTLTexture> mtlTex = MTLTexture_createPngImageOpt_(pngPath);
+    if(!mtlTex) {
+        if(!isMini) printerror("No png for %s.", tex->string);
+        return;
+     }
+    const void** mtlCptrRef = isMini ? &tex->mtlTexTmp_cptr : &tex->mtlTex_cptr;
+    if(*mtlCptrRef) { CFRelease(*mtlCptrRef); *mtlCptrRef = NULL; }
+    *mtlCptrRef = CFBridgingRetain(mtlTex);
+    tex->flags |= isMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
+    // Mise à jour des dimensions
+    tex->dims.width =  (float)[mtlTex width];
+    tex->dims.height = (float)[mtlTex height];
+    tex->dims.tileRatio =  (float)[mtlTex width] / (float)[mtlTex height] * (float)tex->dims.n / (float)tex->dims.m;
+}
+
+void  texture_engine_writeAllPixels(Texture* tex, const void* pixelsBGRA8) {
+    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
+    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0
+             withBytes:pixelsBGRA8 bytesPerRow:mtlTex.width * 4];
+}
+void  texture_engine_writePixelsToRegion(Texture* tex, const void* pixelsBGRA8, RectangleUint region) {
+    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
+    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    [mtlTex replaceRegion:MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h) mipmapLevel:0
+             withBytes:pixelsBGRA8 bytesPerRow:region.w * 4];
+}
+void  texture_engine_writeRegionToPixels(const Texture* const tex, void* pixelBGRA8, RectangleUint const region) {
+    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
+    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    [mtlTex getBytes:pixelBGRA8 bytesPerRow:region.w * 4 fromRegion:MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h) mipmapLevel:0];
+}
+void  texture_engine_copyRegionTo(const Texture* const tex, Texture* const texDest,
+                                  RectangleUint const srcRect, UintPair const destOrig)
+{
+    if(!tex->mtlTex_cptr || !texDest->mtlTex_cptr) { printerror("Texture not drawn."); return; }
+    if((srcRect.o_x + srcRect.w > (uint32_t)tex->dims.width) ||        (srcRect.o_y + srcRect.h > (uint32_t)tex->dims.height) ||
+       (destOrig.uint0 + srcRect.w > (uint32_t)texDest->dims.width) || (destOrig.uint1 + srcRect.h > (uint32_t)texDest->dims.height)) {
+        printerror("Overflow"); return;
+    }
+    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    id<MTLTexture> mtlTexDest = (__bridge id<MTLTexture>)texDest->mtlTex_cptr;
+
+    MTLRegion regionSrc = MTLRegionMake2D(srcRect.o_x, srcRect.o_y, srcRect.w, srcRect.h);
+    MTLRegion regionDst = MTLRegionMake2D(destOrig.uint0, destOrig.uint1, srcRect.w, srcRect.h);
+
+    PixelBGRA* pixels = coq_calloc(srcRect.w * srcRect.h, sizeof(PixelBGRA));
+    [mtlTex getBytes:pixels bytesPerRow:srcRect.w * 4 fromRegion:regionSrc mipmapLevel:0];
+    [mtlTexDest replaceRegion:regionDst mipmapLevel:0 withBytes:pixels bytesPerRow:srcRect.w * 4];
+    coq_free(pixels);
+}
+
+TextureToDraw   texture_engine_touchAndGetToDraw(Texture *const tex) {
+    tex->touchTime = ChronosRender.render_elapsedMS;
+    // Cas "OK"
+    if(tex->mtlTex_cptr) {
+        return (TextureToDraw) {
+            .metal_texture_cptr = tex->mtlTex_cptr,
+            .isNearest = tex->flags & tex_flag_nearest,
+        };
+    }
+    // Il y a des texture en demande pas encore "fully drawn"...
+    Texture_needToFullyDraw_ = true;
+    if(tex->mtlTexTmp_cptr) {
+        return (TextureToDraw) {
+            .metal_texture_cptr = tex->mtlTexTmp_cptr,
+            .isNearest = tex->flags & tex_flag_nearest,
+        };
+    }
+//    #warning Utile ?
+//    printwarning("Texture %s has not been init.", tex->string);
+    return (TextureToDraw) {
+        .metal_texture_cptr = mtltexture_transparent_,
+        .isNearest = true,
+    };
+}
+
+// MARK: - Metal misc setter getter ----
+// Metal Texture par defaut.
+
 
 
 // Garbage
@@ -202,7 +257,7 @@ void           Texture_metal_init_(void) {
 //static NSMutableDictionary* Font_currentAttributes_ = nil;
 //static NSDictionary*        Font_currentAttributesMini_ = nil;
 //static NSString* const      CoqSpreadingAttributeName = @"CoqStringSpreadingAttributeKey";
-// Les infos de dimensions utiles pour la texture et pour dessiner une string dans le CoreGraphics context. 
+// Les infos de dimensions utiles pour la texture et pour dessiner une string dans le CoreGraphics context.
 //typedef struct StringDimensions_ {
 //    size_t width, height;
 //    float alpha, beta;
@@ -237,9 +292,9 @@ void           Texture_metal_init_(void) {
 //    }
 //    // 3. Color
 //#if TARGET_OS_OSX == 1
-//    NSColor* color_objc = [NSColor colorWithRed:color.r 
+//    NSColor* color_objc = [NSColor colorWithRed:color.r
 //#else
-//    UIColor* color_objc = [UIColor colorWithRed:color.r 
+//    UIColor* color_objc = [UIColor colorWithRed:color.r
 //#endif
 //                                          green:color.g blue:color.b alpha:1];
 //    // 4. Attributs de la string (Dictionnaire avec font, paragraph style, color,...)
@@ -272,8 +327,8 @@ void           Texture_metal_init_(void) {
 //        string_size.height, width_extra
 //    };
 //}
-//id<MTLTexture>    MTLTexture_createStringWith_(NSString* const string, NSDictionary* const attributes,  
-//                                               StringDimensions_ strDims) 
+//id<MTLTexture>    MTLTexture_createStringWith_(NSString* const string, NSDictionary* const attributes,
+//                                               StringDimensions_ strDims)
 //{
 //    static const CGFloat y_stringRelShift = -0.15;
 //    // 2. Context CoreGraphics
@@ -421,10 +476,10 @@ void           Texture_metal_init_(void) {
 //    Font_currentSpreading_ = [NSValue valueWithCGSize:CGSizeMake(spreading_v.w, spreading_v.h)];
 //    UIColor* black = [UIColor blackColor];
 //    #endif
-//    Font_currentAttributes_ = [NSMutableDictionary 
+//    Font_currentAttributes_ = [NSMutableDictionary
 //        dictionaryWithObjects:@[Font_current_, Font_paragraphStyle_,  black,           Font_currentSpreading_]
 //        forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName, CoqSpreadingAttributeName]];
-//    Font_currentAttributesMini_ = [NSDictionary 
+//    Font_currentAttributesMini_ = [NSDictionary
 //        dictionaryWithObjects:@[Font_currentMini_, Font_paragraphStyle_, black,        Font_currentSpreading_]
 //        forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName, CoqSpreadingAttributeName]];
 //}

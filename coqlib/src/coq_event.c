@@ -43,23 +43,35 @@ void  CoqEvent_processEvents(Root* root) {
         switch (event_todo_->type & event_types_root_) {
             case event_type_touch_hovering: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchHovering(viewActive, event_todo_->touch_pos);
+                if(viewActive) {
+                    Vector2 const pos = root_absposFromViewPos(root, event_todo_->touch_info.touch_pos,
+                                                     event_todo_->touch_info.touch_yInverted);
+                    viewActive->touchHovering(viewActive, pos);
+                }
             } break;
             case event_type_touch_down: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchDown(viewActive, event_todo_->touch_pos, event_todo_->touch_id); 
+                if(viewActive) {
+                    Vector2 const pos = root_absposFromViewPos(root, event_todo_->touch_info.touch_pos,
+                                                     event_todo_->touch_info.touch_yInverted);
+                    viewActive->touchDown(viewActive, pos, event_todo_->touch_info.touch_id);
+                } 
             } break;
             case event_type_touch_drag: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchDrag(viewActive, event_todo_->touch_pos, event_todo_->touch_id);
+                if(viewActive) {
+                    Vector2 const pos = root_absposFromViewPos(root, event_todo_->touch_info.touch_pos,
+                                                     event_todo_->touch_info.touch_yInverted);
+                    viewActive->touchDrag(viewActive, pos, event_todo_->touch_info.touch_id);
+                }
             } break;
             case event_type_touch_up: {
                 View* viewActive = root->viewActiveOpt;
-                if(viewActive) viewActive->touchUp(viewActive, event_todo_->touch_id);
+                if(viewActive) viewActive->touchUp(viewActive, event_todo_->touch_info.touch_id);
             } break;
             case event_type_scroll: {
                 SlidingMenu* sm = (SlidingMenu*)node_tree_searchFirstOfTypeInBranchOpt(&root->n, 
-                                             node_type_flag_scrollable, flag_parentOfScrollable);
+                                             node_type_scrollable, flag_parentOfScrollable);
                 if(sm == NULL) break;
                 ScrollInfo info = event_todo_->scroll_info;
                 switch(event_todo_->scroll_info.scrollType) {
@@ -93,7 +105,7 @@ void  CoqEvent_processEvents(Root* root) {
                 }
                 if((key.keycode == keycode_arrowUp) || (key.keycode == keycode_arrowDown)) {
                     SlidingMenu* sm = (SlidingMenu*)node_tree_searchFirstOfTypeInBranchOpt(&root->n, 
-                                             node_type_flag_scrollable, flag_parentOfScrollable);
+                                             node_type_scrollable, flag_parentOfScrollable);
                     if(sm) {
                         slidingmenu_scroll(sm, key.keycode == keycode_arrowUp ? 1 : -1);
                         break;

@@ -8,7 +8,7 @@
 #include "math_flpos.h"
 
 #include <string.h>
-#include "math_chrono.h"
+#include "../coq_chrono.h"
 
 #define _sm_type_static     0x0000
 #define _sm_type_oscAmorti  0x0001
@@ -17,9 +17,19 @@
 #define _sm_types           0x0003
 #define _sm_flag_angle      0x0004
 
-float   fl_getElapsedSec_(const uint32_t coreTime) {
-    return (float)((uint32_t)ChronoRender_elapsedMS() - coreTime) * 0.001f;
+
+// Prendre le temps ChronoRender ou ChronoApp comme ref ?
+#define Chrono_inEvent_elapsedMS  (uint32_t)ChronosEvent.render_elapsedMS
+#define Chrono_inRender_elapsedMS (uint32_t)ChronosRender.render_elapsedMS
+//#define Chrono_inEvent_elapsedMS  (uint32_t)ChronoEvent_chronoApp_elapsedMS
+//#define Chrono_inRender_elapsedMS (uint32_t)ChronoRender_chronoApp_elapsedMS
+static inline float coretime_inEvent_toElapsedSec_(uint32_t const coreTime) {
+    return (float)(Chrono_inEvent_elapsedMS - coreTime) * SEC_PER_MS;
 }
+static inline float coretime_inRender_toElapsedSec_(uint32_t const coreTime) {
+    return (float)(Chrono_inRender_elapsedMS - coreTime) * SEC_PER_MS;
+}
+
 Vector2 fl_getDeltaAndSlope_(const FluidPos fl, float const elapsedSec) {
     if((fl._p._flags & _sm_types) == _sm_type_static) return vector2_zeros;
     if((fl._p._flags & _sm_types) == _sm_type_amortiCrit)
@@ -72,7 +82,7 @@ FluidPosParams_ fl_getNewParams_(const float gamma, const float k, const uint32_
     p._beta =   gamma / 2.f;
     return p;
 }
-FluidPosCore_   fl_evalNewCore_(const FluidPosParams_ p, Vector2 const ds, float const pos) {
+FluidPosCore_   fl_inEvent_evalNewCore_(const FluidPosParams_ p, Vector2 const ds, float const pos) {
     FluidPosCore_ c;
     c.pos = pos;
     switch(p._flags & _sm_types) {
@@ -92,66 +102,93 @@ FluidPosCore_   fl_evalNewCore_(const FluidPosParams_ p, Vector2 const ds, float
             c.A = 0.f; c.B = 0.f;
             break;
     }
-    c.time = (uint32_t)ChronoRender_elapsedMS();
+    c.time = Chrono_inEvent_elapsedMS;
     return c;
 }
 
-void  fl_updateToConstants(FluidPos *sp, float gamma, float k) {
-    FluidPos new;
+void  fl_updateToConstants(volatile FluidPos *sp, float gamma, float k) {
     // 1. Nouveau paramètres de la courbe
-    new._p = fl_getNewParams_(gamma, k, sp->_flags, sp->def);
+    FluidPosParams_ newP = fl_getNewParams_(gamma, k, sp->_flags, sp->def);
     // 2. Pos et temps actuel. 
-    float elapsedSec = fl_getElapsedSec_(sp->_c.time);
+    float elapsedSec = coretime_inEvent_toElapsedSec_(sp->_c.time);
     Vector2 deltaSlope = fl_getDeltaAndSlope_(*sp, elapsedSec);
     // 3. Réévaluer a/b pour nouveau lambda/beta et reset time.
-    new._c = fl_evalNewCore_(new._p, deltaSlope, sp->_c.pos);
-    // 4. Swap.
-    *sp = new;
+    FluidPosCore_ newC = fl_inEvent_evalNewCore_(newP, deltaSlope, sp->_c.pos);
+    // 4. Swap. 
+    sp->_p.v = newP.v;
+    sp->_c.v = newC.v;
 }
 void  fl_updateToLambda(FluidPos *fl, float lambda) {
     fl_updateToConstants(fl, 2*lambda, lambda * lambda);
 }
 
 void  fl_init(FluidPos* sp, float pos, float lambda, bool asAngle) {
-    if(asAngle) pos = float_toNormalizedAngle(pos);
-    memset(sp, 0, sizeof(FluidPos));
-    sp->_c.pos = pos;
-    sp->_c.time = (uint32_t)ChronoApp_elapsedMS();
+    sp->_c = (FluidPosCore_) {
+        .pos = asAngle ? float_toNormalizedAngle(pos) : pos,
+    };
     sp->_p = fl_getNewParams_(2*lambda, lambda * lambda, asAngle ? _sm_flag_angle : 0, pos);
 }
 void  fl_initGammaK(FluidPos *sp, float pos, float gamma, float k, bool asAngle) {
-    if(asAngle) pos = float_toNormalizedAngle(pos);
-    memset(sp, 0, sizeof(FluidPos));
-    sp->_c.pos = pos;
-    sp->_c.time = (uint32_t)ChronoApp_elapsedMS();
+    sp->_c = (FluidPosCore_) {
+        .pos = asAngle ? float_toNormalizedAngle(pos) : pos,
+    };
     sp->_p = fl_getNewParams_(gamma, k, asAngle ? _sm_flag_angle : 0, pos);
 }
 void  fl_set(FluidPos* const sp, float const pos) {
-    float const elapsedSec = fl_getElapsedSec_(sp->_c.time);
+    float const elapsedSec = coretime_inEvent_toElapsedSec_(sp->_c.time);
     Vector2 deltaSlope = fl_getDeltaAndSlope_(*sp, elapsedSec);
     deltaSlope.x += sp->_c.pos - pos;
     if(sp->_flags & _sm_flag_angle)
         deltaSlope.x = float_toNormalizedAngle(deltaSlope.x);
-    
-    sp->_c.v = fl_evalNewCore_(sp->_p, deltaSlope, (sp->_flags & _sm_flag_angle) ? float_toNormalizedAngle(pos) : pos).v;
+    // Swap
+    sp->_c.v = fl_inEvent_evalNewCore_(sp->_p, deltaSlope, (sp->_flags & _sm_flag_angle) ? float_toNormalizedAngle(pos) : pos).v;
 }
 void  fl_fix(FluidPos* sp, float pos) {
-    sp->_c.A = 0.f; sp->_c.B = 0.f;
-    if(sp->_flags & _sm_flag_angle)
-        sp->_c.pos = float_toNormalizedAngle(pos);
-    else
-        sp->_c.pos = pos;
+    FluidPosCore_ newC = {}; // Set à zéro.
+    newC.pos = (sp->_flags & _sm_flag_angle) ? float_toNormalizedAngle(pos) : pos;
+    // Swap
+    sp->_c.v = newC.v;
 }
 /** Changement de référentiel quelconques (avec positions et scales absolues). */
 void  fl_newReferential(FluidPos* fp, float pos, float destPos, float scale, float destScale) {
-    fp->_c.pos = (pos - destPos) / destScale;
-    fp->_c.A = fp->_c.A * scale / destScale;
-    fp->_c.B = fp->_c.B * scale / destScale;
+    FluidPosCore_ c = {
+        .pos = (pos - destPos) / destScale,
+        .A = fp->_c.A * scale / destScale,
+        .B = fp->_c.B * scale / destScale,
+        .time = fp->_c.time,
+    };
+    // Swap
+    fp->_c.v = c.v;
 }
 void  fl_newReferentialAsDelta(FluidPos* fp, float scale, float destScale) {
-    fp->_c.pos = fp->_c.pos * scale / destScale;
-    fp->_c.A = fp->_c.A * scale / destScale;
-    fp->_c.B = fp->_c.B * scale / destScale;
+    FluidPosCore_ c = {
+        .pos = fp->_c.pos * scale / destScale,
+        .A = fp->_c.A * scale / destScale,
+        .B = fp->_c.B * scale / destScale,
+        .time = fp->_c.time,
+    };
+    // Swap
+    fp->_c.v = c.v;
+}
+void  fl_referentialOut(FluidPos *const fp, float const refX, float const refScale) {
+    FluidPosCore_ c = {
+        .pos = fp->_c.pos * refScale + refX,
+        .A = fp->_c.A * refScale,
+        .B = fp->_c.B * refScale,
+        .time = fp->_c.time,
+    };
+    // Swap
+    fp->_c.v = c.v;
+}
+void  fl_referentialOutAsDelta(FluidPos *const fp, float const refScale) {
+    FluidPosCore_ c = {
+        .pos = fp->_c.pos * refScale,
+        .A = fp->_c.A * refScale,
+        .B = fp->_c.B * refScale,
+        .time = fp->_c.time,
+    };
+    // Swap
+    fp->_c.v = c.v;
 }
 
 // Les convenience du set...
@@ -198,35 +235,37 @@ void  fl_array_fix(FluidPos *sp, float const* f, size_t count) {
     }
 }
 
-float fl_evalPos(FluidPos const fp) {
-    if((fp._flags & _sm_types) == _sm_type_static) return fp._c.pos;
-    float const elapsedSec = (float)((uint32_t)ChronoRender_elapsedMS() - fp._c.time) * 0.001f;
-    if((fp._flags & _sm_types) == _sm_type_amortiCrit)
-        return expf(-fp._lambda * elapsedSec) * (fp._c.A + fp._c.B * elapsedSec) + fp._c.pos;
-    if((fp._flags & _sm_types) == _sm_type_surAmorti)
-        return fp._c.A * expf(-fp._lambda * elapsedSec)
-            + fp._c.B * expf(-fp._beta   * elapsedSec) + fp._c.pos;
+float fl_evalPos(volatile FluidPos const* fp) {
+    FluidPosCore_ c; 
+    FluidPosParams_ p;
+    c.v = fp->_c.v;
+    p.v = fp->_p.v;
+    if((p._flags & _sm_types) == _sm_type_static) return c.pos;
+    float const elapsedSec = coretime_inRender_toElapsedSec_(c.time);
+    if((p._flags & _sm_types) == _sm_type_amortiCrit)
+        return expf(-p._lambda * elapsedSec) * (c.A + c.B * elapsedSec) + c.pos;
+    if((p._flags & _sm_types) == _sm_type_surAmorti)
+        return c.A * expf(-p._lambda * elapsedSec)
+             + c.B * expf(-p._beta   * elapsedSec) + c.pos;
     // _sm_type_oscAmorti
-    return expf(-fp._lambda * elapsedSec) *
-         (fp._c.A * cosf(fp._beta * elapsedSec) + fp._c.B * sinf(fp._beta * elapsedSec)) + fp._c.pos;
+    return expf(-p._lambda * elapsedSec) *
+         (c.A * cosf(p._beta * elapsedSec) + c.B * sinf(p._beta * elapsedSec)) + c.pos;
 }
 
-void  fl_array_writeTo(const FluidPos *sp, float *f, size_t count) {
-    float *end = &f[count];
-    while(f < end) {
-        *f = fl_evalPos(*sp);
-        sp ++;
-        f ++;
+void  fl_array_writeTo(FluidPos const* sp, float *f, size_t const count) {
+    float *const end = &f[count];
+    for(; f < end; f++, sp++) {
+        *f = fl_evalPos(sp);
     }
 }
-Vector2 fl_array_toVec2(const FluidPos *sp) {
+Vector2 fl_array_toVec2(volatile const FluidPos *sp) {
     return (Vector2) {{
-        fl_evalPos(sp[0]), fl_evalPos(sp[1]),
+        fl_evalPos(&sp[0]), fl_evalPos(&sp[1]),
     }};
 }
-Vector3 fl_array_toVec3(const FluidPos *sp) {
+Vector3 fl_array_toVec3(volatile const FluidPos *sp) {
     return (Vector3) {{
-        fl_evalPos(sp[0]), fl_evalPos(sp[1]), fl_evalPos(sp[2]),
+        fl_evalPos(&sp[0]), fl_evalPos(&sp[1]), fl_evalPos(&sp[2]),
     }};
 }
 Vector3 fl_array_toRealVec3(const FluidPos *sp) {
@@ -238,7 +277,7 @@ Vector3 fl_array_toRealVec3(const FluidPos *sp) {
 // Array de 4 smpos -> Vector4 (i.e. simd_float4, 4 aligned float)
 Vector4 fl_array_toVec4(const FluidPos *sp) {
     return (Vector4) {{
-        fl_evalPos(sp[0]), fl_evalPos(sp[1]), fl_evalPos(sp[2]), fl_evalPos(sp[3]),
+        fl_evalPos(&sp[0]), fl_evalPos(&sp[1]), fl_evalPos(&sp[2]), fl_evalPos(&sp[3]),
     }};
 }
 
@@ -254,29 +293,36 @@ void  fld_init(FluidPosWithDrift* fld, float pos, float lambda, bool asAngle) {
     fld->drift = 0.f;
 }
 void  fld_set(FluidPosWithDrift* spd, float pos, float drift) {
-    float elapsedSec = fl_getElapsedSec_(spd->fp._c.time);
+    float elapsedSec = coretime_inEvent_toElapsedSec_(spd->fp._c.time);
     Vector2 deltaSlope = fl_getDeltaAndSlope_(spd->fp, elapsedSec);
     deltaSlope.x += spd->fp._c.pos + elapsedSec * spd->drift - pos;
     if(spd->fp._flags & _sm_flag_angle)
         deltaSlope.x = float_toNormalizedAngle(deltaSlope.x);
     deltaSlope.y += spd->drift - drift;
     
-    spd->fp._c.v = fl_evalNewCore_(spd->fp._p, deltaSlope, 
+    spd->fp._c.v = fl_inEvent_evalNewCore_(spd->fp._p, deltaSlope, 
             (spd->fp._flags & _sm_flag_angle) ? float_toNormalizedAngle(pos) : pos).v;
     spd->drift = drift;
 }
-float fld_evalPos(const FluidPosWithDrift fpd) {
-    float const elapsedSec = (float)((uint32_t)ChronoRender_elapsedMS() - fpd.fp._c.time) * 0.001f;
-    if((fpd.fp._flags & _sm_types) == _sm_type_static) return fpd.fp._c.pos + elapsedSec * fpd.drift;
-    if((fpd.fp._flags & _sm_types) == _sm_type_amortiCrit)
-        return expf(-fpd.fp._lambda * elapsedSec) * (fpd.fp._c.A + fpd.fp._c.B * elapsedSec) 
-            + fpd.fp._c.pos + elapsedSec * fpd.drift;
-    if((fpd.fp._flags & _sm_types) == _sm_type_surAmorti)
-        return fpd.fp._c.A * expf(-fpd.fp._lambda * elapsedSec)
-            + fpd.fp._c.B * expf(-fpd.fp._beta   * elapsedSec) 
-            + fpd.fp._c.pos + elapsedSec * fpd.drift;
+float fld_evalPos(FluidPosWithDrift const*const fpd) {
+
+    FluidPosCore_ c; 
+    FluidPosParams_ p;
+    c.v = fpd->fp._c.v;
+    float drift = fpd->drift;
+    p.v = fpd->fp._p.v;
+    float const elapsedSec = coretime_inRender_toElapsedSec_(c.time);
+    if((p._flags & _sm_types) == _sm_type_static) 
+        return c.pos + elapsedSec * drift;
+    if((p._flags & _sm_types) == _sm_type_amortiCrit)
+        return expf(-p._lambda * elapsedSec) * (c.A + c.B * elapsedSec) 
+             + c.pos + elapsedSec * drift;
+    if((p._flags & _sm_types) == _sm_type_surAmorti)
+        return c.A * expf(-p._lambda * elapsedSec)
+             + c.B * expf(-p._beta   * elapsedSec)
+             + c.pos + elapsedSec * drift;
     // _sm_type_oscAmorti
-    return expf(-fpd.fp._lambda * elapsedSec) *
-         (fpd.fp._c.A * cosf(fpd.fp._beta * elapsedSec) + fpd.fp._c.B * sinf(fpd.fp._beta * elapsedSec)) 
-            + fpd.fp._c.pos + elapsedSec * fpd.drift;
+    return expf(-p._lambda * elapsedSec) *
+                (c.A * cosf(p._beta * elapsedSec) + c.B * sinf(p._beta * elapsedSec))
+         + c.pos + elapsedSec * drift;
 }

@@ -14,8 +14,7 @@
 @interface CoqMetalView : MTKView {
     
 @public
-    Root*            root;
-    ChronoChecker    cc;
+    Root*            rootOpt;
 #if TARGET_OS_OSX == 1
     NSTrackingArea*  trackingArea;
 #else

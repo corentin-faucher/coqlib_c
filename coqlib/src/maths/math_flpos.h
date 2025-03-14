@@ -1,14 +1,15 @@
 //
 //  _math_flpos.h
-//  Position (float) "smooth", i.e. avec transition pour se placer
-//  à la nouvelle position (avec fonctions exp, sin, cos...)
+//  Position "smooth", i.e. avec transitions (typiquement osclillateur amortie (avec exp, sin, cos...)).
+// Un FluidPos est édité par la `event thread` au temps `ChronosEvent.render_elapsedMS`
+// et est lu par la `render thread` au tems `ChronosRender.render_elapsedMS`.
 //
 //  Created by Corentin Faucher on 2023-10-14.
 //
 #ifndef COQ_MATH_FLPOS_H
 #define COQ_MATH_FLPOS_H
 
-#include "math_base.h"
+#include "math_base.h" // pour Vector3
 
 // `Core` de FluidPos. 4 floats, i.e. `vecteur` simd de 128 bits.
 typedef union {
@@ -24,7 +25,7 @@ typedef union {
     };
 } FluidPosCore_;
 
-// `Core` de FluidPos. 4 floats, i.e. `vecteur` simd de 128 bits.
+// Paramètres de FluidPos. 4 floats, i.e. `vecteur` simd de 128 bits.
 typedef union {
     float __attribute__((vector_size(16))) v;
     struct {
@@ -38,6 +39,8 @@ typedef union {
 
 // N'est pas caché, sinon ne pourrait pas être placé dans d'autres structs.
 // De taile 256 bits / 8 floats / 2 `vecteurs`.
+// Ecris par la event thread (aux 50ms)
+// Lu par la rendering thread (aux 16ms)
 typedef struct FluidPos {
     FluidPosCore_ _c;
     union {
@@ -58,7 +61,7 @@ void  fl_initGammaK(FluidPos *fl, float pos, float gamma, float k, bool asAngle)
 /// gamma -> amortissement.
 /// k -> constance du ressort.
 /// Voir éq.Diff. de l'oscillateur avec amortissement : `x'' + gamma x' + k x = 0`.
-void  fl_updateToConstants(FluidPos *fl, float gamma, float k);
+void  fl_updateToConstants(volatile FluidPos *fl, float gamma, float k);
 /// Convenience de `fl_updateToConstants` ou `gamma = 2*lambda` et `k = lambda * lambda`.
 /// i.e. amortissement critique (pas de rebond).
 void  fl_updateToLambda(FluidPos *fl, float lambda);
@@ -68,8 +71,11 @@ void  fl_set(FluidPos *fl, float pos);
 /// Setter "hard" de FluidPos. La position est fixée directement à `pos`.
 void  fl_fix(FluidPos* sp, float pos);
 /// Changement de référentiel quelconques (avec positions et scales absolues).
+__attribute__((deprecated("Sans doute obsolete...")))
 void  fl_newReferential(FluidPos* fp, float pos, float destPos, float scale, float destScale);
 void  fl_newReferentialAsDelta(FluidPos* fp, float scale, float destScale);
+void  fl_referentialOut(FluidPos *const fp, float const refX, float const refScale);
+void  fl_referentialOutAsDelta(FluidPos *const fp, float const refScale);
 
 // Les convenience du set...
 void  fl_setRelToDef(FluidPos *fl, float shift);
@@ -79,7 +85,7 @@ void  fl_fadeInFromDef(FluidPos *fl, float delta);
 void  fl_fadeOut(FluidPos *fl, float delta);
 // Getters
 /// Position estimee
-float fl_evalPos(FluidPos const fp);
+float fl_evalPos(volatile FluidPos const* fp);
 /// Vrai derniere position entree
 float   fl_real(const FluidPos *sp);
 /// Si static -> n'est pas "fluid", reagit comme un float ordinaire.
@@ -92,9 +98,9 @@ void  fl_array_fix(FluidPos *fl, const float *f, size_t count);
 // Ecrire les position actuelles vers un array de float.
 void  fl_array_writeTo(const FluidPos *fl, float *dst_f_arr, size_t count);
 /// Array de 2 smpos -> Vector2.
-Vector2 fl_array_toVec2(const FluidPos *sp);
+Vector2 fl_array_toVec2(volatile const FluidPos *sp);
 /// Array de 3 smpos -> Vector3.
-Vector3 fl_array_toVec3(const FluidPos *sp);
+Vector3 fl_array_toVec3(volatile const FluidPos *sp);
 Vector3 fl_array_toRealVec3(const FluidPos *sp);
 /// Array de 4 smpos -> Vector4 (i.e. simd_float4, 4 aligned float)
 Vector4 fl_array_toVec4(const FluidPos *sp);
@@ -106,6 +112,6 @@ typedef struct _FluidPosWithDrift {
 
 void  fld_init(FluidPosWithDrift* fld, float pos, float lambda, bool asAngle);
 void  fld_set(FluidPosWithDrift* fld, float pos, float drift);
-float fld_evalPos(const FluidPosWithDrift fpd);
+float fld_evalPos(const FluidPosWithDrift *fpd);
 
 #endif /* smpos_h */

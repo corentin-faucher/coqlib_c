@@ -10,7 +10,8 @@
 
 #include <stdint.h>
 
-// Flags éditable par la thread du renderer.
+// Flags éditable par la thread du renderer
+// (et utilisés par shaders dans instance uniforms)
 enum {
     renderflag_toDraw =           1,
     renderflag_firstCustom =   1<<1,

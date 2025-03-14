@@ -10,79 +10,30 @@
 #include "../utils/util_base.h"
 #include "../utils/util_file.h"
 #include "../utils/util_string.h"
+#include "graph_base.h"
+#include "graph_mesh.h"
+#include "graph_texture.h"
 #include <OpenGL/OpenGL.h>
 
+/// MARK: - CoqGraph_Init, Init du stuff graphique : buffer, mesh, texture...
+static bool isOpenGL_3_1_ = false;
+/*-- Index des variable GLSL --------*/
+static GLuint GL_programId_ = 0;
+static GLint  GL_frame_projectionId_ = 0;
+static GLint  GL_frame_timeId_ = 0;
+// IUB : Instance uniforms buffer, tempon pour passer un packet de InstanceUniforms.
+#define IUB_MaxInstances 500
+static GLuint IUB_uniformBlockId_ = 0;
+static GLuint IUB_bindingPoint_ = 0;
+static GLuint IUB_bufferId_ = 0;
 
 #ifdef __APPLE__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
-#pragma mark - Instance Uniforms buffer -
-// IUB : Instance uniforms buffer, tempon pour passer un packet de InstanceUniforms.
-#define IUB_MaxInstances 500
-
-static GLuint IUB_uniformBlockId_ = 0;
-static GLuint IUB_bindingPoint_ = 0;
-static GLuint IUB_bufferId_ = 0;
-
-void IUsBuffer_opengl_init_(GLuint program) {
-    IUB_uniformBlockId_ = glGetUniformBlockIndex(program, "InstanceBufferType");
-    glUniformBlockBinding(program, IUB_uniformBlockId_, IUB_bindingPoint_);
-    glGenBuffers(1, &IUB_bufferId_);
-    glBindBuffer(GL_UNIFORM_BUFFER, IUB_bufferId_);
-    glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceUniforms)*IUB_MaxInstances, NULL, GL_DYNAMIC_DRAW);
-    glBindBufferBase(GL_UNIFORM_BUFFER, IUB_bindingPoint_, IUB_bufferId_);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-
-}
-void IUsBuffer_opengl_deinit_(void) {
-    glDeleteBuffers(1, &IUB_bufferId_);
-}
-void instanceuniform_glBind(const InstanceUniforms* iu) {
-    glBindBuffer(GL_UNIFORM_BUFFER, IUB_bufferId_);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(InstanceUniforms), iu);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-/// Création du buffer.
-void  iusbuffer_engine_init_(IUsBuffer* iusbuffer, uint32_t count) {
-    if(count > IUB_MaxInstances) {
-        printerror("With OpenGL, the maximum number of instance is %d.", IUB_MaxInstances);
-        count = IUB_MaxInstances;
-    }
-    uint_initConst(&iusbuffer->max_count, count);
-    iusbuffer->actual_count = count;
-    *(InstanceUniforms**)&iusbuffer->ius = coq_calloc(count, sizeof(InstanceUniforms));
-//    glGenBuffers(1, &piusbuffer->glBufferId);
-//    glBindBuffer(GL_UNIFORM_BUFFER, piusbuffer->glBufferId);
-//    glBufferData(GL_UNIFORM_BUFFER, size, piusbuffer->pius, GL_DYNAMIC_DRAW);
-//    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-/// Libère l'espace du buffer (et array de piu si nécessaire)
-void  iusbuffer_engine_deinit_(IUsBuffer* iusbuffer) {
-    coq_free(iusbuffer->ius);
-    *(InstanceUniforms**)&iusbuffer->ius = NULL;
-}
-void  iusbuffer_glBind(IUsBuffer* iusbuffer) {
-    if(iusbuffer->actual_count > iusbuffer->max_count) {
-        printerror("Overflow...");
-        iusbuffer->actual_count = iusbuffer->max_count;
-    }
-    size_t size = iusbuffer->actual_count * sizeof(InstanceUniforms);
-    glBindBuffer(GL_UNIFORM_BUFFER, IUB_bufferId_);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, size, iusbuffer->ius);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
-}
-
-#pragma mark - CoqGraph_Init, Init du stuff graphique : buffer, mesh, texture...
-static bool isOpenGL_3_1_ = false;
-/*-- Index des variable GLSL --------*/
-static GLuint GL_programId_ = 0;
-static GLint  GL_frame_projectionId_ = 0;
-static GLint  GL_frame_timeId_ = 0;
-
-void   CoqGraph_opengl_init(bool loadCoqlibPngs)
+void   CoqGraph_opengl_init(MeshInit const* drawableSpriteInitOpt,
+                            MeshInit const* renderingQuadInitOpt)
 {
     // Version
     const char* version_str = (const char*)glGetString(GL_VERSION);
@@ -148,103 +99,121 @@ void   CoqGraph_opengl_init(bool loadCoqlibPngs)
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Index des variable GLSL
+    // IDs des variable GLSL
     GL_frame_projectionId_ = glGetUniformLocation(GL_programId_, "frame_projection");
     GL_frame_timeId_ =       glGetUniformLocation(GL_programId_, "frame_time");
 
     // Instance uniforms buffer
-    IUsBuffer_opengl_init_(GL_programId_);
+    IUB_uniformBlockId_ = glGetUniformBlockIndex(GL_programId_, "InstanceBufferType");
+    glUniformBlockBinding(GL_programId_, IUB_uniformBlockId_, IUB_bindingPoint_);
+    glGenBuffers(1, &IUB_bufferId_);
+    glBindBuffer(GL_UNIFORM_BUFFER, IUB_bufferId_);
+    glBufferData(GL_UNIFORM_BUFFER, sizeof(InstanceUniforms)*IUB_MaxInstances, NULL, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_UNIFORM_BUFFER, IUB_bindingPoint_, IUB_bufferId_);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
     // Meshes de bases
-    Mesh_opengl_init_(GL_programId_);
-    Mesh_init_();
+    Mesh_opengl_initVertexAttributeLocations(GL_programId_);
+    Mesh_initDefaultMeshes_(drawableSpriteInitOpt, renderingQuadInitOpt);
     // Textures
-    Texture_opengl_init_(GL_programId_);
-    Texture_init_(loadCoqlibPngs);
+    Texture_init_();
 }
 void   CoqGraph_opengl_deinit(void) {
-    IUsBuffer_opengl_deinit_();
+    glDeleteBuffers(1, &IUB_bufferId_);
     glDeleteProgram(GL_programId_);
 }
 
-#pragma mark - Dessin d'une instance (groupe d'instances) OpenGL -
+/// MARK: - Dessin d'une instance (groupe d'instances) OpenGL -
 /*-- Mesh et texture presentement utilisees --*/
-static Texture    *currentTexture_ = NULL;
-static Mesh       *currentMesh_ = NULL;
-static GLenum      currentMesh_primitive_ = GL_TRIANGLE_STRIP;
-static uint32_t    currentMesh_indexCount_ = 0;
-static uint32_t    currentMesh_vertexCount_ = 0;
+static Texture      *currentTexture_ = NULL;
+static TextureToDraw currentTextureToDraw_;
+static Mesh         *currentMesh_ = NULL;
+static MeshToDraw    currentMeshToDraw_;
+static size_t        currentInstanceCount_ = 1;
+static InstanceUniforms const* currentIUs_ = NULL;
 
 void  rendering_opengl_initForDrawing(void) {
     currentMesh_ = NULL;
     currentTexture_ = NULL;
+    currentInstanceCount_ = 1;
 }
-void  rendering_opengl_draw(Mesh *const mesh, Texture *const tex, InstanceUniforms const*const iu) {
-    // 1. Mise a jour de la mesh ?
-    if(currentMesh_ != mesh) {
-        currentMesh_ = mesh;
-        currentMesh_vertexCount_ = currentMesh_->vertex_count;
-        currentMesh_indexCount_ = currentMesh_->index_count;
-        currentMesh_primitive_ = currentMesh_->primitive_type;
-        mesh_glBind(currentMesh_);
-    }
-    // 2. Mise a jour de la texture ?
-    if(currentTexture_ != tex) {
-        currentTexture_ = tex;
-        texture_glBind(currentTexture_);
-    }
-    // 3. Cas standard (une instance)
-    instanceuniform_glBind(iu);
-    if(currentMesh_indexCount_) {
-      glDrawElements(GL_TRIANGLES, currentMesh_indexCount_, GL_UNSIGNED_SHORT, 0);
-    } else {
-      glDrawArrays(currentMesh_primitive_, 0, currentMesh_vertexCount_);
-    }
+void rendering_opengl_setCurrentMesh(Mesh*const mesh) {
+    if(mesh == currentMesh_) return;
+    currentMesh_ = mesh;
+    mesh_render_tryToUpdateVerticesAndIndiceCount(currentMesh_);
+    currentMeshToDraw_ = mesh_render_getMeshToDraw(currentMesh_);
+    glBindVertexArray(currentMeshToDraw_.glVertexArrayId);
 }
-void  rendering_opengl_drawMulti(Mesh *const mesh, Texture *const tex, IUsBuffer *const iusBuffer) {
-    // 1. Mise a jour de la mesh ?
-    if(currentMesh_ != mesh) {
-        currentMesh_ = mesh;
-        currentMesh_vertexCount_ = currentMesh_->vertex_count;
-        currentMesh_indexCount_ = currentMesh_->index_count;
-        currentMesh_primitive_ = currentMesh_->primitive_type;
-        mesh_glBind(currentMesh_);
+void rendering_opengl_setCurrentTexture(Texture*const tex) {
+    if(tex == currentTexture_) return;
+    currentTexture_ = tex;
+    currentTextureToDraw_ = texture_engine_touchAndGetToDraw(currentTexture_);
+    glBindTexture(GL_TEXTURE_2D, currentTextureToDraw_.glTextureId);
+}
+void rendering_opengl_setIU(InstanceUniforms const* iu) {
+    glBindBuffer(GL_UNIFORM_BUFFER, IUB_bufferId_);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(InstanceUniforms), iu);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    currentInstanceCount_ = 1;
+}
+void rendering_opengl_setIUs(IUsToDraw const iusToDraw) {
+    currentInstanceCount_ = iusToDraw.count;
+    currentIUs_ = iusToDraw.iusOpt;
+    if(currentInstanceCount_ > IUB_MaxInstances) {
+        printwarning("To many instance %zu, max is %d.", currentInstanceCount_, IUB_MaxInstances);
+        currentInstanceCount_ = IUB_MaxInstances;
     }
-    // 2. Mise a jour de la texture ?
-    if(currentTexture_ != tex) {
-        currentTexture_ = tex;
-        texture_glBind(currentTexture_);
+    if(!iusToDraw.count || !iusToDraw.iusOpt) {
+        printwarning("IUs missing.");
+        currentInstanceCount_ = 0;
+        currentIUs_ = NULL;
     }
-    // 4. Cas multi-instance
-    uint32_t instanceCount = iusBuffer->actual_count;
-    if(instanceCount == 0) {
-        printwarning("No instance to draw.");
+    glBindBuffer(GL_UNIFORM_BUFFER, IUB_bufferId_);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0,
+        currentInstanceCount_ * sizeof(InstanceUniforms), currentIUs_);
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+}
+void rendering_opengl_drawWithCurrents(void) {
+    if(0 == currentInstanceCount_) return;
+    if(1 == currentInstanceCount_) {
+        if(currentMeshToDraw_.indexCount) {
+            // (Indices déjà settés...)
+            glDrawElements(GL_TRIANGLES, currentMeshToDraw_.indexCount,
+                GL_UNSIGNED_SHORT, NULL);
+        } else {
+            glDrawArrays(currentMeshToDraw_.primitive_type, 0,
+                currentMeshToDraw_.vertexCount);
+        }
         return;
     }
-    // (au moins 3.1 pour les instances ??)
+    // Cas multi-instances...
+    // (au moins OpenGL 3.1 pour les instances ??)
     if(isOpenGL_3_1_) {
-        iusbuffer_glBind(iusBuffer);
-        if(currentMesh_indexCount_) {
-            glDrawElementsInstanced(GL_TRIANGLES, currentMesh_indexCount_, GL_UNSIGNED_SHORT,
-                                    0, instanceCount);
+        if(currentMeshToDraw_.indexCount) {
+            glDrawElementsInstanced(GL_TRIANGLES, currentMeshToDraw_.indexCount,
+                    GL_UNSIGNED_SHORT, NULL, (GLsizei)currentInstanceCount_);
         } else {
-            glDrawArraysInstanced(currentMesh_primitive_, 0,
-                                  currentMesh_vertexCount_, instanceCount);
+            glDrawArraysInstanced(currentMeshToDraw_.primitive_type, 0,
+                    currentMeshToDraw_.vertexCount, (GLsizei)currentInstanceCount_);
         }
         return;
     }
+    printerror("TODO : implementer multi-instances pour OpenGL < 3.1 ...");
     // Sinon boucle pour dessiner toutes les instances... :(  ??
-    // Il doit il y avoir une meilleure solution... ?
-    const InstanceUniforms       *iu =   iusBuffer->ius;
-    const InstanceUniforms *const end = &iusBuffer->ius[iusBuffer->actual_count];
-    for(; iu < end; iu++) {
-        instanceuniform_glBind(iu);
-        if(currentMesh_indexCount_) {
-          glDrawElements(GL_TRIANGLES, currentMesh_indexCount_, GL_UNSIGNED_SHORT, 0);
-        } else {
-          glDrawArrays(currentMesh_primitive_, 0, currentMesh_vertexCount_);
-        }
-    }
+    // Il devrait il y avoir une meilleure solution... ?
+    // const InstanceUniforms *const end = &currentIUs_[currentInstanceCount_];
+    // for(InstanceUniforms const* iu = currentIUs_; iu < end; iu++) {
+    //     set instances uniforms... model, color, etc.
+    //     if(currentMeshToDraw_.indexCount) {
+    //         // (Indices déjà settés...)
+    //         glDrawElements(GL_TRIANGLES, currentMeshToDraw_.indexCount,
+    //             GL_UNSIGNED_SHORT, NULL);
+    //     } else {
+    //         glDrawArrays(currentMeshToDraw_.primitive_type, 0,
+    //             currentMeshToDraw_.vertexCount);
+    //     }
+    // }
 }
+
 
 #ifdef __APPLE__
 #pragma clang diagnostic pop

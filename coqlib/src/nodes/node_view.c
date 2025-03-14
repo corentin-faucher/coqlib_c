@@ -35,12 +35,14 @@ void  view_alignElements_(View* v, bool isOpening) {
             scale = parent->w / v->n.w;
             v->n.h = v->n.w / frame_ratio;
         }
-        Vector2 scales = {{ scale, scale }};
-        fluid_setScales(&v->f, scales, isOpening);
+        Vector3 scales = {{ scale, scale, scale }};
+        if(isOpening) fluid_fixScales(&v->f, scales);
+        else          fluid_setScales(&v->f, scales);
         return;
     }
     // Sinon, cas pas d'alignement, juste reprendre les dimensions du parent.
-    fluid_setScales(&v->f, vector2_ones, isOpening);
+    if(isOpening) fluid_fixScales(&v->f, vector3_ones);
+    else          fluid_setScales(&v->f, vector3_ones);
     v->n.w = parent->w;
     v->n.h = parent->h;
 }
@@ -54,14 +56,14 @@ void  view_reshape_(Node* n) {
 }
 
 void  view_touchHoveringDefault_(View* const v, Vector2 const pos) {
-    Button* const hovered = node_tree_searchActiveButtonWithPosOpt(&v->n, pos, NULL);
-    Button* const lastHovered = v->buttonSelectedOpt;
-    if(lastHovered == hovered) return;
-    if(lastHovered) if(lastHovered->stopHoveringOpt)
+    ButtonPosRel hovered = node_tree_searchActiveButtonWithPosOpt(&v->n, pos, NULL);
+    Button *const lastHovered = v->buttonSelectedOpt;
+    if(lastHovered == hovered.button) return;
+    if(lastHovered && lastHovered->stopHoveringOpt)
         lastHovered->stopHoveringOpt(lastHovered);
-    v->buttonSelectedOpt = hovered;
-    if(hovered) if(hovered->startHoveringOpt)
-        hovered->startHoveringOpt(hovered);
+    v->buttonSelectedOpt = hovered.button;
+    if(hovered.button && hovered.button->startHoveringOpt)
+        hovered.button->startHoveringOpt(hovered.button);
 } 
 void  view_touchDownDefault_(View* const v, Vector2 pos, uint32_t id) {
     if(id != 0) return; // Action par defaut juste pour clique gauche.
@@ -71,45 +73,44 @@ void  view_touchDownDefault_(View* const v, Vector2 pos, uint32_t id) {
         lastSelected->stopHoveringOpt(lastSelected);
     v->buttonSelectedOpt = NULL;
     // 0. Trouver un bouton sélectionable
-    Button* const toTouch = node_tree_searchActiveButtonWithPosOpt(&v->n, pos, NULL);
-    if(toTouch == NULL) return;
-    // 1. Grab le noeud draggable (si on drag on n'active pas)
-    if(toTouch->grabOpt) {
-        // Désactiver un scrollview quand un noeud est grabbé
+    ButtonPosRel const toTouch = node_tree_searchActiveButtonWithPosOpt(&v->n, pos, NULL);
+    if(toTouch.button == NULL) return;
+    // Effectuer son action au "touch".
+    toTouch.button->touch(toTouch.button, toTouch.posRel);
+    // Si "draggable", on garde en mémoire comme "selected".
+    if(toTouch.button->dragOpt) {
+        v->buttonSelectedOpt = toTouch.button;
+        // Aussi -> désactiver un scrollview dans iOS quand un noeud est grabbé
         #if TARGET_OS_OSX != 1
         CoqEvent_addToWindowEvent((CoqEventWin) {
             .type = event_type_win_ios_scrollviewDisable_
         });
         #endif
-        v->buttonSelectedOpt = toTouch;
-        Vector2 relpos = vector2_absPosToPosInReferentialOfNode(pos, &toTouch->n);
-        toTouch->grabOpt(toTouch, relpos);
-        return;
     }
-    // 2. Sinon activer le noeud sélectionné (non grabbable)
-    if(toTouch->action) toTouch->action(toTouch);
 }
 void  view_touchDragDefault_(View* const v, Vector2 pos, uint32_t touchId) {
     if(touchId != 0) return;
-    Button* const grabbed = v->buttonSelectedOpt;
-    if(grabbed == NULL) return;
+    guard_let(Button*, grabbed, v->buttonSelectedOpt,,)
     if(grabbed->dragOpt == NULL) {
         printwarning("Grabbed node without drag function.");
         return;
     }
-    Vector2 relpos = vector2_absPosToPosInReferentialOfNode(pos, &grabbed->n);
+    Box referential = node_asReferential(&grabbed->n);
+    for(Node const* p = grabbed->n._parent; p && !(p->_type & node_type_root); p = p->_parent) {
+        referential = box_referentialOut(referential, node_asReferential(p));
+    }
+    Vector2 relpos = vector2_referentialIn(pos, referential);
     grabbed->dragOpt(grabbed, relpos);
 }
 void  view_touchUpDefault_(View* v, uint32_t touchId) {
     if(touchId != 0) return;
-    Button* const grabbed = v->buttonSelectedOpt;
-    if(grabbed == NULL) return;
+    guard_let(Button*, grabbed, v->buttonSelectedOpt, , )
+    v->buttonSelectedOpt = NULL;
     if(grabbed->letGoOpt) {
-        grabbed->letGoOpt(v->buttonSelectedOpt);
+        grabbed->letGoOpt(grabbed);
     } else {
         printwarning("Grabbed node without letGo function.");
     }
-    v->buttonSelectedOpt = NULL;
 }
 
 void  view_and_super_init(View* const v, Root* const root, flag_t const flags) {
@@ -124,7 +125,7 @@ void  view_and_super_init(View* const v, Root* const root, flag_t const flags) {
     // Init as Smooth (avec lambda = 10)
     fluid_init(&v->f, 10.f);
     // Init as View (avec méthodes par défault)
-    v->n._type |= node_type_flag_view;
+    v->n._type |= node_type_view;
     v->n.openOpt =     view_open_;
     v->n.reshapeOpt =  view_reshape_;
     v->touchHovering = view_touchHoveringDefault_;
@@ -134,7 +135,7 @@ void  view_and_super_init(View* const v, Root* const root, flag_t const flags) {
 }
 
 View* node_asViewOpt(Node* n) {
-    if(n->_type & node_type_flag_view)
+    if(n->_type & node_type_view)
         return (View*)n;
     return NULL;
 }

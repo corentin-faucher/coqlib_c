@@ -9,36 +9,42 @@
 #define COQ_GRAPH_TEXTURE_H
 
 #include "graph_base.h"
-#include "../maths/math_chrono.h"
+#include "../coq_chrono.h"
 
-//#include "../utils/util_string.h"
-//#include "../utils/util_char_and_keycode.h"
+#define TEXTURE_CHECK_MINI_NEEDED 0
 
-typedef struct Texture {
-    uint32_t         m, n;  // Dimensions en "tuiles".
+typedef struct Texture Texture;
+// MARK: - Dimensions d'une texture.
+// Info pratique sur les dimensions d'une texture.
+typedef struct TextureDims {
+    // Découpage/subdivisions en x/y.
     union {
-        Vector2        sizes; // Dimensions en pixels.
+        UintPair mn;
+        struct { uint32_t  m, n; };
+    };
+    union {
+        Vector2 DuDv; // Du = 1/m.
+        struct { float Du, Dv; };
+    };
+    // Dimensions en pixels et ratio d'une tile.
+    union {
+        Vector2 sizes;
         struct { float width, height; };
     };
-    uint32_t         flags;
-    int64_t          touchTime;
-    
-    char*            string;  // Copie de la String ou nom du png, pour s'il faut redessiner la texture.
-    // Metal/OpenGl
+    float tileRatio;  // (w n) / (h m)
+    // (ratio ordinaire est juste width/height, superflu...)
+} TextureDims;
+
+// Info pour renderer pour setter la texture à dessiner.
+typedef struct TextureToDraw {
     union {
-        struct {
-            const void*    mtlTex_cptr;
-            const void*    mtlTexTmp_cptr;
-        };
-        struct {
-            uint32_t glTexId;
-            uint32_t glTexTmpId;
-        };
+        const void* metal_texture_cptr;
+        uint32_t    glTextureId;
     };
-} Texture;
+    bool isNearest; // (Style pixélisé)
+} TextureToDraw;
 
-#pragma mark - Texture Global
-
+// MARK: - Texture Global
 // Texture par défaut (du blanc...), un peu comme la mesh par défaut (mesh_sprite, un carré)
 extern Texture* Texture_white;
 // Textures du frame buffer (résultats de la première passe du renderer)
@@ -53,35 +59,43 @@ void            Texture_resume(void);
 void            Texture_deinit(void);
 /// A faire de temps en temps pour dessiner pleinement les textures.
 void            Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp);
-/// Charger les textures du projet.
+/// Charger les pngs de coqlib (dans `res/pngs_coqlib`)
+void            Texture_loadCoqlibPngs(void);
+/// Charger les pngs du projet (dans `res/pngs`).
 void            Texture_loadProjectPngs(PngInfo const*const pngInfosOpt, const unsigned pngCount);
 /// (privé -> voir `CoqGraph_init...`)
-void            Texture_init_(bool loadCoqlibPngs);
+void            Texture_init_(void);
 
-
-#pragma mark - Libérer une texture.
-/// Libérer (free) si n'est pas shared.
-void            textureref_releaseAndNull_(Texture** const texRef);
-
-#pragma mark - Texture de png --------
+// MARK: - Texture de png --------
 Texture*        Texture_sharedImage(uint32_t const pngId);
 Texture*        Texture_sharedImageByName(const char* pngName);
-/// Ration w/h d'une tile de la texture.
-float           texture_tileRatio(const Texture* tex);
-/// Espace u/v d'une tile de la texture (Delta u, Delta v).
-Vector2         texture_tileDuDv(const Texture* tex);
 
-#pragma mark - Texture de pixels ------
+// MARK: - Texture de pixels
 /// Texture avec array de pixels en mode brgra, i.e. en hexadecimal : 0xAARRGGBB.
 /// (Les bit/bytes plus significatifs viennent après les bits moins significatifs dans un array.)
-Texture*        Texture_createWithPixels(const void* pixelsBGRA8, uint32_t width, uint32_t height,
+Texture*        Texture_createWithPixels(const void* pixelsBGRA8Opt, uint32_t width, uint32_t height,
                                          bool shared, bool nearest);
-/// Convertie les coord. UV (dans [0, 1]) en coord. pixels (dans [0, width/height]).
-RectangleUint  texture_pixelRegionFromUVrect(const Texture* tex, Rectangle UVrect);
-/// Convertie les coord. pixels (dans [0, width/height]) en coord. UV (dans [0, 1])
-Rectangle      texture_UVrectFromPixelRegion(const Texture* tex, RectangleUint region);
 
-#pragma mark - Methode engine dependant... (Metal ou OpenGL)
+typedef struct TextureRef {
+    /// Référence à la texture.
+    Texture *const    tex;
+    /// Les infos pratique à propos de la texture.
+    TextureDims const dims;
+} TextureRef;
+void  textureref2_init(TextureRef* texref, Texture *tex);
+void  textureref2_releaseAndNull(TextureRef* texref);
+
+// MARK: - Methode
+/// Obtenir les dimensions de la texture.
+TextureDims const texture_dims(Texture const* tex);
+// Obtenir la région en coord uv d'une "tile" de la texture.
+static inline Rectangle texturedims_uvRectOfTile(TextureDims texDims, uint32_t i, uint32_t j);
+/// Convertie les coord. UV (dans [0, 1]) en coord. pixels (dans [0, width/height]).
+static inline RectangleUint texturedims_pixelRegionFromUVrect(TextureDims texDims, Rectangle UVrect);
+/// Convertie les coord. pixels (dans [0, width/height]) en coord. UV (dans [0, 1])
+static inline Rectangle     texturedims_UVrectFromPixelRegion(TextureDims texDims, RectangleUint region);
+/// Info pour dessiner par le renderer (et empêche de libérer)
+TextureToDraw   texture_engine_touchAndGetToDraw(Texture * tex);
 // Dépend de l'engine (Metal / OpenGL)...
 /// Copier un array de pixels dans la texture.
 void           texture_engine_writeAllPixels(Texture* tex, const void* pixelsBGRA8);
@@ -93,17 +107,7 @@ void           texture_engine_writeRegionToPixels(const Texture* tex, void* pixe
 void           texture_engine_copyRegionTo(const Texture* tex, Texture* texDest,
                                            RectangleUint srcRect, UintPair destOrig);
 
-// Privé...
-#pragma mark - Privé, engine dependant methods (Implementer avec Metal ou OpenGL) --------------
-void           texture_engine_tryToLoadAsPng_(Texture* tex, bool isMini);
-// Editions des pixels d'une texture...
-/// Crée une texture OpenGL/Metal vide. 
-void           texture_engine_loadEmptyWithSize_(Texture* tex, size_t width, size_t height);
-
-void           texture_engine_releaseAll_(Texture* tex);
-void           texture_engine_releasePartly_(Texture* tex);
-
-#pragma mark - Flags d'une texture -------------------------------------
+// MARK: - Flags d'une texture -------------------------------------
 enum {
 //    tex_flag_string_localized = string_flag_localized,
     tex_flag_shared           = 0x0002,   // Partagé (pas deallocated quand released)
@@ -121,10 +125,9 @@ enum {
     
 };
 
-// Il existe des textures pas encore dessinées...
-extern bool     Texture_needToFullyDraw_;
 
-void  texture_initEmpty_(Texture* tex);
-void  texture_deinit_(void* tex_void);
+
+// Définitions des inlines
+#include "graph_texture.inl"
 
 #endif /* graph_texture_h */

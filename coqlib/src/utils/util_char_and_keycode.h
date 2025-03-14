@@ -13,12 +13,13 @@
 #include <stdbool.h>
 
 #define CHARACTER_MAX_SIZE 7
-/// Structure (union) pour mini-string, i.e. typiquement un char utf8.
+/// Structure (union) pour mini-string, i.e. typiquement un char en *utf8*.
+/// Utiliser `character_toUnicode32` pour conversion de utf8 à unicode 32.
 typedef union {
     char     c_str[CHARACTER_MAX_SIZE + 1]; // A priori un 'Character' est une mini string de 8 bytes
                        // (entre 4 et 6 dans le cas des emojis et +1 pour le null terminal.)
-    uint64_t c_data8;  // Sous la forme d'un data de 64 bits.
-    uint32_t c_data4;  // Sous la forme d'un data de 32 bits. (Plupart des lettres de toutes les langues)
+    uint64_t c_data8;  // Sous la forme d'un data de 64 bits (data en utf8).
+    uint32_t c_data4;  // Sous la forme d'un data de 32 bits (data en utf8 de 1 à 4 bytes).
     char     first;    // Ok pour Ascii, i.e. lettre ordinaire sans accent.
 } Character;
 
@@ -64,6 +65,9 @@ extern const Character spchar_batu; // "❌"
 extern const Character spchar_checkmark; // "✓" };
 extern const Character spchar_greenCheckmark; // "✅"
 
+/// Conversion de utf8 vers unicode 32 (récupère les bits utiles de la mini-string).
+uint32_t character_toUnicode32(Character c);
+
 // Pour le upper/lower, on ne fait que scanner la liste pour l'instant. (Besoin de hash map ?)
 Character const character_upperCased(Character c, unsigned character_type);
 Character const character_lowerCased(Character c, unsigned character_type);
@@ -74,16 +78,14 @@ bool character_isPunct(Character c);
 bool character_isWordFinal(Character c);
 bool character_isEndLine(Character c);
 
-#pragma mark -- Liste de caractères --------------------------------
+// MARK: -- Liste de caractères --------------------------------
 typedef struct  CharacterArray CharacterArray;
 CharacterArray* CharacterArray_createFromString(const char* string);
 size_t          characterarray_count(const CharacterArray* charArr);
 Character const* characterarray_first(const CharacterArray* charArray);
 Character const* characterarray_end(const CharacterArray* charArray);
 
-
-#pragma mark -- Keycodes (dépend du système)--------------------------------
-
+// MARK: -- Keycodes (dépend du système)--------------------------------
 // Voir Carbon / HiToolbox / event.h...
 //#include <Carbon/Carbon.h> // -> e.g. `kVK_Command`...
 #if __APPLE__
@@ -164,7 +166,7 @@ enum {
     keycode_total_keycodes = 0xFF,
 };
 #else
-// Linux... TODO...
+// TODO: Linux keycodes...
 enum {
 // Touches modifier
     keycode_command = 0x37,
@@ -219,8 +221,7 @@ enum {
     modifiers_optionShift = modifier_shift|modifier_option,
 };
 
-#pragma mark - "My Keycode"
-/*-- "MyKeyCode" : Des "keycodes" indépendant du système. ----------*/
+// MARK: - "My Keycode", des "keycodes" indépendant du système. ----------*/
 enum {
     // 0 ...11 -> ligne de 1 à +
     // 12...23 -> ligne de Q à ]
@@ -301,6 +302,17 @@ extern const uint16_t MKC_keycode_of_mkc[];
 /// Mapping de keycode -> mkc.
 extern const uint16_t MKC_of_keycode[];
 
+/// // MARK: - Keyboard input, une entrée clavier -> voir `coq_event.h`.
+typedef struct {
+    uint32_t  modifiers;
+    uint16_t  keycode;
+    uint16_t  mkc;
+    bool      isVirtual;
+    Character typed;
+} KeyboardInput;
+/// Mapping de mkc -> KeyboardInput (Virtuals). Fonction car a besoin d'être init au premier call...
+KeyboardInput* KeyboardInput_getMapKeyboardInputOfMkc(void);
+
 /// Les MyKeyCode sur la homerow, i.e. 24...34.
 extern const uint16_t MKC_homerow_mkcs[];
 /// Ordre de scan de preference, i.e HomeRow, upper row, lower row, etc.
@@ -309,7 +321,7 @@ extern const uint16_t MKC_prefered_order_mkcs[];
 
 void test_print_mkcOfKeycode_(void);
 
-#pragma mark - GamePad buttons (style Nintendo)
+// MARK: - GamePad buttons (style Nintendo)
 
 enum {
     // Down/up input (comme keyboard keys)

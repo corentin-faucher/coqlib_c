@@ -6,7 +6,6 @@
 //
 #include "my_enums.h"
 #include <stdbool.h>
-#include "nodes/node__types.h"
 
 static const char* Localizable_stringKeys_[] = {
     "app_name",
@@ -36,7 +35,7 @@ const PngInfo MyProject_pngInfos[] = {
     {"digits_green", 12, 2, false},
     {"digits_red", 12, 2, false},
     {"disks", 4, 4, false},
-    
+
     {"frame_gray_back", 1, 1, false},
     {"frame_mocha", 1, 1, false},
     {"frame_red", 1, 1, false},
@@ -44,7 +43,7 @@ const PngInfo MyProject_pngInfos[] = {
     {"icons", 8, 4, false},
     {"language_flags", 4, 4, false},
     {"some_animals", 4, 7, false},
-    
+
     {"coqlib_test_frame", 1, 1, true, true},
 };
 
@@ -55,5 +54,3 @@ const char* MyProject_wavNames[] = {
     "note_piano",
     "sheep",
 };
-
-

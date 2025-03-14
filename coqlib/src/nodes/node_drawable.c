@@ -7,71 +7,234 @@
 
 #include "node_drawable.h"
 
-#include "node_root.h"
-#include "../graphs/graph_colors.h"
 #include "../utils/util_base.h"
 #include "../utils/util_language.h"
-#include <math.h>
 #include <stdlib.h>
+
+// MARK: - ChronoTiny : un mini chrono de 2 octets -
+/// Mini chrono de 2 octets, basé sur ChronoRendering.
+/// Lapse max de 2^16 ms, i.e. de -32s à +32s.
+/// La sruct est simplement {int16_t time}.
+/// Optenir un ChronoTiny que l'on "start" a zero.
+static inline int16_t chronotiny_startedChrono(void) {
+    return (int16_t)ChronosRender.render_elapsedMS;
+}
+/// Optenir un ChronoTiny que l'on "start" a elapsedMS.
+static inline int16_t chronotiny_setToElapsedMS(int16_t elapsedMS) {
+    return (int16_t)ChronosRender.render_elapsedMS - elapsedMS;
+}
+// Temps écoulé... oui, c'est la meme chose que setToElapsedMS ;)
+static inline int16_t chronotiny_elapsedMS(int16_t t) {
+    return (int16_t)ChronosRender.render_elapsedMS - t;
+}
+
+// MARK: - SmoothFlag
+enum {
+    sm_state_isDown_ =       0,
+    sm_state_goingUp_ =      1,
+    sm_state_goingDown_ =    2,
+    sm_state_goingUpOrDown_ = 3,
+    sm_state_isUp_ =         4,
+    sm_state_flags_ =        7,
+    sm_flag_poping_ =        8,
+    sm_flag_hard_ =         16,
+};
+#define ST_MIN_MS   6  // Minimum elapsed time
+static uint16_t     sm_defTransTime_ = 500;
+static float        sm_a_ =     0.75 + (0.2) * 0.2;  // (pop factor est de 0.2 par défaut)
+static float        sm_b_ =    -0.43 + (0.2) * 0.43;
+
+SmoothFlag SmoothFlag_new(void) {
+    return (SmoothFlag) {
+        ._D = sm_defTransTime_,
+    };
+}
+void    SmoothFlag_setPopFactor(float popFactor) {
+    sm_a_ =  0.75f + popFactor * 0.20f;
+    sm_b_ = -0.43f + popFactor * 0.43f;
+}
+void    SmoothFlag_setDefaultTransTime(uint16_t transTime) {
+    sm_defTransTime_ = transTime;
+}
+
+
+float smoothflag_setOn(SmoothFlag *const st) {
+    // On verifie les cas du plus probable au moins probable.
+    // Callé à chaque frame pour vérifier le on/off de "show".
+    float const max = 1.f - (float)st->_sub/(float)UINT16_MAX;
+    if(st->_flags & sm_state_isUp_)
+        return max;
+    int16_t elapsed = chronotiny_elapsedMS(st->_t);
+    // Going up
+    if(st->_flags & sm_state_goingUp_) {
+        if(elapsed > st->_D) {
+            st->_flags &= ~sm_state_goingUp_;
+            st->_flags |= sm_state_isUp_;
+            return max;
+        }
+    }
+    // down -> goingUp ou up 
+    else if((st->_flags & sm_state_flags_) == sm_state_isDown_) {
+        if(st->_flags & sm_flag_hard_) {
+            st->_flags |= sm_state_isUp_;
+            return max;
+        }
+        st->_flags |= sm_state_goingUp_;
+        st->_t = chronotiny_startedChrono();
+        elapsed = ST_MIN_MS; // (Min 6ms de temps écoulé)
+    }
+    // going down -> goingUp 
+    else {
+        st->_flags &= ~sm_state_goingDown_;
+        st->_flags |= sm_state_goingUp_;
+        if(elapsed < st->_D) {
+            elapsed = st->_D - elapsed;
+            st->_t = chronotiny_setToElapsedMS(elapsed);
+        } else {
+            st->_t = chronotiny_startedChrono();
+            elapsed = ST_MIN_MS;
+        }
+    }
+    // Ici on est going up... (si up déjà sorti)
+    float ratio = (float)elapsed / (float)st->_D;
+    if(st->_flags & sm_flag_poping_)
+        return max * (sm_a_ + sm_b_ * cosf(M_PI * ratio)
+                  + ( 0.5f - sm_a_) * cosf(2.f * M_PI * ratio)
+                  + (-0.5f - sm_b_) * cosf(3.f * M_PI * ratio)); // pippop
+    return max * (1.f - cosf(M_PI * ratio)) / 2.f; // smooth
+}
+float smoothflag_setOff(SmoothFlag *const st) {
+    if((st->_flags & sm_state_flags_) == sm_state_isDown_)
+        return 0.0f;
+    int16_t elapsed = chronotiny_elapsedMS(st->_t);
+    if(st->_flags & sm_state_goingDown_) {
+        if(elapsed > st->_D) {
+            st->_flags &= ~sm_state_flags_; // (down)
+            return 0.0f;
+        }
+    }
+    // Up 
+    else if(st->_flags & sm_state_isUp_) {
+        st->_flags &= ~sm_state_flags_; // (down)
+        if(st->_flags & sm_flag_hard_)
+            return 0.0f;
+        st->_flags |= sm_state_goingDown_;
+        st->_t = chronotiny_startedChrono();
+        elapsed = ST_MIN_MS;
+    }
+    // Going up
+    else {
+        st->_flags &= ~sm_state_goingUp_;
+        st->_flags |= sm_state_goingDown_;
+        if(elapsed < st->_D) {
+            elapsed = st->_D - elapsed;
+            st->_t = chronotiny_setToElapsedMS(elapsed);
+        } else {
+            st->_t = chronotiny_startedChrono();
+            elapsed = ST_MIN_MS;
+        }
+    }
+    // Ici on est going down... (si down déjà sorti)
+    float ratio = (float)elapsed / (float)st->_D;
+    float const max = 1.f - (float)st->_sub/(float)UINT16_MAX;
+    return  max * (1.f + cosf(M_PI * ratio)) / 2.f; // (smoothDown)
+}
+float smoothflag_justGetValue(SmoothFlag *const st) {
+    if((st->_flags & sm_state_flags_) == sm_state_isDown_)
+        return 0.0f;
+    float const max = 1.f - (float)st->_sub/(float)UINT16_MAX;
+    if(st->_flags & sm_state_isUp_)
+        return max;
+    int16_t elapsed = chronotiny_elapsedMS(st->_t);
+    // On est goingUpOrDown...
+    if(elapsed < st->_D) {
+        float ratio = (float)elapsed / (float)st->_D;
+        if(st->_flags & sm_state_goingUp_) {
+            if(st->_flags & sm_flag_poping_)
+                return max * (sm_a_ + sm_b_ * cosf(M_PI * ratio)
+                    + ( 0.5f - sm_a_) * cosf(2.f * M_PI * ratio)
+                    + (-0.5f - sm_b_) * cosf(3.f * M_PI * ratio)); // pippop
+            return max * (1.f - cosf(M_PI * ratio)) / 2.f; // smoothUp
+        }
+        // (going down)
+        return  max * (1.f + cosf(M_PI * ratio)) / 2.f; // (smoothDown)
+    }
+    // Transition fini : up
+    if(st->_flags & sm_state_goingUp_) {
+        st->_flags &= ~sm_state_goingUp_;
+        st->_flags |= sm_state_isUp_;
+        return max;
+    }
+    // Down
+    st->_flags &= ~sm_state_flags_;
+    return 0.f;
+}
+
+void  smoothflag_setMaxValue(SmoothFlag *st, float newMax) {
+    st->_sub = UINT16_MAX - (uint16_t)roundf(fminf(1.f, fmaxf(0.f, newMax))*(float)UINT16_MAX);
+}
+void  smoothflag_setOptions(SmoothFlag *st, bool isHard, bool isPoping) {
+    if(isHard)
+        st->_flags |= sm_flag_hard_;
+    else
+        st->_flags &= ~sm_flag_hard_;
+    if(isPoping)
+        st->_flags |=  sm_flag_poping_;
+    else
+        st->_flags &= ~sm_flag_poping_;
+}
+void  smoothflag_setDeltaT(SmoothFlag *st, int16_t deltaT) {
+    st->_D = deltaT;
+}
+
 
 
 
 static Drawable* drawable_last_ = NULL;
-
 /// Mise à jour ordinaire de la matrice modèle pour un drawable.
 void drawable_renderer_updateIU_(Node* const n) {
     Drawable* d = (Drawable*)n;
-    float show = smtrans_setAndGetValue(&d->trShow, (d->n.flags & flag_show) != 0);
-    // Rien à afficher...
-    if(show < 0.001f) {
-        n->_iu.render_flags &= ~renderflag_toDraw;
-        return;
-    }
-    n->_iu.render_flags |= renderflag_toDraw;
+    float show = drawable_updateShow(d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-    d->n._iu.show = show;
     if((d->n.flags & flag_drawablePoping) == 0)
         show = 1.f;
-    Matrix4* m = &n->_iu.model;
-    Vector3 pos = node_pos(n);
-    Vector2 scl = node_scales(n);
+    Matrix4* m = &n->renderIU.model;
+    Vector3 const pos = n->xyz;
+    Vector3 const scl = n->scales;
+    // Equivalent de :
+//    *m = *pm;
+//    matrix4_translate(m, pos);
+//    matrix4_scale(m, scl);
     m->v0.v = pm->v0.v * scl.x * show;
     m->v1.v = pm->v1.v * scl.y * show;
-    m->v2 =   pm->v2;  // *scl.z ... si on veut un scaling en z...?
-    m->v3 = (Vector4) {{
-        pm->v3.x + pm->v0.x * pos.x + pm->v1.x * pos.y + pm->v2.x * pos.z,
-        pm->v3.y + pm->v0.y * pos.x + pm->v1.y * pos.y + pm->v2.y * pos.z,
-        pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y + pm->v2.z * pos.z,
-        pm->v3.w,
-    }};
+    m->v2.v = pm->v2.v * scl.z * show;
+    m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y + pm->v2.v * pos.z;
 }
 void (*Drawable_renderer_defaultUpdateInstanceUniforms)(Node*) = drawable_renderer_updateIU_;
+Vector4 Drawable_renderIU_defaultColor = {{ 1, 1, 1, 1 }};
 
-#pragma mark -- Init/constructors ---------------------------------------
+// MARK: -- Init/constructors ---------------------------------------
 void      drawable_deinit_(Node* nd){
     Drawable* d = (Drawable*)nd;
-    if(!d->_mesh->isShared) {
-        mesh_engine_deinit(d->_mesh);
-        coq_free(d->_mesh);
-        d->_mesh = NULL;
-    }
-    textureref_releaseAndNull_(&d->_tex);
+    meshref_releaseAndNull(&d->_mesh);
+    textureref2_releaseAndNull(&d->texr);
 }
 void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh,
                         float const twoDxOpt, float const twoDy) {
-    if(tex == NULL) {printerror("No texture."); tex = Texture_white; }
-    if(mesh == NULL) { printwarning("No mesh."); mesh = &mesh_sprite; }
+    if(tex == NULL) { printerror("No texture."); tex = Texture_white; }
+    if(mesh == NULL) { printwarning("No mesh."); mesh = Mesh_drawable_sprite; }
     // Init
-    smtrans_init(&d->trShow);
-    smtrans_init(&d->trExtra);
-    d->_tex = tex;
+    d->trShow = SmoothFlag_new();
+    d->trExtra = SmoothFlag_new();
+    textureref2_init(&d->texr, tex);
     d->_mesh = mesh;
-    d->n._type |= node_type_flag_drawable;
+    d->n._type |= node_type_drawable;
     // Override de l'update de la matrice model.
     d->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms;
-    d->n.deinitOpt =   drawable_deinit_;
-    d->n._iu.draw_color =   color4_white;
-    d->n._iu.draw_uvRect = (Rectangle) { .size = texture_tileDuDv(tex) };
+    d->n.deinitOpt = drawable_deinit_;
+    d->n.renderIU.color =  Drawable_renderIU_defaultColor;
+    d->n.renderIU.uvRect.size = d->texr.dims.DuDv;
     drawable_last_ = d;
     // Set des dimensions...
     d->n.w = 1; d->n.h = 1;
@@ -79,32 +242,28 @@ void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh,
     if(twoDxOpt)
         d->n.sx = twoDxOpt;
     else {
-        d->n.sx = twoDy * texture_tileRatio(tex);
+        d->n.sx = twoDy * d->texr.dims.tileRatio;
    }
 }
 Drawable* Drawable_createImage(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDy, flag_t flags) {
-    if(mesh_sprite.vertex_count == 0) printerror("Missing Mesh_init().");
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImage(pngId), &mesh_sprite, 0, twoDy);
+    drawable_init(d, Texture_sharedImage(pngId), Mesh_drawable_sprite, 0, twoDy);
     return d;
 }
 Drawable* Drawable_createImageWithWidth(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDx, float twoDy, flag_t flags) {
-    if(mesh_sprite.vertex_count == 0)
-        printerror("Missing Mesh_init().");
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImage(pngId), &mesh_sprite, twoDx, twoDy);
+    drawable_init(d, Texture_sharedImage(pngId), Mesh_drawable_sprite, twoDx, twoDy);
     return d;
 }
 Drawable* Drawable_createImageWithName(Node* const refOpt, const char* pngName,
                           float x, float y, float twoDy, flag_t flags) {
-    if(mesh_sprite.vertex_count == 0) printerror("Missing Mesh_init().");
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImageByName(pngName), &mesh_sprite, 0, twoDy);
+    drawable_init(d, Texture_sharedImageByName(pngName), Mesh_drawable_sprite, 0, twoDy);
     return d;
 }
 void      drawable_open_imagelanguage_(Node* nd) {
@@ -113,27 +272,24 @@ void      drawable_open_imagelanguage_(Node* nd) {
 }
 Drawable* Drawable_createImageLanguage(Node* refOpt, uint32_t pngId,
                                        float x, float y, float twoDy, flag_t flags) {
-    if(mesh_sprite.vertex_count == 0) printerror("Missing Mesh_init().");
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImage(pngId), &mesh_sprite, 0, twoDy);
+    drawable_init(d, Texture_sharedImage(pngId), Mesh_drawable_sprite, 0, twoDy);
     d->n.openOpt = drawable_open_imagelanguage_;
     return d;
 }
 Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
                                float x, float y, float twoDx, float twoDy) {
-    if(mesh_sprite.vertex_count == 0) printerror("Missing Mesh_init().");
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, 0, 0);
-    drawable_init(d, Texture_white, &mesh_sprite, twoDx, twoDy);
-    d->n._iu.draw_color = color;
+    drawable_init(d, Texture_white, Mesh_drawable_sprite, twoDx, twoDy);
+    d->n.renderIU.color = color;
     return d;
 }
 Drawable* Drawable_createTestFrame(Node* parent, float x, float y, float twoDx, float twoDy) {
-    if(mesh_sprite.vertex_count == 0) printerror("Missing Mesh_init().");
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, parent, x, y, 1, 1, 0, 0);
-    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), &mesh_sprite, twoDx, twoDy);
+    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), Mesh_drawable_sprite, twoDx, twoDy);
     return d;
 }
 void      drawable_open_testframe_getSizesOfParent_(Node* nd) {
@@ -145,11 +301,10 @@ void      drawable_open_testframe_getSizesOfParent_(Node* nd) {
 }
 void      node_tryToAddTestFrame(Node* ref) {
 #ifdef DEBUG
-    if(mesh_sprite.vertex_count == 0) { printerror("Missing Mesh_init()."); return; }
     if(!ref) { printerror("No parent."); return; }
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, ref, 0, 0, 1, 1, flag_notToAlign, 0);
-    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), &mesh_sprite, 1, 1);
+    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), Mesh_drawable_sprite, 1, 1);
     d->n.openOpt = drawable_open_testframe_getSizesOfParent_;
     if(ref->reshapeOpt) {
         ref->flags |= flag_parentOfReshapable;
@@ -162,27 +317,31 @@ void      node_last_tryToAddTestFrame(void) {
     node_tryToAddTestFrame(Node_last);
 }
 
-#pragma mark - Methods ----------------------------
-void      drawable_changeMeshTo(Drawable* d, Mesh* newMesh) {
-    if(!d->_mesh->isShared) {
-        mesh_engine_deinit(d->_mesh);
-        coq_free(d->_mesh);
-    }
+// MARK: - Methods ----------------------------
+void      drawable_changeMeshTo(Drawable*const d, Mesh*const newMesh) {
+    meshref_releaseAndNull(&d->_mesh);
     d->_mesh = newMesh;
 }
+float     drawable_updateShow(Drawable *const d) {
+    float const show = (d->n.flags & flag_show) ? smoothflag_setOn(&d->trShow) : smoothflag_setOff(&d->trShow);
+    d->n.renderIU.show = show;
+    if(show < 0.001f) {
+        d->n.renderIU.flags &= ~renderflag_toDraw;
+        return 0.f;
+    }
+    d->n.renderIU.flags |= renderflag_toDraw;
+    return show;
+}
+
 void      drawable_changeTexToPngId(Drawable* d, uint32_t const newPngId) {
-    textureref_releaseAndNull_(&d->_tex);
-    d->_tex = Texture_sharedImage(newPngId);
+    textureref2_releaseAndNull(&d->texr);
+    textureref2_init(&d->texr, Texture_sharedImage(newPngId));
+    d->n.renderIU.uvRect.size = d->texr.dims.DuDv; 
     float const twoDy = d->n.sy * d->n.h;
     d->n.w = 1; d->n.h = 1;
     d->n.sy = twoDy;
-    d->n.sx = twoDy * texture_tileRatio(d->_tex);
+    d->n.sx = twoDy * d->texr.dims.tileRatio;
 
-}
-Drawable* node_asDrawableOpt(Node* const nOpt) {
-    if(!nOpt) return NULL;
-    if(nOpt->_type & node_type_flag_drawable) return (Drawable*)nOpt;
-    return NULL;
 }
 void      drawableref_destroyAndNull(Drawable** const drawableOptRef) {
     Drawable* const toDelete = *drawableOptRef;
@@ -195,54 +354,29 @@ void      drawableref_destroyAndNull(Drawable** const drawableOptRef) {
     node_throwToGarbage_(&toDelete->n);
 }
 
-#pragma mark -- Setters -----------------------------------------------
-void      drawable_setTile(Drawable *d, uint32_t i, uint32_t j) {
-    Vector2 Duv = texture_tileDuDv(d->_tex);
-    d->n._iu.draw_uvRect = (Rectangle) {
-        .origin = {{
-            (float)( i % d->_tex->m)                   * Duv.w,
-            (float)((j + i / d->_tex->m) % d->_tex->n) * Duv.h,
-        }},
-        .size = Duv,
-    };
-}
-void      drawable_setTileI(Drawable *d, uint32_t i) {
-    uint32_t m = d->_tex->m;
-    d->n._iu.draw_uvRect.o_x = (float)( i % m) * d->n._iu.draw_uvRect.w;
-}
-void      drawable_setTileJ(Drawable *d, uint32_t j) {
-    d->n._iu.draw_uvRect.o_y = (float)( j % d->_tex->n) * d->n._iu.draw_uvRect.h;
-}
-void      drawable_setUVRect(Drawable* d, Rectangle const uvrect) {
-    d->n._iu.draw_uvRect = uvrect;
-}
+// MARK: -- Setters -----------------------------------------------
 void      drawable_checkRatioWithUVrectAndTexture(Drawable *const d, float const newTwoDyOpt) {
     if(newTwoDyOpt) d->n.sy = newTwoDyOpt;
-    d->n.sx = d->n.sy * d->_tex->width / d->_tex->height * d->n._iu.draw_uvRect.w / d->n._iu.draw_uvRect.h;
+    d->n.sx = d->n.sy * d->texr.dims.width / d->texr.dims.height * d->n.renderIU.uvRect.w / d->n.renderIU.uvRect.h;
 }
-void      drawable_last_setTile(uint32_t i, uint32_t j) {
+void      drawable_last_setTile(uint32_t const i, uint32_t const j) {
     if(drawable_last_ == NULL) {
         printwarning("No last drawable.");
         return;
     }
-    uint32_t m = drawable_last_->_tex->m;
-    uint32_t n = drawable_last_->_tex->n;
-    drawable_last_->n._iu.draw_uvRect.origin = (Vector2) {{
-        (float)( i % m)          * drawable_last_->n._iu.draw_uvRect.w,
-        (float)((j + i / m) % n) * drawable_last_->n._iu.draw_uvRect.h
-    }};
+    drawable_setTile(drawable_last_, i, j);
 }
 void      drawable_last_setExtra1(float emph) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }
-    drawable_last_->n._iu.extra1 = emph;
+    drawable_last_->n.renderIU.extra1 = emph;
 }
 void      drawable_last_setShowOptions(bool isHard, bool isPoping) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }
-    smtrans_setOptions(&drawable_last_->trShow, isHard, isPoping);
+    smoothflag_setOptions(&drawable_last_->trShow, isHard, isPoping);
 }
 void      drawable_last_setColor(Vector4 color) {
     if(drawable_last_ == NULL) { printwarning("No last drawable."); return; }
-    drawable_last_->n._iu.draw_color = color;
+    drawable_last_->n.renderIU.color = color;
 }
 
 
@@ -305,7 +439,7 @@ void      drawable_last_setColor(Vector4 color) {
 //    if(d->_twoDxTarget)
 //        d->n.sx = d->_twoDxTarget;
 //    else {
-//        d->n.sx = d->_tex->ratio * d->n._iu.draw_uvRect.w / d->n._iu.draw_draw_uvRect.h * d->_twoDyTarget;
+//        d->n.sx = d->_tex->ratio * d->n.renderIU.uvRect.w / d->n._iu.draw_uvRect.h * d->_twoDyTarget;
 //   }
 //}
 //void      drawable_updateTargetDims(Drawable* d, float newTwoDxOpt, float newTwoDy, float newXMargin) {

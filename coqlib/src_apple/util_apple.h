@@ -16,21 +16,34 @@
 #import <CoreFoundation/CFCGTypes.h>
 #import <Metal/MTLRenderPass.h>
 
-#pragma mark - Conversion pratiques
-CGRect    rectangle_toCGRect(Rectangle rect);
-CGSize    vector2_toCGSize(Vector2 v);
-Rectangle CGRect_toRectangle(CGRect rect);
-Vector2   CGSize_toVector2(CGSize size);
-MTLClearColor vector4_toMTLClearColor(Vector4 v);
+// MARK: - Conversion pratiques
+static inline CGRect    rectangle_toCGRect(Rectangle const rect) {
+    return (CGRect) { rect.o_x, rect.o_y, rect.w, rect.h };
+}
+static inline CGSize    vector2_toCGSize(Vector2 const v) {
+    return (CGSize) { v.x, v.y };
+}
+static inline Rectangle CGRect_toRectangle(CGRect const rect) {
+    return (Rectangle) { rect.origin.x, rect.origin.y, rect.size.width, rect.size.height };
+}
+static inline Vector2   CGSize_toVector2(CGSize const size) {
+    return (Vector2) { size.width, size.height };
+}
+static inline MTLClearColor vector4_toMTLClearColor(Vector4 v) {
+    return (MTLClearColor) { v.x, v.y, v.z, v.w };
+}
 #if TARGET_OS_OSX != 1
 #import <UIKit/UIGeometry.h>
-Margins   UIEdgeInsets_toMargins(UIEdgeInsets m);
+static inline Margins   UIEdgeInsets_toMargins(UIEdgeInsets m) { 
+    return (Margins) { m.top, m.left, m.bottom, m.right };
+]
 #endif
 
-#pragma mark - NSApp et NSWindow: Default NSWindow et menu.
+// MARK: - NSApp et NSWindow: Default NSWindow et menu.
 #if TARGET_OS_OSX == 1
 #import <AppKit/AppKit.h>
-void      NSApp_createDefaultMenu(void);
+/// Menu minimaliste macOS (juste `Quit` avec la localized string "quit").
+NSMenu*   NSMenu_createDefault(void);
 NSWindow* NSWindow_createDefault(NSString* defaultName, float const fixedRatioOpt);
 #endif
 

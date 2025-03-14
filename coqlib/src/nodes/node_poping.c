@@ -7,7 +7,6 @@
 
 #include "node_poping.h"
 
-#include "node_squirrel.h"
 #include "node_tree.h"
 #include "node_root.h"
 #include "node_drawable_multi.h"
@@ -24,12 +23,12 @@ typedef struct PopingNode_ {
 } PopingNode_;
 PopingNode_* node_asPopingNodeOpt_(Node* n) {
     if(!n) return NULL;
-    if(n->_type & node_type_flag_poping)
+    if(n->_type & node_type_poping)
         return (PopingNode_*)n;
     return NULL;
 }
 
-#pragma mark - Poping Base
+// MARK: - Poping Base
 static View*    Poping_frontView_ = NULL;
 static Timer    Poping_timer_ = NULL;
 Fluid* popingnode_last_notSharedOpt_ = NULL;
@@ -75,7 +74,7 @@ void PopingNode_newAdded_(void) {
     timer_scheduled(&Poping_timer_, 1, true, NULL, PopingNode_checkAll_callback_);
 }
 
-#pragma mark - Instance PopingNode
+// MARK: - Instance PopingNode
 
 void popingnode_close_(Node* n) {
     PopingNode_* pn = (PopingNode_*)n;
@@ -96,7 +95,7 @@ void PopingNode_spawn(PopingNode_ **const refererOpt, float x, float y, float wi
     fluid_init(&pn->f, 0.f);
     fluid_popIn(&pn->f, popInfo);
     // Init as poping
-    pn->n._type |= node_type_flag_poping;
+    pn->n._type |= node_type_poping;
     pn->n.closeOpt = popingnode_close_;
     pn->countdown.ringTimeMS = (int64_t)(timeSec * 1000.f);
     countdown_start(&pn->countdown);
@@ -139,41 +138,44 @@ void PopingNode_spawnOver(Node* const nodeOver, PopingNode_** refererOpt, float 
 }
 
 void popingnode_last_checkForScreenSpilling(void) {
-    Fluid* const f = popingnode_last_notSharedOpt_;
-    if(!f) return;
+    guard_let(Fluid*, f, popingnode_last_notSharedOpt_, , )
     Node* const n = &f->n;
-    Squirrel sq;
-    sq_init(&sq, n, sq_scale_deltas);
+    Box const n_b0 = node_hitBox(n); // (box dans parent)
+    Box n_b = n_b0;
+    // Trouver la root.
     Root* root = NULL;
-    while(sq_goUpPS(&sq)) {
-        root = node_asRootOpt(sq.pos);
+    for(Node const* p = n->_parent; p; p = p->_parent) {
+        root = node_asRootOpt(p);
+        // Déjà au niveau de la root ? Hitbox ok -> sort.
         if(root) break;
+        // Sortir la hitbox du parent et aller au parent suivant...
+        n_b = box_referentialOut(n_b, node_asReferential(p)); 
     }
     if(!root) { printerror("No root."); return; }
     float dx = 0;
     float dy = 0;
     // Débordement à droite...
-    if(sq.v.x + sq.s.x > 0.5*root->n.w) {
-        dx = ( 0.5*root->n.w - (sq.v.x + sq.s.x)) * (node_deltaX(n)/sq.s.x); // (négatif)
+    if(n_b.c_x + n_b.Dx > 0.5*root->n.w) {
+        dx = ( 0.5*root->n.w - (n_b.c_x + n_b.Dx)) * (n_b0.Dx/n_b.Dx); // (négatif)
     }
     // Débordement à gauche...
-    if(sq.v.x - sq.s.x < -0.5*root->n.w) {
-        dx = (-0.5*root->n.w - (sq.v.x - sq.s.x)) * (node_deltaX(n)/sq.s.x); // (positif)
+    if(n_b.c_x - n_b.Dx < -0.5*root->n.w) {
+        dx = (-0.5*root->n.w - (n_b.c_x - n_b.Dx)) * (n_b0.Dx/n_b.Dx); // (positif)
     }
     // Débordement en haut
-    if(sq.v.y + sq.s.y > 0.5*root->n.h) {
-        dy = ( 0.5*root->n.h - (sq.v.y + sq.s.y)) * (node_deltaY(n)/sq.s.y); // (négatif)
+    if(n_b.c_y + n_b.Dy > 0.5*root->n.h) {
+        dy = ( 0.5*root->n.h - (n_b.c_y + n_b.Dy)) * (n_b0.Dy/n_b.Dy); // (négatif)
     }
     // Débordement en bas
-    if(sq.v.y - sq.s.y < -0.5*root->n.h) {
-        dy = (-0.5*root->n.h - (sq.v.y - sq.s.y)) * (node_deltaY(n)/sq.s.y); // (positif)
+    if(n_b.c_y - n_b.Dy < -0.5*root->n.h) {
+        dy = (-0.5*root->n.h - (n_b.c_y - n_b.Dy)) * (n_b0.Dy/n_b.Dy); // (positif)
     }
     // Replacer x, y dans l'écran.
     if(dx || dy)
         fluid_setXY(f, (Vector2){{n->x + dx, n->y + dy}});
 }
 
-#pragma mark - PopDisk, exemple de PopingNode : disk de progres qui s'autodetruit -
+// MARK: - PopDisk, exemple de PopingNode : disk de progres qui s'autodetruit -
 void popdisk_updateCallback_(Fluid* f, Countdown* cd) {
     float elapsedSec = chrono_elapsedSec(&cd->c);
     float deltaT = (float)cd->ringTimeMS * 0.001f;
@@ -206,10 +208,10 @@ void   PopDisk_spawnOverAndOpen(Node *const nodeOverOpt, PopingNode_ **const ref
     popingnode_last_open();
 }
 
-#pragma mark - Sparkles
+// MARK: - Sparkles
 /*-- Feux d'artifices --------------------------------------------*/
 #define SPARKLES_N_ 12
-#pragma mark - DrawableMulti de la Sparkles ------------
+// MARK: - DrawableMulti de la Sparkles ------------
 
 typedef struct DrawableMultiSparkles_ {
     union {
@@ -224,22 +226,17 @@ typedef struct DrawableMultiSparkles_ {
 // Override...
 void drawablemultiSparkle_updateModels_(Node* const n) {
     DrawableMultiSparkles_* dmsp = (DrawableMultiSparkles_*)n;
-    float show = smtrans_setAndGetValue(&dmsp->d.trShow, (n->flags & flag_show) != 0);
-    if(show < 0.001f) {
-        n->_iu.render_flags &= ~renderflag_toDraw;
-        return;
-    }
-    n->_iu.render_flags |= renderflag_toDraw;
+    float const show = drawable_updateShow(&dmsp->d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-
     float deltaT = (float)(ChronoApp_elapsedMS() - dmsp->t0)*0.001f;
     float alpha = float_smoothOut(deltaT, 5.f);
     Vector2 const scl = {{ dmsp->n.sx * show, dmsp->n.sy * show }};
-    InstanceUniforms* const end = &dmsp->dm.iusBuffer.ius[dmsp->dm.iusBuffer.actual_count];
+    IUsToEdit iusEdit = iusbuffer_rendering_retainIUsToEdit(dmsp->dm.iusBuffer);
     const Vector2  *p0 = dmsp->p0s, *p1 = dmsp->p1s;
-    for(InstanceUniforms* iu = dmsp->dm.iusBuffer.ius; iu < end; iu++, p0++, p1++) {
-        iu->show = show;
-        Matrix4* m = &iu->model;
+    for(; iusEdit.iu < iusEdit.end; iusEdit.iu++, p0++, p1++) {
+        iusEdit.iu->show = show;
+        Matrix4* m = &iusEdit.iu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
         Vector2 const pos = vector2_add(vector2_times(*p0, alpha), vector2_times(*p1, 1.f - alpha));
         m->v0.v = pm->v0.v * scl.x;
@@ -252,29 +249,28 @@ void drawablemultiSparkle_updateModels_(Node* const n) {
             pm->v3.w,
         }};
     }
+    iustoedit_release(iusEdit);
 }
 DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const height, Texture* tex) {
     DrawableMultiSparkles_* dmsp = coq_callocTyped(DrawableMultiSparkles_);
     node_init(&dmsp->n, parent, 0, 0, height, height, 0, 0);
-    drawable_init(&dmsp->d, tex, &mesh_sprite, 0, height);
-    drawablemulti_init(&dmsp->dm, SPARKLES_N_);
+    drawable_init(&dmsp->d, tex, Mesh_drawable_sprite, 0, height);
+    drawablemulti_init(&dmsp->dm, SPARKLES_N_, NULL);
     dmsp->n.renderer_updateInstanceUniforms = drawablemultiSparkle_updateModels_;
     dmsp->t0 = ChronoApp_elapsedMS();
+    
     // Init des per instance uniforms
-
     Vector2* p0 = dmsp->p0s;
     Vector2* p1 = dmsp->p1s;
-    Vector2 const Duv = texture_tileDuDv(tex);
-    InstanceUniforms iuInit = InstanceUnifoms_drawableDefaultIU;
-    iuInit.draw_uvRect.size = Duv;
-    InstanceUniforms* end = &dmsp->dm.iusBuffer.ius[SPARKLES_N_];
-    for(InstanceUniforms* iu = dmsp->dm.iusBuffer.ius; iu < end; iu++, p0++, p1++) {
-        *iu = iuInit;
-        uint32_t tile = rand() % (tex->m*tex->n);
-        iu->draw_uvRect.origin = (Vector2){{ (tile % tex->m) * Duv.w, (tile / tex->m) * Duv.h }};
+    TextureDims const td = dmsp->d.texr.dims;
+    IUsToEdit iusEdit = iusbuffer_retainIUsToInit(dmsp->dm.iusBuffer);
+    for(; iusEdit.iu < iusEdit.end; iusEdit.iu++, p0++, p1++) {
+        iusEdit.iu->color = Drawable_renderIU_defaultColor;
+        iusEdit.iu->uvRect = texturedims_uvRectOfTile(td, rand(), 0);
         *p0 = (Vector2) {{ rand_floatAt(0, 0.25f*height), rand_floatAt(0, 0.25f*height) }};
         *p1 = (Vector2) {{ rand_floatAt(0, 3.00f*height), rand_floatAt(0, 3.00f*height) }};
     }
+    iustoedit_release(iusEdit);
     return dmsp;
 }
 
@@ -308,7 +304,7 @@ void Sparkle_spawnOverAndOpen(Node* nd, float deltaRatio) {
     Sparkle_spawnAtAndOpen(box.c_x, box.c_y, delta, NULL);
 }
 
-#pragma mark - PopMessage
+// MARK: - PopMessage
 /*-- PopMessage : Message temporaire. ----------------------------------*/
 void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy,
                         float timeSec, uint32_t framePngId,

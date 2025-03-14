@@ -7,9 +7,7 @@
 #ifndef COQ_MATH_INTERPOLATED_ANGLE_H
 #define COQ_MATH_INTERPOLATED_ANGLE_H
 
-#include "math_chrono.h"
-#include "math_base.h"
-
+#include <stdint.h>
 #define INT_ANGLE_SIZE 20
 
 typedef struct InterpolatedAngle {

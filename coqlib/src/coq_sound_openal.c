@@ -1,4 +1,4 @@
-// 
+//
 //  coq_sound_openal.c
 //  Version OpenAL pour les sons.
 //  Ne semble pas nécessaire de faire une thread séparer pour jouer les sons ?
@@ -7,8 +7,11 @@
 //  Created by Corentin Faucher on 2023-10-31.
 //
 #include "coq_sound.h"
-#include "maths/math_chrono.h"
 #include "utils/util_file.h"
+#include "coq_chrono.h"
+
+#include <math.h>
+#include <pthread.h>
 
 #ifdef __APPLE__
 #define AL_SILENCE_DEPRECATION
@@ -89,11 +92,12 @@ void Sound_alSetAudioBuffer_(ALuint buffer_id, const char* wavName) {
     free(wav_buffer);
 }
 
+void  Sound_musicResume_(void);
 void  Sound_resume(void) {
     if(AL_device_) return;
     // Device et context OpenAL
-    AL_device_ =  alcOpenDevice(NULL);
-    AL_context_ = alcCreateContext(AL_device_, NULL);
+    ALCdevice*const device = alcOpenDevice(NULL);
+    AL_context_ = alcCreateContext(device, NULL);
     alcMakeContextCurrent(AL_context_);
     // Buffers des sons
     AL_buffer_ids_ = calloc(wav_count_, sizeof(ALuint));
@@ -104,10 +108,17 @@ void  Sound_resume(void) {
         Sound_alSetAudioBuffer_(AL_buffer_ids_[i], wav_namesOpt_[i]);
         alSourcei(AL_source_ids_[i], AL_BUFFER, AL_buffer_ids_[i]);
     }
+    // Prêt...
+    AL_device_ = device;
+    Sound_musicResume_();
 }
 
+void  Sound_musicSuspend_(void);
 void  Sound_suspend(void) {
     if(!AL_device_) return;
+    Sound_musicSuspend_();
+    ALCdevice*const device = AL_device_;
+    AL_device_ = NULL;
     // 1. Delier sources et buffer (utile ?)
     for(int i = 0; i < wav_count_; i ++) {
         alSourcei(AL_source_ids_[i], AL_BUFFER, 0);
@@ -123,8 +134,7 @@ void  Sound_suspend(void) {
     alcMakeContextCurrent(NULL);
     alcDestroyContext(AL_context_);
     AL_context_ = NULL;
-    alcCloseDevice(AL_device_);
-    AL_device_ = NULL;
+    alcCloseDevice(device);
 }
 
 void  Sound_initWithWavNames(const char** wav_namesOpt, uint32_t wav_count) {
@@ -138,8 +148,7 @@ void  Sound_initWithWavNames(const char** wav_namesOpt, uint32_t wav_count) {
 }
 
 void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volumeId) {
-    ChronoChecker cc;
-    chronochecker_set(&cc);
+    if(!AL_device_) { printwarning("Sound suspended."); return; }
     if(volumeId >= Sound_volume_count) {
         printerror("Volume id overflow %d.", volumeId);
         return;
@@ -154,6 +163,97 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
     alSourcef(AL_source_ids_[soundId], AL_PITCH, powf(2.f,(float)pitch/12.f));
     alSourcePlay(AL_source_ids_[soundId]);
 }
+
+// MARK: - Musique
+static volatile bool Music_ON_ = false;      // Signal pour continuer à jouer.
+static bool Music_shouldPlay_ = false;
+static volatile bool Music_Playing_ = false; // Est en train de jouer.
+static pthread_t Music_thread_ = {};
+static int64_t Music_beatDTMS_ = 300; 
+static int64_t Music_maxSleepMS = 50;
+static void (*Music_callback_)(void) = NULL;
+
+void* music_loop_(void* unused_) {
+    Music_Playing_ = true;
+    void (*const callback)(void) = Music_callback_;
+    if(!callback) { 
+        printerror("Music callback not set.");
+        goto quit_playing_music;
+    }
+    int64_t timeMS = Chrono_systemTimeMS_();
+    
+    while(Music_ON_) {
+        // Jouer l'instant présent.
+        callback();
+        // Attendre le prochain beat.
+        timeMS += Music_beatDTMS_;
+        int64_t sleepTimeMS = timeMS - Chrono_systemTimeMS_();
+        if(sleepTimeMS < 1) {
+            printerror("Bad sleep time %lld.", sleepTimeMS);
+            sleepTimeMS = 1;
+        }
+        while(sleepTimeMS && Music_ON_) {
+            int64_t subSleepTime = sleepTimeMS;
+            if(subSleepTime > Music_maxSleepMS + 1) {
+                subSleepTime = Music_maxSleepMS;
+            }
+            sleepTimeMS -= subSleepTime;
+            struct timespec time = {0, subSleepTime*ONE_MILLION};
+            nanosleep(&time, NULL);
+        }
+    }
+quit_playing_music:
+    Music_Playing_ = false;
+    return NULL;
+}
+
+void Sound_musicResume_(void) {
+    if(!Music_shouldPlay_) return;
+    if(Music_ON_) {
+        printwarning("Already on.");
+        return; 
+    }
+    if(Music_Playing_) {
+        printwarning("Already playing.");
+        // TODO: Retry later ?
+        return;
+    }
+    Music_ON_ = true;
+    pthread_create(&Music_thread_, NULL, music_loop_, NULL);
+}
+
+void Sound_musicSuspend_(void) {
+    if(!Music_ON_) return;
+    Music_ON_ = false;
+    pthread_join(Music_thread_, NULL);
+}
+
+void Sound_musicStart(void (*const music_callback)(void)) {
+    Music_shouldPlay_ = false;
+    Sound_musicSuspend_();
+    if(!music_callback) {
+        printerror("No music callback.");
+        return;
+    }
+    Music_shouldPlay_ = true;
+    Music_callback_ = music_callback;
+    Sound_musicResume_();
+}
+void Sound_musicStop(void) {
+    Music_shouldPlay_ = false;
+    Sound_musicSuspend_();
+}
+
+void Sound_musicSetBeat(uint32_t bpm) {
+    if(bpm > 500) {
+        printwarning("Music bpm too high %d.", bpm);
+        bpm = 500;
+    }
+    if(!bpm) Music_beatDTMS_ = 300;
+    else Music_beatDTMS_ = 60000.f / (float)bpm;
+}
+
+
 
 #ifdef __APPLE__
 #pragma clang diagnostic pop

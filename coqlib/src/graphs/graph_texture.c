@@ -5,38 +5,31 @@
 //  Created by Corentin Faucher on 2023-10-12.
 //
 #include "graph_texture.h"
-
+#include "graph_texture_private.h"
 #include "../coq_map.h"
 #include "../utils/util_base.h"
 #include "../utils/util_string.h"
 
-#include "graph_colors.h"
-
-
 #define TEX_UNUSED_DELTATMS_ 1000
 
-static Texture      Texture_dummy_ = {
-    .n = 1, .m = 1,
-    .width = 8, .height = 8,
+/*-- Variable globales --*/
+static Texture  Texture_dummy_ = {
+    .dims = {
+        .m = 1, .n = 1,
+        .Du = 1, .Dv = 1,
+        .width = 8, .height = 8,
+        .tileRatio = 1,
+    },
     .flags = tex_flag_static_, 
     .touchTime = 0,
     .string = NULL,
 };
-
-/*-- Variable globales --*/
 static int32_t           Texture_total_count_ = 0;
 bool                     Texture_needToFullyDraw_ = false;
 static bool              _Texture_isInit = false;
 static bool              _Texture_isLoaded = false;
 
-#pragma mark - Fonctions privées sur une instance texture. -------------
-
-bool  _texture_isUsed(Texture* const tex) {
-    return CR_elapsedMS_ - tex->touchTime <= TEX_UNUSED_DELTATMS_;
-}
-bool  _texture_isUnused(Texture* const tex) {
-    return CR_elapsedMS_ - tex->touchTime > TEX_UNUSED_DELTATMS_ + 30;
-}
+// MARK: - Fonctions privées sur une instance texture.
 void  texture_deinit_(void* tex_void) {
     Texture* tex = tex_void;
     texture_engine_releaseAll_(tex);
@@ -57,16 +50,22 @@ static void (* const texture_engine_releasePartly__)(char*) = (void (*)(char*))t
 void  _texture_unsetUnusedPng_(char* tex_char) {
     Texture* tex = (Texture*)tex_char;
     if(!(tex->flags & tex_flag_tmpDrawn_)) return;
-    if(!_texture_isUnused(tex)) return;
+    // Utilisée recemment ?
+    if(ChronosRender.render_elapsedMS - tex->touchTime < TEX_UNUSED_DELTATMS_ + 30) return;
     texture_engine_releasePartly_(tex);
 }
 void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
     // Init des champs
-    tex->m =     info->m; tex->n =     info->n;
+    tex->dims = (TextureDims) {
+        .m = info->m,               .n = info->n,
+        .Du = 1.f / (float)info->m, .Dv = 1.f/info->n,
+        .width = 2, .height = 2,
+        .tileRatio = 1,
+    };
 //    tex->ratio = (float)info->n / (float)info->m; 
     tex->flags = tex_flag_shared|(info->isCoqlib ? tex_flag_png_coqlib : 0)
                     |(info->nearest ? tex_flag_nearest : 0);
-    tex->touchTime = CR_elapsedMS_ - TEX_UNUSED_DELTATMS_;
+    tex->touchTime = ChronosRender.render_elapsedMS - TEX_UNUSED_DELTATMS_;
     
     tex->string = String_createCopy(info->name);
     
@@ -77,15 +76,20 @@ void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
 
 void  texture_initEmpty_(Texture* const tex) {
     *tex = (Texture) {
-        .m = 1, .n = 1,
-        .width = 2, .height = 2,
-        .flags = 0, .touchTime = CR_elapsedMS_,
+        .dims = {
+            .m = 1,     .n = 1,
+            .Du = 1,    .Dv = 1,
+            .width = 2, .height = 2,
+            .tileRatio = 1,
+        },
+        .flags = 0, 
+        .touchTime = ChronosRender.render_elapsedMS,
         // reste à 0.
     };
     Texture_total_count_ ++;
 }
 
-#pragma mark - Listes de textures -------------------------------------------
+// MARK: - Listes de textures
 /// Maps des png (shared).
 static StringMap*        textureOfPngName_ = NULL; // Pngs dans une map.
 static Texture**         textureOfPngIdOpt_ = NULL;// Pngs dans un array.
@@ -112,29 +116,26 @@ static uint32_t texture_white_pixels_[4] = {
 };
 Texture* Texture_frameBuffers[10] = {};
 
-#pragma mark -- Globals ------------------------------------------------
-
-void    Texture_init_(bool loadCoqlibPngs) {
+// MARK: -- Globals
+void     Texture_init_(void) {
     if(_Texture_isInit) {
         printerror("Texture already init.");
         return;
     }
-    // Preload des png de coqlib.
     textureOfPngName_ =  Map_create(64, sizeof(Texture));
-    if(loadCoqlibPngs) {
-        const PngInfo*       info = coqlib_pngInfos_;
-        const PngInfo* const end = &coqlib_pngInfos_[coqlib_pngCount_];
-        while(info < end) {
-            Texture* png_tex = (Texture*)map_put(textureOfPngName_, info->name, NULL);
-            texture_initAsPng_(png_tex, info); // (ici c'est juste vide, i.e. sans MTLTexture)
-            info ++;
-        }
-    }
     // Texture par défaut (blanc)
     Texture_white = Texture_createWithPixels(texture_white_pixels_, 2, 2, true, true);    
-    
     _Texture_isInit = true;
     _Texture_isLoaded = true;
+}
+void     Texture_loadCoqlibPngs(void) {
+    if(!_Texture_isInit) { printwarning("Texture not init."); return; }
+    const PngInfo* const end = &coqlib_pngInfos_[coqlib_pngCount_];
+    for(const PngInfo *info = coqlib_pngInfos_; info < end; info++) { 
+        Texture* png_tex = (Texture*)map_put(textureOfPngName_, info->name, NULL);
+        if(png_tex->dims.m) { printwarning("png already loaded."); continue; }
+        texture_initAsPng_(png_tex, info); // (ici c'est juste vide, i.e. sans MTLTexture)
+    }
 }
 void     Texture_loadProjectPngs(PngInfo const*const pngInfosOpt, const unsigned pngCount) {
     if(textureOfPngIdOpt_) { printwarning("User textures already loaded."); return; }
@@ -193,13 +194,14 @@ void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
 
         return;
     }    
-    // Chercher les png, `const string`, `non const string` à dessiner au complet...
+    // Chercher les textures à dessiner au complet...
     if(map_iterator_init(textureOfPngName_)) do {
         Texture* tex = (Texture*)map_iterator_valueRefOpt(textureOfPngName_);
-        if(!_texture_isUsed(tex)) continue;
+        // (skip si pas utilisée)
+        if(ChronosRender.render_elapsedMS - tex->touchTime > TEX_UNUSED_DELTATMS_) continue;
         if(!(tex->flags & tex_flag_fullyDrawn_)) {
             texture_engine_tryToLoadAsPng_(tex, false);
-            if(chronochecker_elapsedMS(cc) > timesUp)
+            if(chronochecker_elapsedMS(*cc) > timesUp)
                 return;
         }
     } while(map_iterator_next(textureOfPngName_));
@@ -224,8 +226,7 @@ void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
     Texture_needToFullyDraw_ = false;
 }
 
-#pragma mark -- Constructors... ----------------------------------------
-
+// MARK: - Constructors...
 Texture* Texture_sharedImage(uint32_t const pngId) {
     if(!textureOfPngIdOpt_) { printerror("pngs not loaded."); return Texture_white; }
     if(pngId >= pngCount_) {
@@ -233,15 +234,14 @@ Texture* Texture_sharedImage(uint32_t const pngId) {
         return &Texture_dummy_;
     }
     Texture *tex = textureOfPngIdOpt_[pngId];
-    tex->touchTime = CR_elapsedMS_;
+    tex->touchTime = ChronosRender.render_elapsedMS;
     // S'il y a pas la mini, créer tout de suite la vrai texture. (besoin des dimensions)
     // (Normalement, s'il n'y a pas de mini c'est que la texture est petite...)
     if((tex->flags & tex_flags_drawn_) == 0) {
-        ChronoChecker cc;
-        chronochecker_set(&cc);
+        ChronoChecker cc = chronochecker_startNew();
         texture_engine_tryToLoadAsPng_(tex, false);
-        if(chronochecker_elapsedMS(&cc) > 10)
-            printwarning("Png %d, no mini for %s. time %lld.", pngId, tex->string, chronochecker_elapsedMS(&cc));
+        if(chronochecker_elapsedMS(cc) > 10 && TEXTURE_CHECK_MINI_NEEDED)
+            printwarning("Png %d, no mini for %s. time %lld.", pngId, tex->string, chronochecker_elapsedMS(cc));
     }
     return tex;
 }
@@ -252,7 +252,7 @@ Texture* Texture_sharedImageByName(const char* pngName) {
         printerror("Invalid png name %s.", pngName);
         return &Texture_dummy_;
     }
-    tex->touchTime = CR_elapsedMS_;
+    tex->touchTime = ChronosRender.render_elapsedMS;
     if((tex->flags & tex_flags_drawn_) == 0) {
         texture_engine_tryToLoadAsPng_(tex, false);
     }
@@ -260,52 +260,49 @@ Texture* Texture_sharedImageByName(const char* pngName) {
 }
 
 
-Texture* Texture_createWithPixels(const void* pixelsBGRA8, uint32_t width, uint32_t height, 
-                                  bool shared, bool nearest) 
+Texture* Texture_createWithPixels(void const*const pixelsBGRA8Opt, uint32_t const width, uint32_t const height, 
+                                  bool const shared, bool const nearest) 
 {
     Texture* tex = coq_callocTyped(Texture);
     texture_initEmpty_(tex);
     tex->flags = (shared ? tex_flag_shared : 0)|(nearest ? tex_flag_nearest : 0);
-    texture_engine_loadEmptyWithSize_(tex, width, height);
-    texture_engine_writeAllPixels(tex, pixelsBGRA8);
+    texture_engine_load_(tex, width, height, false, pixelsBGRA8Opt);
     return tex;
 }
 
-void    textureref_releaseAndNull_(Texture** const texRef) {
-    if(*texRef == NULL) return;
-    Texture* const tex = *texRef;
-    *texRef = NULL;
+static TextureDims const TextureDims_default_ = {
+    .m = 1,       .n = 1,
+    .Du = 1.f,    .Dv = 1.f,
+    .width = 1.f, .height = 1.f,
+    .tileRatio = 1.f,
+};
+void  textureref2_init(TextureRef *const texref, Texture *const tex) {
+    if(texref->tex) {
+        printwarning("Release befor init.");
+        textureref2_releaseAndNull(texref);
+    }
+    *(Texture**)&texref->tex = tex;
+    if(tex) {
+        *(TextureDims*)&texref->dims = texture_dims(tex);
+    } else {
+        printwarning("Init with NULL tex.");
+        *(TextureDims*)&texref->dims = TextureDims_default_;
+    }
+}
+void  textureref2_releaseAndNull(TextureRef *const texref) {
+    Texture* const tex = texref->tex;
+    if(tex == NULL) return; // (déjà release)
+    *(Texture**)&texref->tex = NULL;
+    *(TextureDims*)&texref->dims = TextureDims_default_;
     if(tex->flags & tex_flag_shared) return;
     if(tex->flags & tex_flag_static_) { printwarning("Release de static tex ?"); return; }
-    
     texture_deinit_(tex);
     coq_free(tex);
 }
 
-
-#pragma mark - Methods ---
-
-RectangleUint  texture_pixelRegionFromUVrect(const Texture* const tex, Rectangle const UVrect) {
-    return (RectangleUint) {{
-        tex->width * UVrect.o_x, tex->height * UVrect.o_y,
-        tex->width * UVrect.w,   tex->height * UVrect.h,
-    }};
+TextureDims const texture_dims(Texture const*const tex) {
+    return tex->dims;
 }
-
-Rectangle      texture_UVrectFromPixelRegion(const Texture* const tex, RectangleUint const region) {
-    return (Rectangle) {{
-        (float)region.o_x / tex->width, (float)region.o_y / tex->height,
-        (float)region.w / tex->width,   (float)region.h / tex->height,
-    }};
-}
-
-float          texture_tileRatio(const Texture* const tex) {
-    return tex->width / tex->height * ((float)tex->n / (float)tex->m);
-}
-Vector2        texture_tileDuDv(const Texture* const tex) {
-    return (Vector2) {{ 1.f/(float)tex->m, 1.f/(float)tex->n }};
-}
-
 
 // Garbage
 //void    textureref_exchangeSharedStringFor(Texture** const texRef, StringDrawable str) {

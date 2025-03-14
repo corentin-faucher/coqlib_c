@@ -18,7 +18,7 @@
 
 /// Init des shaders et du blending pour la première passe
 id<MTLRenderPipelineState> RenderPipelineState_createFirst_(void) {
-    id<MTLDevice> device = CoqGraph_metal_getDevice();
+    id<MTLDevice> device = CoqGraph_metal_device;
     if(!device) { printerror("no device."); return nil; }
     id<MTLLibrary> library = [device newDefaultLibrary];
     if(library == nil) { printerror("no library."); return nil; }
@@ -37,7 +37,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createFirst_(void) {
     if(pipeline_descr.vertexFunction == nil || pipeline_descr.fragmentFunction == nil) {
         printerror("no vertex or fragment function."); return nil;
     }
-    pipeline_descr.depthAttachmentPixelFormat = CoqGraph_metal_getDepthPixelFormat();
+    pipeline_descr.depthAttachmentPixelFormat = CoqGraph_metal_depthPixelFormat;
     
     colorattachment_initDefaultBlending(pipeline_descr.colorAttachments[0]);
     
@@ -46,11 +46,11 @@ id<MTLRenderPipelineState> RenderPipelineState_createFirst_(void) {
 /// Infos et texture pour la premiere passe (dessinnage ordinaire sur texture de couleur, lumière,...)
 MTLRenderPassDescriptor* RenderPassDescriptor_createFirst_(CGSize size, MTLClearColor clearColor) {
     MTLRenderPassDescriptor* passDescr = [MTLRenderPassDescriptor renderPassDescriptor];
-    id<MTLDevice> device = CoqGraph_metal_getDevice();
+    id<MTLDevice> device = CoqGraph_metal_device;
     int32_t height = (int32_t)fminf(size.height, 1080);
     int32_t width =  (int32_t)((size.width/size.height) * (float)height);
     if(device == nil) { printerror("No device"); return nil; }
-    MTLPixelFormat pixelFormat = CoqGraph_metal_getPixelFormat();
+    MTLPixelFormat pixelFormat = CoqGraph_metal_pixelFormat;
     
     // 0 : Texture Couleur, où on dessine la couleur
     MTLTextureDescriptor* texDescr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:pixelFormat
@@ -85,7 +85,7 @@ MTLRenderPassDescriptor* RenderPassDescriptor_createFirst_(CGSize size, MTLClear
     
     // Texture de profondeur (depth texture)
     MTLTextureDescriptor* depthTexDescriptor = [MTLTextureDescriptor
-                        texture2DDescriptorWithPixelFormat:CoqGraph_metal_getDepthPixelFormat()
+                        texture2DDescriptorWithPixelFormat:CoqGraph_metal_depthPixelFormat
                         width:size.width height:size.height mipmapped:NO];
     [depthTexDescriptor setUsage:MTLTextureUsageRenderTarget];
     [depthTexDescriptor setStorageMode:MTLStorageModePrivate];
@@ -97,7 +97,7 @@ MTLRenderPassDescriptor* RenderPassDescriptor_createFirst_(CGSize size, MTLClear
 
 /// Init des shaders pour la deuxième passe (pas de blending)
 id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
-    id<MTLDevice> device = CoqGraph_metal_getDevice();
+    id<MTLDevice> device = CoqGraph_metal_device;
     if(!device) { printerror("no device."); return nil; }
     id<MTLLibrary> library = [device newDefaultLibrary];
     if(library == nil) { printerror("no library."); return nil; }
@@ -105,7 +105,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     // 1. Set shaders
     pipeline_descr.vertexFunction = [library newFunctionWithName:@"second_vertex_function"];
     pipeline_descr.fragmentFunction = [library newFunctionWithName:@"second_fragment_function"];
-    pipeline_descr.colorAttachments[0].pixelFormat = CoqGraph_metal_getPixelFormat();
+    pipeline_descr.colorAttachments[0].pixelFormat = CoqGraph_metal_pixelFormat;
     
     return [device newRenderPipelineStateWithDescriptor:pipeline_descr error:nil];
 }
@@ -123,7 +123,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     clearColor = MTLClearColorMake(0.5, 0.5, 0.5, 1);
     
     // Set de la view pour le renderer (pixel format frame buffer)
-    view.colorPixelFormat = CoqGraph_metal_getPixelFormat();
+    view.colorPixelFormat = CoqGraph_metal_pixelFormat;
 //    view.depthStencilPixelFormat = MTL_depthPixelFormat_;
     if(WITH_FRAME_BUFFER)
         [view setFramebufferOnly:false];
@@ -149,7 +149,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     return self;
 }
 
-- (void)firstRenderPass:(id<MTLCommandBuffer>)commandBuffer withRoot:(Root*)root {
+- (void)firstRenderPass:(id<MTLCommandBuffer>)commandBuffer withRoot:(Root *const)root {
     // (Defaut descriptor est : view.currentRenderPassDescriptor)
     id<MTLRenderCommandEncoder> commandEncoder = [commandBuffer renderCommandEncoderWithDescriptor:firstRenderPassDescr];
    
@@ -168,26 +168,29 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     // Prepare pour dessiner
     commandencoder_initForDrawing(commandEncoder);
     // Drawing
-    Squirrel sq;
     // (Préparation des fragment uniform de la passe finale.)
     fu = (FinalFragmentUniforms){ 0 };
-    fu.extra0 = fl_evalPos(root->ambiantLight);
+    fu.extra0 = fl_evalPos(&root->ambiantLight);
     fu.extra1 = timeAngle;
-    sq_init(&sq, (Node*)root, sq_scale_ones);
+    Node* sq = &root->n;
     do {
-        sq.pos->renderer_updateInstanceUniforms(sq.pos);
-        if(!(sq.pos->_iu.render_flags & renderflag_toDraw)) continue;
-        DrawableMulti const *dm = node_asDrawableMultiOpt(sq.pos);
-        if(dm) {
-            commandencoder_drawMulti(commandEncoder, dm->d._mesh, dm->d._tex, &dm->iusBuffer);
+        sq->renderer_updateInstanceUniforms(sq);
+        if(!(sq->renderIU.flags & renderflag_toDraw)) continue;
+        if_let(DrawableMulti const*, dm, node_asDrawableMultiOpt(sq))
+            commandencoder_setCurrentMesh(commandEncoder, dm->d._mesh);
+            commandencoder_setCurrentTexture(commandEncoder, dm->d.texr.tex);
+            commandencoder_setIUs(commandEncoder, iusbuffer_rendering_getToDraw(dm->iusBuffer));
+            commandencoder_drawWithCurrents(commandEncoder);
             continue;
-        }
-        const Drawable* d = node_asDrawableOpt(sq.pos); 
-        if(d) {
-            commandencoder_draw(commandEncoder, d->_mesh, d->_tex, &d->n._iu);
+        if_let_end
+        if_let(Drawable const*, d, node_asDrawableOpt(sq))
+            commandencoder_setCurrentMesh(commandEncoder, d->_mesh);
+            commandencoder_setCurrentTexture(commandEncoder, d->texr.tex);
+            commandencoder_setIU(commandEncoder, &d->n.renderIU);
+            commandencoder_drawWithCurrents(commandEncoder);
             continue;
-        }
-    } while(sq_renderer_goToNextToDisplay(&sq));
+        if_let_end
+    } while(nodeptr_renderer_goToNextToDisplay(&sq));
     
     // Fin du dessinage.
     [commandEncoder endEncoding];
@@ -197,10 +200,12 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     [view.currentRenderPassDescriptor.colorAttachments[0] setClearColor:MTLClearColorMake(0, 1, 0, 1)];
     [commandEncoder setRenderPipelineState:secondPipelineState];
     [commandEncoder setFragmentTexture:firstRenderPassDescr.colorAttachments[0].texture atIndex:0];
-    [commandEncoder setFragmentSamplerState:CoqGraph_metal_getSampler(true) atIndex:0];
-    [commandEncoder setCullMode:(MTLCullMode)mesh_shaderQuad_.cull_mode];
-    [commandEncoder setVertexBuffer:mesh_metal_verticesMTLBuffer(&mesh_shaderQuad_) offset:0 atIndex:0];
-    [commandEncoder drawPrimitives:(MTLPrimitiveType)mesh_shaderQuad_.primitive_type vertexStart:0 vertexCount:mesh_shaderQuad_.vertex_count];
+    [commandEncoder setFragmentSamplerState:CoqGraph_metal_samplerNearest atIndex:0];
+    MeshToDraw render_quad = mesh_render_getMeshToDraw(Mesh_rendering_quad);
+    [commandEncoder setCullMode:(MTLCullMode)render_quad.cull_mode];
+    [commandEncoder setVertexBuffer:(__bridge id<MTLBuffer>)render_quad.metal_verticesBufferOpt_cptr offset:0 atIndex:0];
+    [commandEncoder drawPrimitives:(MTLPrimitiveType)render_quad.primitive_type vertexStart:0 
+                       vertexCount:render_quad.vertexCount];
     [commandEncoder endEncoding];
 }
 
@@ -214,7 +219,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
         return;
     }
     CoqMetalView* metalView = (CoqMetalView*)view;
-    Root*  root = metalView->root;
+    Root *const  root = metalView->rootOpt;
     if(root == NULL) {
         printerror("Root not init.");
         return;
@@ -242,7 +247,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     float deltaTMS = fminf(60.f, fmaxf(3.f, (float)chrono_elapsedMS(&chronoDeltaT)));
     chrono_start(&chronoDeltaT);
     fl_set(&smDeltaT, deltaTMS);
-    deltaTMS = fl_evalPos(smDeltaT);
+    deltaTMS = fl_evalPos(&smDeltaT);
     int64_t deltaTMSint = rand_float_toInt(deltaTMS);
     ChronoRender_update(deltaTMSint);
     

@@ -48,16 +48,26 @@ typedef struct Number {
         Drawable      d;
         DrawableMulti dm;
     };
+    /// Le nombre affiché
     int32_t  value;
+    ///  Où placer le point des décimal. e.g. si value = 128 et unitDecimal = 2 => 1.28.
     uint32_t unitDecimal;
+    /// `digit` utilisé pour séparer units et décimales.
     uint32_t separator;
+    /// `digit` ajouté à la fin, e.g. `digit_percent`.
     uint32_t extraDigitOpt;
+    /// Espacement entre digits.
     float    digit_x_margin;
+    /// Espacement avec séparateur.
     float    separator_x_margin;
+    /// Espacement du `digit` ajouté à la fin.
     float    extra_x_margin;
+    /// Afficher le `+` pour un nombre positif.
     bool     showPlus;
+    /// Laissé l'espace "blanc".
     bool     initAsBlank;
-    float    _xs[NUMBER_MAX_DIGITS_];
+    uint32_t _digitCount;
+    Vector3  _U0V0Xs[NUMBER_MAX_DIGITS_];
 } Number;
 
 extern Texture*    Number_defaultTex;

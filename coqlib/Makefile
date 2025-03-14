@@ -9,7 +9,8 @@ LIBDIR := lib
 LIBNAME := coqlib
 # Flags du compileur
 CFLAGS=-g -Wall -Wno-deprecated-declarations -Wno-unknown-pragmas -Iinclude \
-       -DDEBUG -DWITH_OPENGL `sdl2-config --cflags`
+       -DDEBUG -DWITH_OPENGL `sdl2-config --cflags` \
+       -I/usr/local/include/freetype2
 #-F/Library/Frameworks -framework SDL2
 
 # Lister les fichiers c.

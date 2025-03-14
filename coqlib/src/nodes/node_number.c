@@ -7,15 +7,11 @@
 
 #include "node_number.h"
 
-#include "node_squirrel.h"
-#include "node_tree.h"
 #include "../utils/util_base.h"
-
 
 Texture* Number_defaultTex = NULL;
 
-#pragma mark - Number 2 -----------------------------
-
+// MARK: - Number 2 -----------------------------
 static Number* number_last_ = NULL;
 void      number_open_(Node* n) {
     Number* nb = (Number*)n;
@@ -23,102 +19,93 @@ void      number_open_(Node* n) {
 }
 void number_renderer_updateIUs_(Node* const n) {
     Number* nb = (Number*)n;
-    float const show = smtrans_setAndGetValue(&nb->d.trShow, (n->flags & flag_show) != 0);
-    if(show < 0.001f) {
-        n->_iu.render_flags &= ~renderflag_toDraw;
-        return;
-    }
-    n->_iu.render_flags |= renderflag_toDraw;
+    float const show = drawable_updateShow(&nb->d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-    
+
     float const pop = (nb->n.flags & flag_drawablePoping) ? show : 1.f;
     float const pos_y = nb->n.y;
     float const pos_z = nb->n.z;
-    Vector2 const scales = nb->n.scales;
-    const float* x = nb->_xs;
-    InstanceUniforms* const end = &nb->dm.iusBuffer.ius[nb->dm.iusBuffer.actual_count];
-    for(InstanceUniforms* iu = nb->dm.iusBuffer.ius; iu < end; iu++, x++) {
-        iu->show = show;
-        float const pos_x = nb->n.x + (*x) * scales.x;
-        Matrix4* m = &iu->model;
+    Vector3 const scales = nb->n.scales;
+    Vector3 const*      uvx =      nb->_U0V0Xs;
+    Vector3 const*const uvx_end = &nb->_U0V0Xs[nb->_digitCount];
+    IUsToEdit iusEdit = iusbuffer_rendering_retainIUsToEdit(nb->dm.iusBuffer);
+    for(; uvx < uvx_end; iusEdit.iu++, uvx++) {
+        iusEdit.iu->show = show;
+        iusEdit.iu->uvRect.origin = uvx->xy;
+        float const pos_x = nb->n.x + (uvx->z)*scales.x;
+        Matrix4* m = &iusEdit.iu->model;
         // Petite translation sur la parent-matrix en fonction du digit.
         m->v0.v = pm->v0.v * scales.x * pop;
         m->v1.v = pm->v1.v * scales.y * pop;
-        m->v2 =   pm->v2;
-        m->v3 = (Vector4) {{
-            pm->v3.x + pm->v0.x * pos_x + pm->v1.x * pos_y + pm->v2.x * pos_z,
-            pm->v3.y + pm->v0.y * pos_x + pm->v1.y * pos_y + pm->v2.y * pos_z,
-            pm->v3.z + pm->v0.z * pos_x + pm->v1.z * pos_y + pm->v2.z * pos_z,
-            pm->v3.w,
-        }};
+        m->v2.v = pm->v2.v * scales.z * pop;
+        m->v3.v = pm->v3.v + pm->v0.v * pos_x + pm->v1.v * pos_y + pm->v2.v * pos_z;
     }
+    iustoedit_release(iusEdit);
 }
 void (*Number_renderer_defaultUpdateIUs)(Node*) = number_renderer_updateIUs_;
 void number_and_super_init_(Number* const nb, Node* refOpt, int32_t value,
                       float x, float y, float height,
-                      flag_t flags, uint8_t node_place) {
-    node_init(&nb->n, refOpt, x, y, 1, 1, flags, node_place);
-    nb->n.sx = height; nb->n.sy = height;
+                      flag_t flags, uint8_t node_place) 
+{
     if(Number_defaultTex == NULL)
         Number_defaultTex = Texture_sharedImageByName("coqlib_digits_black");
-    drawable_init(&nb->d, Number_defaultTex, &mesh_sprite, 0, 1);
-    drawablemulti_init(&nb->dm, NUMBER_MAX_DIGITS_);
-    
+    node_init(&nb->n, refOpt, x, y, 1, 1, flags, node_place);
+    drawable_init(&nb->d, Number_defaultTex, Mesh_drawable_sprite, 0, height);
+    drawablemulti_init(&nb->dm, NUMBER_MAX_DIGITS_, &nb->n.renderIU);
     // Init as Number...
-    nb->n._type |= node_type_flag_number;
-    InstanceUniforms iu = InstanceUnifoms_drawableDefaultIU;
-    iu.draw_uvRect.size = texture_tileDuDv(Number_defaultTex);
-    iusbuffer_setAllTo(&nb->dm.iusBuffer, iu);
-    nb->dm.iusBuffer.actual_count = 0;
-    // Init as number
-    nb->n.openOpt =     number_open_;
+    nb->n._type |= node_type_number;
+    nb->n.openOpt = number_open_;
     nb->n.renderer_updateInstanceUniforms = Number_renderer_defaultUpdateIUs;
     nb->value = value;
     nb->separator = digit_dot;
     nb->digit_x_margin =     -0.25;
     nb->separator_x_margin = -0.60;
     nb->extra_x_margin =      0.25;
-    nb->n.sx = height * texture_tileRatio(nb->d._tex);
-    nb->n.sy = height;
     number_last_ = nb;
-} 
+}
 Number*   Number_create(Node* ref, int32_t value,
                       float x, float y, float height,
                       flag_t flags, uint8_t node_place) {
     Number* nb = coq_callocTyped(Number);
-    number_and_super_init_(nb, ref, value, x, y, height, flags, node_place);  
-    
+    number_and_super_init_(nb, ref, value, x, y, height, flags, node_place);
+
     return nb;
 }
 Number*   node_asNumberOpt(Node* n) {
-    if(n->_type & node_type_flag_number)
+    if(n->_type & node_type_number)
         return (Number*)n;
     return NULL;
 }
 typedef struct NumberIt_ {
-    float*                  xit;
-    float                   x1;
-    InstanceUniforms*       iu;
-    InstanceUniforms* const end;
-    uint32_t const          m;
-    uint32_t                i;
-    Vector2 const           Duv;
-} NumberIt_; 
-void  numberit_setAndNext_(NumberIt_* nbit, uint32_t digit, float deltaX) {
-    if(nbit->iu >= nbit->end) {
+    Vector3         *uvx;
+    Vector3  *const  uvx_end;
+    float            posX;
+    uint32_t         digitCount;
+    // Info de la textur pour set u0,v0.
+    uint32_t const   tex_m;
+    float            Du, Dv;
+} NumberIt_;
+void  numberit_setAndNext_(NumberIt_ *const nbit, uint32_t const digit, float const deltaX) {
+    if(nbit->uvx >= nbit->uvx_end) {
         printerror("Number overflow, cannot add digit %d.", digit);
         return;
     }
-    nbit->x1 += deltaX;
-    *nbit->xit = nbit->x1;
-    nbit->iu->draw_uvRect.o_x = (digit % nbit->m) * nbit->Duv.w;
-    nbit->iu->draw_uvRect.o_y = (digit / nbit->m) * nbit->Duv.h;
-    nbit->iu++; nbit->xit++; nbit->i++;
-    nbit->x1 += deltaX;
+    nbit->posX += deltaX;
+    *nbit->uvx = (Vector3){{
+        (float)(digit % nbit->tex_m) * nbit->Du,
+        (float)(digit / nbit->tex_m) * nbit->Dv,
+//        (float)(uint32_t)(digit / nbit->tex_m) * nbit->Dv, // Double casting superflu ?
+        nbit->posX,
+    }};
+    nbit->digitCount++;
+    nbit->posX += deltaX;
+    
+    nbit->uvx++;
 }
 void    number_setTo(Number* const nb, int32_t const newValue) {
     // Pas de changement ?
-    if((newValue == nb->value) && nb->dm.iusBuffer.actual_count)
+    if((newValue == nb->value) && nb->_digitCount)
         return;
     // 0. Init
     nb->value = newValue;
@@ -127,10 +114,13 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
     uint32_t const maxDigits = umaxu(uint_highestDecimal(displayedNumber), nb->unitDecimal);
     float const deltaX_def = 0.5*(1.f + nb->digit_x_margin);
     NumberIt_ it = {
-        nb->_xs, 0, 
-        nb->dm.iusBuffer.ius, &nb->dm.iusBuffer.ius[NUMBER_MAX_DIGITS_], 
-        nb->d._tex->m, 0,
-        texture_tileDuDv(nb->d._tex),
+        .uvx =      nb->_U0V0Xs,
+        .uvx_end = &nb->_U0V0Xs[NUMBER_MAX_DIGITS_],
+        .posX = 0,
+        .digitCount = 0,
+        .tex_m = nb->d.texr.dims.m,
+        .Du = nb->d.texr.dims.Du,
+        .Dv = nb->d.texr.dims.Dv,
     };
     // 1. Signe "+/-"
     if(isNegative) {
@@ -161,17 +151,18 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
         numberit_setAndNext_(&it, nb->extraDigitOpt, deltaX_ext);
     }
     // 5. Finaliser...
-    nb->dm.iusBuffer.actual_count = it.i;
-    float deltaX = 0.5f*it.x1;
+    nb->_digitCount = it.digitCount;
+    float deltaX = 0.5f*it.posX;
     nb->n.w = 2.f*deltaX;
-    for(float *x = nb->_xs; x < it.xit; x++)
-        *x -= deltaX;  // (centrer)
+    for(Vector3 *uvx = nb->_U0V0Xs; uvx < it.uvx; uvx++)
+        uvx->z -= deltaX;  // (centrer)
 }
 
 void     number_last_setDigitTexture(Texture* const digitTexture) {
     if(!number_last_) { printerror("No last number."); return; }
-    number_last_->d._tex = digitTexture;
-    number_last_->n.sx = number_last_->n.sy * texture_tileRatio(digitTexture);
+    textureref2_releaseAndNull(&number_last_->d.texr);
+    textureref2_init(&number_last_->d.texr, digitTexture);
+    number_last_->n.sx = number_last_->n.sy * number_last_->d.texr.dims.tileRatio;
 }
 void   number_last_setExtraDigit(uint32_t extraDigit) {
     if(!number_last_) { printerror("No last number."); return; }

@@ -11,7 +11,12 @@
 #include "node_base.h"
 #include "node_button.h"
 
-#pragma mark - Methodes qui s'applique à toute la branche (noeud et descendants)
+// MARK: - "Squirrel": Méthodes pour déplacer un pointeur de noeud dans l'arbre de la structure.
+void nodeptr_goRightForced(Node ** sq, Node *(*createNew)(void *), void *paramsOpt);
+bool nodeptr_throwToGarbageThenGoToBroOrUp(Node ** sq);
+bool nodeptr_renderer_goToNextToDisplay(Node ** sq);
+
+// MARK: - Methodes qui s'applique à toute la branche (noeud et descendants)
 void  node_tree_addFlags(Node* nd, flag_t flags);
 void  node_tree_removeFlags(Node* nd, flag_t flags);
 void  node_tree_apply(Node* nd, void (*block)(Node*));
@@ -24,12 +29,16 @@ void  node_tree_close(Node* nd);
 void  node_tree_hideAndTryToClose(Node* nd);
 void  node_tree_reshape(Node* nd);
 
-#pragma mark - Recherche de noeud dans une branche.
-Button* node_tree_searchActiveButtonWithPosOpt(Node* const n, Vector2 const pos, Node* const nodeToAvoidOpt);
-Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typeOpt, uint32_t const data0);
-Node*   node_tree_searchFirstOfTypeInBranchOpt(Node* const n, uint32_t const type_flag, flag_t parentFlag);
+// MARK: - Recherche de noeud dans une branche.
+typedef struct ButtonPosRel {
+    Button *const button;
+    Vector2 const posRel; // Position dans "button".
+} ButtonPosRel;
+ButtonPosRel node_tree_searchActiveButtonWithPosOpt(Node * n, Vector2 pos, Node const* nodeToAvoidOpt);
+Button*      node_tree_searchFirstButtonWithDataOpt(Node * n, uint32_t typeOpt, uint32_t data0);
+Node*        node_tree_searchFirstOfTypeInBranchOpt(Node * n, uint32_t type_flag, flag_t parentFlag);
 
-#pragma mark - Aligement des enfants
+// MARK: - Aligement des enfants
 // Les options pour l'alignement de noeuds.
 typedef enum {
     node_align_vertically =            0x0001,

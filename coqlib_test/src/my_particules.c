@@ -7,7 +7,6 @@
 #include "my_particules.h"
 #include "my_enums.h"
 #include "utils/util_base.h"
-#include "graphs/graph_colors.h"
 
 #define PART_BOUNCE 0.5  // Rebond entre 0 et 1 (si > 1 -> gain d'énergie...)
 static const uint32_t partpool_count_ =     100;
@@ -18,19 +17,37 @@ static const float    partpool_brownian_ = 3.1f;
 static const float    partpool_repuls_ =   1.5f;
 
 #pragma mark - Particule Pool ------------------------------
+typedef struct _Particule {
+// Position et vitesse utilisées pour interpoller la position (affichage, actif à tour de rôle)
+// Seulement pour lecture...
+    Vector2 pos0, pos1; 
+    Vector2 vit0, vit1;
+// Pos, vitesse et acc pour calculs
+    Vector2 _posi;
+    Vector2 _posf;
+    Vector2 _vit;
+    Vector2 _acc;
+} Particule;
 
-Vector2 particule_evalPos(Particule* p, float dT, bool zeroOne, bool print) {
-    if(print) {
-//        printdebug("%p EVAL dT %f pos 1 %f %f, pos 0 %f %f, vit 1 %f %f, vit 0 %f %f.",
-//             p, dT, p->pos1.x, p->pos1.y, p->pos0.x, p->pos0.y,
-//             p->vit1.x, p->vit1.y, p->vit0.x, p->vit0.y);
-    }
-    if(zeroOne) {
-        return (Vector2) {{ p->pos1.x + p->vit1.x * dT, p->pos1.y + p->vit1.y * dT }};
-    } else {
-        return (Vector2) {{ p->pos0.x + p->vit0.x * dT, p->pos0.y + p->vit0.y * dT }};
-    }
+static inline Vector2 particule_evalPos0(Particule *const p, float const dT) {
+    return (Vector2) {{ p->pos0.x + p->vit0.x * dT, p->pos0.y + p->vit0.y * dT }};
 }
+static inline Vector2 particule_evalPos1(Particule *const p, float const dT) {
+    return (Vector2) {{ p->pos1.x + p->vit1.x * dT, p->pos1.y + p->vit1.y * dT }};
+}
+
+typedef struct ParticulesPool {
+    uint32_t  count;
+    float     deltaX;
+    float     deltaY;
+    float     r0;        // Rayon des particules
+    float     brownian;  // Intensite mouvement brownien/temperature.
+    float     repulsion; // Force de repulsion entre particules
+    // Temps de calcul des positions. Si t1 > t0 => Mode `1` actif, i.e. pos1 et vit1 sont `live`, pos0 et vit0 sont libre pour édition.
+    int64_t   t0, t1;    
+    int64_t   last_time; 
+    Particule particules[1];
+} ParticulesPool;
 
 ParticulesPool* ParticulesPool_create(uint32_t count, float twoDx, float twoDy,
                                       float r0, float brownian, float repulsion) {
@@ -56,7 +73,7 @@ ParticulesPool* ParticulesPool_create(uint32_t count, float twoDx, float twoDy,
 }
 void            particulespool_update(ParticulesPool* pp) {
     // Delta T, constant à 50 ms = 0.05 s.
-    float const deltaT = (float)Chrono_UpdateDeltaTMS * 0.001f;  // (en sec, mieux d'avoir les vitesse/accélération en m/s, m/s2...?)
+    float const deltaT = (float)ChronosEvent.deltaTMS * SEC_PER_MS;  // (en sec, mieux d'avoir les vitesse/accélération en m/s, m/s2...?)
 //    int64_t time = ChronoApp_elapsedMS();
 //    int64_t deltaTMS = time - pp->last_time;
 //    deltaTMS = (deltaTMS > Chrono_UpdateDeltaTMS * 1.1f) ? 100 : (deltaTMS < 5 ? 5 : deltaTMS);
@@ -210,58 +227,48 @@ typedef struct DrawableMultiPP_ {
     ParticulesPool*   pp;
 } DrawableMultiPP_;
 // Override...
-void   drawablemultiPP_updateModels_(Node* const n) {
+void   drawablemultiPP_renderer_updateIU_(Node* const n) {
     DrawableMultiPP_* dmpp = (DrawableMultiPP_*)n;
     const Matrix4* const pm = node_parentModel(n);
     if(!(n->flags & flag_show)) {
-        n->_iu.render_flags &= ~ renderflag_toDraw;
+        n->renderIU.flags &= ~ renderflag_toDraw;
     }
-    n->_iu.render_flags |= renderflag_toDraw;
+    n->renderIU.flags |= renderflag_toDraw;
     // Mode 0/1, DeltaT, w/h.
     bool zeroOne = dmpp->pp->t1 > dmpp->pp->t0;
     float deltaT = (float)(ChronoApp_elapsedMS() - (zeroOne ? dmpp->pp->t1 : dmpp->pp->t0))*0.001f;
-    Vector2 const scl = n->scales;
+    Vector3 const scl = n->scales;
     // Boucle sur les particules
-    Particule* p = dmpp->pp->particules;
-    InstanceUniforms* iu =        dmpp->dm.iusBuffer.ius;
-    InstanceUniforms* const end = &dmpp->dm.iusBuffer.ius[dmpp->dm.iusBuffer.actual_count];
-    while(iu < end) {
-        Matrix4* m = &iu->model;
+    Particule* p =            dmpp->pp->particules;
+    Particule *const p_end = &dmpp->pp->particules[dmpp->pp->count];
+    IUsToEdit ius = iusbuffer_rendering_retainIUsToEdit(dmpp->dm.iusBuffer);
+    for(; (p < p_end) && (ius.iu < ius.end); ius.iu++, p++) {
+        Matrix4* m = &ius.iu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
-        Vector2 const pos = particule_evalPos(p, deltaT, zeroOne, iu == dmpp->dm.iusBuffer.ius);
+        Vector2 const pos = zeroOne ? particule_evalPos1(p, deltaT) : particule_evalPos0(p, deltaT);
         if(isnan(pos.x) || isnan(pos.y)) { printerror("Nan value ..."); }
         m->v0.v = pm->v0.v * scl.x;
         m->v1.v = pm->v1.v * scl.y;
-        m->v2 =   pm->v2;
-
-        m->v3 = (Vector4) {{
-            pm->v3.x + pm->v0.x * pos.x + pm->v1.x * pos.y,
-            pm->v3.y + pm->v0.y * pos.x + pm->v1.y * pos.y,
-            pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y,
-            pm->v3.w,
-        }};
-        iu++; p++;
+        m->v2.v =   pm->v2.v * scl.z;
+        m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y;
     }
+    iustoedit_release(ius);
 }
 DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     DrawableMultiPP_* dmpp = coq_callocTyped(DrawableMultiPP_);
     node_init(&dmpp->n, parent, 0, 0, 2.35*partpool_r0_, 2.35*partpool_r0_, 0, 0);
     Texture* const tex = Texture_sharedImage(png_disks);
-    drawable_init(&dmpp->d, tex, &mesh_sprite, 0, 2.35*partpool_r0_);
-    drawablemulti_init(&dmpp->dm, partpool_count_);
-    dmpp->n.renderer_updateInstanceUniforms = drawablemultiPP_updateModels_;
+    drawable_init(&dmpp->d, tex, Mesh_drawable_sprite, 0, 2.35*partpool_r0_);
+    drawablemulti_init(&dmpp->dm, partpool_count_, NULL);
+    dmpp->n.renderer_updateInstanceUniforms = drawablemultiPP_renderer_updateIU_;
     dmpp->pp = pp;
-    Vector2 const Duv = texture_tileDuDv(tex);
-    // Init des per instance uniforms (juste setter une tile.
-    InstanceUniforms* end = &dmpp->dm.iusBuffer.ius[partpool_count_];
-    for(InstanceUniforms* iu = dmpp->dm.iusBuffer.ius; iu < end; iu++) {
-        *iu = InstanceUnifoms_drawableDefaultIU;
-        uint32_t tile = rand() % 12;
-        iu->draw_uvRect = (Rectangle) {
-            .origin = {{(tile % tex->m) * Duv.w, ((tile / tex->m) % tex->n) * Duv.h}},
-            .size = Duv,
-        };
+    // Init des per instance uniforms (juste setter une tile.)
+    IUsToEdit ius = iusbuffer_retainIUsToInit(dmpp->dm.iusBuffer);
+    for(; ius.iu < ius.end; ius.iu++) {
+        *ius.iu = InstanceUniforms_default;
+        ius.iu->uvRect = texturedims_uvRectOfTile(dmpp->d.texr.dims, rand(), 0);
     }
+    iustoedit_release(ius);
     return dmpp;
 }
 

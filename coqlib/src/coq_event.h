@@ -68,20 +68,28 @@ typedef struct {
     };
 } ScrollInfo;
 
+/// Mouse/touch : hovering, down, drag.
+// TODO: touch_ superflu...
+typedef struct {
+        Vector2       touch_pos; // Position en coord. (x,y) dans la view (pas en pixels).
+        uint32_t      touch_id;  // 0: click gauche / touche ordinaire, 1: click droit.
+        bool          touch_yInverted; // Axe des y inversé.
+} TouchInfo;
+
 typedef struct {
     Rectangle  rect;
     float      contentFactor;
     float      offSetRatio;
 } RequireScrollViewInfo;
 
-/// Structure pour un keyboard event.
-typedef struct {
-    uint32_t  modifiers;
-    uint16_t  keycode;
-    uint16_t  mkc;
-    bool      isVirtual;
-    Character typed;
-} KeyboardInput;
+/// Structure pour un keyboard event. (voir `util_char_and_keycode.h`)
+//typedef struct {
+//    uint32_t  modifiers;
+//    uint16_t  keycode;
+//    uint16_t  mkc;
+//    bool      isVirtual;
+//    Character typed;
+//} KeyboardInput;
 
 /// Structure pour un gamePad event
 typedef struct GamePadInput {
@@ -128,10 +136,7 @@ typedef struct CoqEvent {
     uint32_t type;
     union {
         // mouse/touch : hovering, down, drag.
-        struct {
-        Vector2       touch_pos;
-        uint32_t      touch_id; // 0: click gauche / touche ordinaire, 1: click droit.
-        };
+        TouchInfo     touch_info;
         // scroll/swipe
         ScrollInfo    scroll_info;
         // keyboard events

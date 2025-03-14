@@ -9,21 +9,24 @@
 #define node_drawable_multi_h
 
 #include "node_drawable.h"
-#pragma mark - DrawableMulti Un noeud avec multi-instance à dessiner, e.g. des particules.
+#include "../graphs/graph_iusbuffer.h"
+// MARK: - DrawableMulti Un noeud affichable avec multi-instance, e.g. des particules.
 typedef struct DrawableMulti {
     union {
         Node     n;
         Drawable d;
     };
-    // Pointeur des données dans le MTLBuffer. *Éditable uniquement par `updateModels`.* (non thread-safe)
-    IUsBuffer           iusBuffer;
+    IUsBuffer*   iusBuffer;
 } DrawableMulti;
 
-DrawableMulti* node_asDrawableMultiOpt(Node* nd);
+static inline DrawableMulti* node_asDrawableMultiOpt(Node* nOpt) {
+    return (nOpt && (nOpt->_type & node_type_drawMulti)) ? (DrawableMulti*)nOpt : NULL;
+}
 
-/// Ne fait que setter le IUsBuffer et le deinit. Les Instance uniforms et le `renderer_updateInstanceUniforms` doivent
+/// Ne fait que setter le IUsBuffer et le deinit. 
+/// -> le `renderer_updateInstanceUniforms` doit
 /// être implémenté en fonction du DrawableMulti.
-void           drawablemulti_init(DrawableMulti* dm, uint32_t maxInstanceCount);
+void           drawablemulti_init(DrawableMulti* dm, uint32_t maxInstanceCount, InstanceUniforms const* defaultIUOpt);
 void           drawablemulti_deinit(Node* n);
 
 #endif /* node_drawable_multi_h */

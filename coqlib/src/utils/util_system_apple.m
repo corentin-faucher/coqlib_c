@@ -80,7 +80,7 @@ void  CoqSystem_init(void) {
     Language_init_();
 }
 
-#pragma mark - Keyboard Layout
+// MARK: - Keyboard Layout
 
 const char* CoqSystem_layoutOpt(void) {
     return coqsystem_layoutName_;
@@ -112,7 +112,7 @@ unsigned    CoqSystem_keyboardType(void) {
     return coqsystem_keyboardtype_;
 }
 
-#pragma mark - App version
+// MARK: - App version
 
 unsigned    CoqSystem_OS_type(void) {
     return coqsystem_os_type_;
@@ -142,7 +142,7 @@ const char* CoqSystem_appDisplayNameOpt(void) {
     return coqsystem_app_name_;
 }
 
-#pragma mark - Theme (Dark, light)
+// MARK: - Theme (Dark, light)
 
 static bool os_theme_is_dark_ = false;
 static bool current_theme_is_dark_ = false;
@@ -187,7 +187,7 @@ bool        CoqSystem_theme_appThemeIsDark(void) {
     return current_theme_is_dark_;
 }
 
-#pragma mark - iCloud Drive
+// MARK: - iCloud Drive
 
 // TODO... pour les "Documents", i.e. visible dans iCloud Drive.
 @interface ICloudDriveManager : NSObject {
@@ -342,7 +342,7 @@ void        CoqSystem_cloudDrive_stopWatching_(void) {
 }
 
 
-#pragma mark - User Name
+// MARK: - User Name
 /*
 char* appleid_givenName_ = NULL;
 const char* container_name_ = NULL;
@@ -439,7 +439,7 @@ void        CoqSystem_requestPermissionAndSetCloudUserName(void) {
     }];
 }
 */
-#pragma mark - Resize or not on virtual keyboard
+// MARK: - Resize or not on virtual keyboard
 
 bool CoqSystem_dontResizeOnVirtualKeyboard = false;
 

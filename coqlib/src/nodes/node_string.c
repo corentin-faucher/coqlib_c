@@ -8,7 +8,16 @@
 #include "../utils/util_base.h"
 #include "../utils/util_language.h"
 
-#pragma mark - StringGlyphed : Une string avec info pour dessiner.
+// MARK: - StringGlyphed : Une string avec info pour dessiner.
+typedef struct StringGlyphed {
+    size_t           charCount;
+    size_t const     maxCount;
+    GlyphMap        *glyphMap;     // La glyph map utilisée pour définir les dimensions des chars.
+    float            widthRel;     // Largeur (relative à solid height)
+    float            x_margin;     // Marge en x (relative à solid height)
+    float            spacing;      // Le scaling voulu (espace entre les CharacterGlyphed).
+    CharacterGlyphed chars[1];     // Les chars avec info de dimensions.
+} StringGlyphed;
 /// Fonction utile pour avoir un planché sur la largeur d'un `GlyphInfo`.
 float SG_charWidth_(float width, float spacing) {
     return fmaxf(0.5*width, width + spacing);
@@ -29,7 +38,7 @@ void stringglyphed_setChars(StringGlyphed* const sg, const CharacterArray * cons
     bool spacePunctAdded = false;
     bool nextIsNewWord = false;
     for(CharacterGlyphed* cg = sg->chars; cg < cg_end; c++, cg++) {
-        GlyphInfo const info = glyphmap_getGlyphInfoOfChar(sg->glyphMap, *c);
+        GlyphInfo const info = glyphmap_glyphInfoOfChar(sg->glyphMap, *c);
         cg->c = *c;
         cg->info = info;
         cg->firstOfWord = nextIsNewWord;
@@ -64,7 +73,7 @@ StringGlyphed* StringGlyphed_createEmpty(size_t const maxCount, GlyphMap * const
     StringGlyphed* sg = coq_callocArray(StringGlyphed, CharacterGlyphed, maxCount);
     sg->charCount = 0;
     size_initConst(&sg->maxCount, maxCount);
-    sg->glyphMap = glyphMapOpt ? glyphMapOpt : GlyphMap_getDefault();
+    sg->glyphMap = glyphMapOpt ? glyphMapOpt : GlyphMap_default();
     sg->x_margin = x_margin;
     sg->spacing = spacing;
     return sg;
@@ -77,7 +86,7 @@ StringGlyphed* StringGlyphed_create(const CharacterArray * const ca, GlyphMap * 
     StringGlyphed* sg = coq_callocArray(StringGlyphed, CharacterGlyphed, charCount);
     sg->charCount = charCount;
     size_initConst(&sg->maxCount, charCount);
-    sg->glyphMap = glyphMapOpt ? glyphMapOpt : GlyphMap_getDefault();
+    sg->glyphMap = glyphMapOpt ? glyphMapOpt : GlyphMap_default();
     sg->x_margin = x_margin;
     sg->spacing = spacing;
 
@@ -117,7 +126,7 @@ StringGlyphed* StringGlyphed_createSubCopyOpt_(const StringGlyphed* const ref,
         }
         // Changer le space de la fin seulement si on veut autre chose qu'un espace.
         else if(!character_isSpace(trailingSpace)) {
-            GlyphInfo const info = glyphmap_getGlyphInfoOfChar(ref->glyphMap, trailingSpace);
+            GlyphInfo const info = glyphmap_glyphInfoOfChar(ref->glyphMap, trailingSpace);
             new->chars[charCount - 1].c = trailingSpace;
             new->chars[charCount - 1].info = info;
         }
@@ -134,58 +143,45 @@ StringGlyphed* StringGlyphed_createSubCopyOpt_(const StringGlyphed* const ref,
     return new;
 }
 
-#pragma mark - Drawable d'un seul caractère. (pour test, utiliser plutôt NodeString) -
+// MARK: - Drawable d'un seul caractère. (pour test, utiliser plutôt NodeString) -
 void drawablechar_renderer_updateIU_(Node* const n) {
     DrawableChar* dc = (DrawableChar*)n;
-    float show = smtrans_setAndGetValue(&dc->d.trShow, (dc->n.flags & flag_show) != 0);
-    // Rien à afficher...
-    if(show < 0.001f) {
-        n->_iu.render_flags &= ~renderflag_toDraw;
-        return;
-    }
-    n->_iu.render_flags |= renderflag_toDraw;
+    float show = drawable_updateShow(&dc->d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-    dc->n._iu.show = show;
     if((dc->n.flags & flag_drawablePoping) == 0)
         show = 1.f;
-    Matrix4* m = &n->_iu.model;
+    Matrix4* m = &n->renderIU.model;
+    
     float const pos_x = n->x + dc->glyphX;
     float const pos_y = n->y + dc->glyphY;
-    float const pos_z = n->z;
-    Vector2 scl = node_scales(n);
-    m->v0.v = pm->v0.v * scl.x * show;
-    m->v1.v = pm->v1.v * scl.y * show;
-    m->v2 =   pm->v2;  // *scl.z ... si on veut un scaling en z...?
-    m->v3 = (Vector4) {{
-        pm->v3.x + pm->v0.x * pos_x + pm->v1.x * pos_y + pm->v2.x * pos_z,
-        pm->v3.y + pm->v0.y * pos_x + pm->v1.y * pos_y + pm->v2.y * pos_z,
-        pm->v3.z + pm->v0.z * pos_x + pm->v1.z * pos_y + pm->v2.z * pos_z,
-        pm->v3.w,
-    }};
+    m->v0.v = pm->v0.v * n->sx * show;
+    m->v1.v = pm->v1.v * n->sy * show;
+    m->v2.v = pm->v2.v * n->sz * show;
+    m->v3.v = pm->v3.v + pm->v0.v*pos_x + pm->v1.v*pos_y + pm->v2.v*n->z;
 }
 DrawableChar*  DrawableChar_create(Node* refOpt, Character c,
                                float x, float y, float twoDy, flag_t flags) {
     DrawableChar* dc = coq_callocTyped(DrawableChar);
     node_init(&dc->n, refOpt, x, y, 1, 1, flags, 0);
-    GlyphMap* fgm = GlyphMap_getDefault();
-    drawable_init(&dc->d, glyphmap_getTexture(fgm), &mesh_sprite, 0, twoDy);
+    GlyphMap* fgm = GlyphMap_default();
+    drawable_init(&dc->d, glyphmap_texture(fgm), Mesh_drawable_sprite, 0, twoDy);
     dc->n.renderer_updateInstanceUniforms = drawablechar_renderer_updateIU_;
     // Info du glyph.
-    GlyphInfo const glyph = glyphmap_getGlyphInfoOfChar(fgm, c);
-    coq_Font const*const cf = glyphmap_getFont(fgm);
-    float const relHeight = coqfont_getRelHeight(cf);
-    float const relY =      coqfont_getRelY(cf);
+    GlyphInfo const glyph = glyphmap_glyphInfoOfChar(fgm, c);
+    CoqFont const*const cf = glyphmap_font(fgm);
+    CoqFontDims const fd = coqfont_dims(cf); 
     dc->glyphX = glyph.relGlyphX * twoDy;
-    dc->glyphY = relY * twoDy;
+    dc->glyphY = fd.relDeltaY * twoDy;
     dc->glyphWidth = glyph.relGlyphWidth * twoDy;
-    dc->glyphHeight = relHeight * twoDy;
+    dc->glyphHeight = fd.relFullHeihgt * twoDy;
     dc->solidWidth = glyph.relSolidWidth * twoDy;
     dc->solidHeight = twoDy;
     // Setter le drawable pour les dimensions du glyph.
-    dc->n._iu.draw_uvRect = glyph.uvRect;
+    dc->n.renderIU.uvRect = glyph.uvRect;
     dc->n.sy = dc->glyphHeight; // Sprite un peu plus gros.
+    dc->n.h = 1.f / fd.relFullHeihgt;  // h/w pour hitbox sans fioritures.
     dc->n.sx = dc->glyphWidth;
-    dc->n.h = 1.f / relHeight;  // h/w pour hitbox sans fioritures.
     dc->n.w = dc->solidWidth / dc->glyphWidth;
 
     return dc;
@@ -195,50 +191,50 @@ Drawable *Drawable_createCharacter(Node *const refOpt, Character const c, GlyphM
                                float const x, float const y, float const twoDy, flag_t const flags) {
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    GlyphMap *const fgm = glyphMapOpt ? glyphMapOpt : GlyphMap_getDefault();
-    drawable_init(d, glyphmap_getTexture(fgm), &mesh_sprite, 0, twoDy);
+    GlyphMap *const fgm = glyphMapOpt ? glyphMapOpt : GlyphMap_default();
+    drawable_init(d, glyphmap_texture(fgm), Mesh_drawable_sprite, 0, twoDy);
     // Glyph...
-    GlyphInfo const glyph = glyphmap_getGlyphInfoOfChar(fgm, c);
-    float const relHeight = coqfont_getRelHeight(glyphmap_getFont(fgm));
-    d->n._iu.draw_uvRect = glyph.uvRect;
-    d->n.sy = twoDy * relHeight;
-    d->n.h  = 1.f / relHeight;  // -> 2Dy = sy * h...
+    GlyphInfo const glyph = glyphmap_glyphInfoOfChar(fgm, c);
+    CoqFontDims const fd = coqfont_dims(glyphmap_font(fgm));
+    d->n.renderIU.uvRect = glyph.uvRect;
+    d->n.sy = twoDy * fd.relFullHeihgt;
+    d->n.h  = 1.f / fd.relFullHeihgt;  // -> 2Dy = sy * h...
     d->n.sx = twoDy * glyph.relGlyphWidth;
     d->n.w = glyph.relSolidWidth / glyph.relGlyphWidth; // -> 2Dx = 2Dx*relSolidW = sx * w.
 
     return d;
 }
 void  drawable_changeToCharacter(Drawable *const d, Character const c, GlyphMap *const glyphMapOpt) {
-    GlyphMap *const fgm = glyphMapOpt ? glyphMapOpt : GlyphMap_getDefault();
-    textureref_releaseAndNull_(&d->_tex);
-    d->_tex = glyphmap_getTexture(fgm);
+    GlyphMap *const fgm = glyphMapOpt ? glyphMapOpt : GlyphMap_default();
+    textureref2_releaseAndNull(&d->texr);
+    textureref2_init(&d->texr, glyphmap_texture(fgm));
 
-    GlyphInfo const glyph = glyphmap_getGlyphInfoOfChar(fgm, c);
-    float const relHeight = coqfont_getRelHeight(glyphmap_getFont(fgm));
+    GlyphInfo const glyph = glyphmap_glyphInfoOfChar(fgm, c);
+    CoqFontDims const fd = coqfont_dims(glyphmap_font(fgm));
     float const twoDy = d->n.sy * d->n.h;
-    d->n._iu.draw_uvRect = glyph.uvRect;
-    d->n.sy = twoDy * relHeight;
-    d->n.h  = 1.f / relHeight;  // -> 2Dy = sy * h...
+    d->n.renderIU.uvRect = glyph.uvRect;
+    d->n.sy = twoDy * fd.relFullHeihgt;
+    d->n.h  = 1.f / fd.relFullHeihgt;  // -> 2Dy = sy * h...
     d->n.sx = twoDy * glyph.relGlyphWidth;
     d->n.w = glyph.relSolidWidth / glyph.relGlyphWidth; // -> 2Dx = 2Dy*relSolidW = sx * w.
 }
-Drawable*  Drawable_createString(Node *const refOpt, const char *const c_str, coq_Font const*const cf,
+Drawable*  Drawable_test_createString(Node *const refOpt, const char *const c_str, CoqFont const*const cf,
                                 float x, float y, float twoDy, flag_t flags) {
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    PixelBGRAArray *pa = Pixels_engine_createArrayFromString(c_str, *cf);
-    Texture* tex =  Texture_createWithPixels(pa->pixels, (uint32_t)pa->width, (uint32_t)pa->height, false, cf->nearest);
-    drawable_init(d, tex, &mesh_sprite, 0, twoDy);
-    float const relHeight = coqfont_getRelHeight(cf);
-    d->n.sy = twoDy * relHeight;
-    d->n.h  = 1.f / relHeight;  // -> 2Dy = sy * h...
-    d->n.sx = twoDy * (float)pa->width / (float)pa->height;
+    CoqFontDims const fd = coqfont_dims(cf);
+    PixelBGRAArray *pa = Pixels_engine_test_createArrayFromString_(c_str, cf);
+    Texture* tex =  Texture_createWithPixels(pa->pixels, (uint32_t)pa->width, (uint32_t)pa->height, false, fd.nearest);
+    drawable_init(d, tex, Mesh_drawable_sprite, 0, twoDy);
+    d->n.sy = twoDy * fd.relFullHeihgt;
+    d->n.h  = 1.f / fd.relFullHeihgt;  // -> 2Dy = sy * h...
+    d->n.sx = twoDy * fd.relFullHeihgt * (float)pa->width / (float)pa->height;
     d->n.w = pa->solidWidth / (float)pa->width; // -> 2Dx = 2Dy*relSolidW = sx * w.
 
     return d;
 }
 
-#pragma mark - NodeString
+// MARK: - NodeString
 CharacterArray* CharacterArray_create_(const char* c_str, bool isLocalized) {
     if(isLocalized) {
         const char* localized = String_createLocalized(c_str);
@@ -251,7 +247,7 @@ CharacterArray* CharacterArray_create_(const char* c_str, bool isLocalized) {
 
 void nodestring_open_(Node* n) {
     NodeString* ns = (NodeString*)n;
-    chrono_start(&ns->chrono);
+    float_initConst(&ns->openTimeSec, (float)ChronosEvent.render_elapsedMS * SEC_PER_MS);
 }
 void nodestring_deinit_(Node* n) {
     NodeString* ns = (NodeString*)n;
@@ -264,28 +260,25 @@ void nodestring_deinit_(Node* n) {
 }
 void nodestring_renderer_updateIUs_(Node* const n) {
     NodeString* ns = (NodeString*)n;
-    float const show = smtrans_setAndGetValue(&ns->d.trShow, (n->flags & flag_show) != 0);
-    if(show < 0.001f) {
-        n->_iu.render_flags &= ~renderflag_toDraw;
-        return;
-    }
-    n->_iu.render_flags |= renderflag_toDraw;
+    float const show = drawable_updateShow(&ns->d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-
-    float const spacing = ns->sg->spacing;
-    coq_Font const* cf = glyphmap_getFont(ns->sg->glyphMap);
-    float const pos_y = n->y + coqfont_getRelY(cf) * n->sy;
-    float const scaleY = coqfont_getRelHeight(cf) * n->sy;
+    StringGlyphed const*const sg = ns->sg; 
+    CoqFontDims const fd = coqfont_dims(glyphmap_font(sg->glyphMap));
+    float const pos_y = n->y + fd.relDeltaY * n->sy;
+    float const scaleY = fd.relFullHeihgt * n->sy;
     float pos_x = n->x - 0.5 * ns->sg->widthRel * n->sx;
-    InstanceUniforms* const end = &ns->dm.iusBuffer.ius[ns->dm.iusBuffer.actual_count];
-    const CharacterGlyphed* cg = ns->sg->chars; float index = 0;
-    for(InstanceUniforms* iu = ns->dm.iusBuffer.ius; iu < end; iu++, cg++, index++) {
-        iu->show = show;
+    IUsToEdit iusEdit = iusbuffer_rendering_retainIUsToEdit(ns->dm.iusBuffer);
+    CharacterGlyphed const* cg = ns->sg->chars;
+    CharacterGlyphed const*const cg_end = &ns->sg->chars[ns->sg->charCount];
+    for(; (iusEdit.iu < iusEdit.end) && (cg < cg_end); iusEdit.iu++, cg++) {
+        iusEdit.iu->show = show;
+        iusEdit.iu->uvRect = cg->info.uvRect;
         float const pop = (n->flags & flag_drawablePoping) ? show : 1.f;
-        pos_x += 0.5*SG_charWidth_(cg->info.relSolidWidth, spacing) * n->sx;
+        pos_x += 0.5*SG_charWidth_(cg->info.relSolidWidth, sg->spacing) * n->sx;
         // Ajustement en x pour certains glyphs... (e.g. le j en lettres attachées)
         float const pos_x2 = pos_x + cg->info.relGlyphX*n->sx;
-        Matrix4* m = &iu->model;
+        Matrix4* m = &iusEdit.iu->model;
         m->v0.v = pm->v0.v * cg->info.relGlyphWidth * n->sx * pop;
         m->v1.v = pm->v1.v * scaleY * pop;
         m->v2 =   pm->v2;
@@ -295,38 +288,39 @@ void nodestring_renderer_updateIUs_(Node* const n) {
             pm->v3.z + pm->v0.z * pos_x2 + pm->v1.z * pos_y,
             pm->v3.w,
         }};
-        pos_x += 0.5* SG_charWidth_(cg->info.relSolidWidth, spacing) * n->sx;
+        pos_x += 0.5* SG_charWidth_(cg->info.relSolidWidth, sg->spacing) * n->sx;
     }
+    iustoedit_release(iusEdit);
 }
 void nodestring_renderer_updateIUsMoving(Node* const n) {
     NodeString* ns = (NodeString*)n;
-    float const show = smtrans_setAndGetValue(&ns->d.trShow, (n->flags & flag_show) != 0);
-    if(show < 0.001f) {
-        n->_iu.render_flags &= ~renderflag_toDraw;
-        return;
-    }
-    n->_iu.render_flags |= renderflag_toDraw;
+    float const show = drawable_updateShow(&ns->d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-
-    float const spacing = ns->sg->spacing;
-    float const deltaT = -ns->n._iu.nodraw_float0;
-    coq_Font const* cf = glyphmap_getFont(ns->sg->glyphMap);
-    float const pos_y = n->y + coqfont_getRelY(cf) * n->sy;
-    float const scaleY = coqfont_getRelHeight(cf) * n->sy;
-    float const elapsed = chrono_elapsedSec(&ns->chrono) + deltaT;
+    StringGlyphed const*const sg = ns->sg; 
+    CoqFontDims const fd = coqfont_dims(glyphmap_font(sg->glyphMap));
+    
+    float const deltaT = -ns->n.nodrawData.float0;
+    float const pos_y = n->y + fd.relDeltaY * n->sy;
+    float const scaleY = fd.relFullHeihgt * n->sy;
+    float const elapsedSecAngle = ChronoRender_elapsedAngleSec();
+    float const elapsed = ChronoRender_elapsedSec() - ns->openTimeSec + deltaT;
     float pos_x = n->x - 0.5 * ns->sg->widthRel * n->sx;
-    InstanceUniforms* const end = &ns->dm.iusBuffer.ius[ns->dm.iusBuffer.actual_count];
-    const CharacterGlyphed* cg = ns->sg->chars; float index = 0;
-    for(InstanceUniforms* piu = ns->dm.iusBuffer.ius; piu < end; piu++, cg++, index++) {
-        piu->show = fminf(float_appearing(elapsed, 0.1*index, 0.2), show);
+    IUsToEdit iusEdit = iusbuffer_rendering_retainIUsToEdit(ns->dm.iusBuffer);
+    CharacterGlyphed const* cg = ns->sg->chars; float index = 0;
+    CharacterGlyphed const*const cg_end = &ns->sg->chars[ns->sg->charCount];
+    for(; (iusEdit.iu < iusEdit.end) && (cg < cg_end); iusEdit.iu++, cg++, index++) {
+        iusEdit.iu->show = fminf(float_appearing(elapsed, 0.1*index, 0.2), show);
+        iusEdit.iu->uvRect = cg->info.uvRect;
         float const pop = (n->flags & flag_drawablePoping) ? show : 1.f;
-        pos_x += 0.5*SG_charWidth_(cg->info.relSolidWidth, spacing) * n->sx;
-        float const glyphPosX = pos_x + cg->info.relGlyphX * n->sx + 0.005*sin(20*pos_x + 6*(float)CR_elapsedMS_/1000.f);
-        float const glyphPosY = pos_y + 0.005*sin(20*pos_x + (10+5*pos_x)*(float)CR_elapsedMS_/1000.f);
-        Matrix4* m = &piu->model;
+        pos_x += 0.5*SG_charWidth_(cg->info.relSolidWidth, sg->spacing) * n->sx;
+        
+        float const glyphPosX = pos_x + cg->info.relGlyphX * n->sx + 0.005*sin(20*pos_x + 6*elapsedSecAngle);
+        float const glyphPosY = pos_y + 0.005*sin(20*pos_x + (10+5*pos_x)*elapsedSecAngle);
+        Matrix4* m = &iusEdit.iu->model;
         m->v0.v = pm->v0.v * cg->info.relGlyphWidth * n->sx * pop;
         m->v1.v = pm->v1.v * scaleY * pop;
-        float theta = 0.1*sin(20*pos_x + deltaT + ns->n._iu.nodraw_float1*(float)CR_elapsedMS_/1000.f);
+        float theta = 0.1*sin(20*pos_x + deltaT + ns->n.nodrawData.float1*elapsedSecAngle);
         float c = cosf(theta);
         float s = sinf(theta);
         Vector4 v0 = m->v0;
@@ -340,18 +334,13 @@ void nodestring_renderer_updateIUsMoving(Node* const n) {
             pm->v3.z + pm->v0.z * glyphPosX + pm->v1.z * glyphPosY,
             pm->v3.w,
         }};
-        pos_x += 0.5* SG_charWidth_(cg->info.relSolidWidth, spacing) * n->sx;
+        pos_x += 0.5* SG_charWidth_(cg->info.relSolidWidth, sg->spacing) * n->sx;
     }
+    iustoedit_release(iusEdit);
 }
 
-void nodestring_checkIURectsAndDimensions_(NodeString* const ns) {
+void nodestring_checkDimensions_(NodeString* const ns) {
     const StringGlyphed * const sg = ns->sg;
-    // Update iu rect pour les glyphes.
-    const CharacterGlyphed* const cg_end = &sg->chars[sg->charCount];
-    InstanceUniforms* iu = ns->dm.iusBuffer.ius;
-    for(const CharacterGlyphed* cg = sg->chars; cg < cg_end; cg++, iu++) {
-        iu->draw_uvRect = cg->info.uvRect;
-    }
     // Largeur / DeltaX
     float const strWidth = sg->widthRel;
     float const twoDxOpt = ns->twoDxOpt;
@@ -375,12 +364,10 @@ void nodestring_checkIURectsAndDimensions_(NodeString* const ns) {
 }
 
 void nodestring_updateString(NodeString *const ns, const char *const newString) {
-    const CharacterArray *ca = CharacterArray_createFromString(newString);
+    with_beg(CharacterArray const, ca, CharacterArray_createFromString(newString))
     stringglyphed_setChars(ns->sg, ca);
-    coq_free((void*)ca);
-    ns->dm.iusBuffer.actual_count = (uint32_t)ns->sg->charCount;
-
-    nodestring_checkIURectsAndDimensions_(ns);
+    with_end(ca)
+    nodestring_checkDimensions_(ns);
 }
 
 void nodestring_and_super_init_(NodeString* ns, Node* refOpt,
@@ -393,23 +380,20 @@ void nodestring_and_super_init_(NodeString* ns, Node* refOpt,
     StringGlyphed *const sg = *sgRefGiven;
     *sgRefGiven = NULL;
     if(sg == NULL) { printerror("No StringGlyphed."); return; }
-    drawable_init(&ns->d, glyphmap_getTexture(sg->glyphMap), &mesh_sprite, 0, twoDy);
+    drawable_init(&ns->d, glyphmap_texture(sg->glyphMap), Mesh_drawable_sprite, 0, twoDy);
     // └>Set w = 1, h = 1, sy = twoDy.
-    drawablemulti_init(&ns->dm, (uint32_t)sg->maxCount);
-    ns->dm.iusBuffer.actual_count = (uint32_t)sg->charCount;
-    iusbuffer_setAllTo(&ns->dm.iusBuffer, InstanceUnifoms_drawableDefaultIU);
+    drawablemulti_init(&ns->dm, umaxu((uint32_t)sg->maxCount, 2), &InstanceUniforms_default);
 
     // Init as NodeString...
-    ns->n._type |= node_type_flag_string;
+    ns->n._type |= node_type_string;
     *(StringGlyphed**)&ns->sg = sg;
-    ns->chrono.isRendering = true;
     ns->n.openOpt =     nodestring_open_;
     ns->n.deinitOpt =   nodestring_deinit_;
     ns->n.renderer_updateInstanceUniforms = nodestring_renderer_updateIUs_;
-    smtrans_setDeltaT(&ns->d.trShow, 200);
+    smoothflag_setDeltaT(&ns->d.trShow, 200);
     float_initConst(&ns->twoDxOpt, twoDxOpt);
 
-    nodestring_checkIURectsAndDimensions_(ns);
+    nodestring_checkDimensions_(ns);
 }
 
 NodeString* NodeString_create(Node* ref, NodeStringInit const data,
@@ -432,7 +416,7 @@ NodeString* NodeString_create(Node* ref, NodeStringInit const data,
 
 NodeString* node_asNodeStringOpt(Node* const nOpt) {
     if(!nOpt) return NULL;
-    if(nOpt->_type & node_type_flag_string) return (NodeString*) nOpt;
+    if(nOpt->_type & node_type_string) return (NodeString*) nOpt;
     return NULL;
 }
 
@@ -446,7 +430,7 @@ NodeString* NodeString_createWithStringGlyph_(Node* ref, const StringGlyphed* co
 }
 
 
-#pragma mark - Array de StringGlyphed.
+// MARK: - Array de StringGlyphed.
 #define StringGlyphArr_LineAdd_ 10
 typedef struct StringGlyphArr {
     size_t          lineCount;
@@ -547,7 +531,7 @@ void            stringglypharr_deinit(StringGlyphArr* strArr) {
 }
 
 
-#pragma mark - Multi String
+// MARK: - Multi String
 void  node_addMultiStrings(Node* n, NodeStringInit const data,
                            float const lineWidth, float const lineHeight,
                            uint32_t relativeFlags, Character trailingSpace) {
@@ -566,7 +550,7 @@ void  node_addMultiStrings(Node* n, NodeStringInit const data,
         if(!lines->strOpts[index]) { printwarning("Empty line."); continue; }
         NodeString* ns = NodeString_createWithStringGlyph_(n, lines->strOpts[index],
                                     0, y0 - index * lineHeight, lineWidth, lineHeight, 0, 0);
-        ns->n._iu.nodraw_float0 = -0.5*(float)index;
+        ns->n.nodrawData.float0 = -0.5*(float)index;
         node_setXYrelatively(&ns->n, relativeFlags, true);
     }
     stringglypharr_deinit(lines);
@@ -574,7 +558,7 @@ void  node_addMultiStrings(Node* n, NodeStringInit const data,
 }
 
 
-#pragma mark - Multi String scrollable
+// MARK: - Multi String scrollable
 
 void slidingmenu_addMultiStrings(SlidingMenu* sm, NodeStringInit const data) {
     float const width = slidingmenu_itemRelativeWidth(sm);

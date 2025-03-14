@@ -12,7 +12,7 @@
 #include "../maths/math_flpos.h"
 
 // Nombre de dimensions `fluid`, i.e. le scaling et les positions.
-#define COQ_FLUID_DIMS_N 5
+#define COQ_FLUID_DIMS_N 6
 
 typedef struct coq_Fluid {
     Node      n;    // Peut être casté comme un noeud.
@@ -22,8 +22,7 @@ typedef struct coq_Fluid {
         struct {
             FluidPos sx;
             FluidPos sy;
-            // FluidPos sz;  // (pourrait s'ajouter sz...
-            //           un peu superflu pour l'instant, voir aussi scales dans Node)
+            FluidPos sz;
             FluidPos x;
             FluidPos y;
             FluidPos z;
@@ -32,25 +31,38 @@ typedef struct coq_Fluid {
 } Fluid;
 
 extern float Fluid_defaultFadeInDelta;  // 2.2 par defaut.
+/// La fonction utilisée par défaut pour mettre à jour les instances uniformes avant l'affichage.
+/// (Peut être remplacé par un fonction custom)
+extern void (*Fluid_renderer_defaultUpdateInstanceUniforms)(Node*);
 
 Fluid*  Fluid_create(Node* const refOpt, float x, float y, float w, float h,
                               float lambda, flag_t flags, uint8_t node_place);
 // Downcasting
-Fluid* node_asFluidOpt(Node* n);
+static inline Fluid* node_asFluidOpt(Node* n) {
+    return (n->_type & node_type_fluid) ? (Fluid*)n : NULL;
+}
 // Pour initialiser les sub-structs.
 void    fluid_init(Fluid* f, float lambda);
 
 // Getters
-Vector3 fluid_pos(Fluid* s);
+Box     fluid_asReferential(Fluid *f);
+static inline Vector3 fluid_pos(Fluid *const s) {
+    return fl_array_toVec3(&s->x);
+}
 
 // Convenience setters
 void    fluid_setXY(Fluid* f, Vector2 xy);
-void    fluid_setX(Fluid* f, float x, bool fix);
+void    fluid_fixXY(Fluid* f, Vector2 xy);
+void    fluid_setX(Fluid* f, float x);
+void    fluid_fixX(Fluid *f, float x);
+void    fluid_setY(Fluid* f, float y);
+void    fluid_fixY(Fluid* f, float y);
+// Utile ? Enlever les bool fix ?
 void    fluid_setXrelToDef(Fluid* f, float x, bool fix);
-void    fluid_setY(Fluid* f, float y, bool fix);
 void    fluid_setYrelToDef(Fluid* f, float y, bool fix);
 void    fluid_setZrelToDef(Fluid* f, float z, bool fix);
-void    fluid_setScales(Fluid* f, Vector2 scales, bool fix);
+void    fluid_setScales(Fluid* f, Vector3 scales);
+void    fluid_fixScales(Fluid *f, Vector3 scales);
 void    fluid_setXYScales(Fluid* f, Box box);
 
 /// Paramètres pour appliquer un effet d'apparition. Décalage de la position/scaling à l'open/création.

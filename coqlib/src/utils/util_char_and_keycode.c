@@ -119,6 +119,32 @@ const uint16_t MKC_prefered_order_mkcs[] = {
     45, 46, 47, 48, 49, 50, 51,
 };
 
+static KeyboardInput keyboardInput_of_mkc_[mkc_total_mkcs] = {};
+KeyboardInput* KeyboardInput_getMapKeyboardInputOfMkc(void) {
+    if(1 == keyboardInput_of_mkc_[1].mkc) return keyboardInput_of_mkc_;
+    // Pas encore init...
+    for(uint16_t mkc = 0; mkc < mkc_total_mkcs; mkc++) {
+        KeyboardInput key = {
+            .keycode = MKC_keycode_of_mkc[mkc],
+            .mkc = mkc,
+            .isVirtual = true,
+        };
+        if(mkc >= mkc_modifier_first && mkc <= mkc_modifier_last) switch (mkc) {
+                case mkc_shift: case mkc_rightShift:
+                    key.modifiers = modifier_shift; break;
+                case mkc_option: case mkc_rightOption:
+                    key.modifiers = modifier_option; break;
+                case mkc_command: case mkc_rightCommand:
+                    key.modifiers = modifier_command; break;
+                case mkc_control: case mkc_rightControl:
+                    key.modifiers = modifier_control; break;
+                default: break;
+        }
+        keyboardInput_of_mkc_[mkc] = key;
+    }
+    return keyboardInput_of_mkc_;
+}
+
 
 void test_print_mkcOfKeycode_(void) {
     uint16_t mkcOfKeycode[256] = {[0 ... 255] = mkc_empty};
@@ -316,6 +342,36 @@ bool character_isEndLine(Character c) {
     if(c.c_data4 == spchar_return_.c_data4) return true;
     if(c.c_data4 == spchar_newline_.c_data4) return true;
     return false;
+}
+
+uint32_t character_toUnicode32(Character const c) {
+    if(!(c.c_str[0] & 0x80)) // Cas "ascii"... 0xxx xxxx
+        return c.c_str[0];
+    // Byte intermediare ? // 10xx xxxx
+    if((c.c_str[0] & 0xC0) == 0x80) {
+        printerror("UTF8 Inter-byte.");
+        return 0;
+    }
+    // Cas 110x xxxx + 10xx xxxx -> 11 bits utiles.
+    if((c.c_str[0] & 0xE0) == 0xC0) {
+        return (((uint32_t)c.c_str[0] & 0x1F) << 6) |
+                ((uint32_t)c.c_str[1] & 0x3F);
+    }
+    // Cas 1110 xxxx + 10xx xxxx + 10xx xxxx -> 16 bits.
+    if((c.c_str[0] & 0xF0) == 0xE0) {
+        return (((uint32_t)c.c_str[0] & 0x0F) << 12) |
+               (((uint32_t)c.c_str[1] & 0x3F) << 6) |
+                ((uint32_t)c.c_str[2] & 0x3F);
+    }
+    // Cas 1111 0xxx + 10xx xxxx + 10xx xxxx + 10xx xxxx -> 21 bits.
+    if((c.c_str[0] & 0xF8) == 0xF0) {
+        return (((uint32_t)c.c_str[0] & 0x07) << 18) |
+               (((uint32_t)c.c_str[1] & 0x3F) << 12) |
+               (((uint32_t)c.c_str[2] & 0x3F) << 6) |
+                ((uint32_t)c.c_str[3] & 0x3F);
+    }
+    printf("Error: UTF8 undefined.");
+    return 0u;
 }
 
 typedef struct CharacterArray {

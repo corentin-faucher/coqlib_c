@@ -11,6 +11,7 @@
 
 #include <stdbool.h>
 
+/// Init des variables systèmes : Nom de l'OS, nom et version de l'app, keyboard layout, cloud drive, langue. 
 void        CoqSystem_init(void);
 
 enum {

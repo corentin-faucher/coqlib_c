@@ -8,10 +8,9 @@
 #include "node_sliding_menu.h"
 
 #include "node_tree.h"
-#include "node_root.h"
 #include "../utils/util_base.h"
 
-#pragma mark - Scroll bar du sliding menu
+// MARK: - Scroll bar du sliding menu
 
 typedef struct _ScrollBar {
     Node       n;
@@ -24,16 +23,16 @@ ScrollBar* _ScrollBar_create(Node* ref, float width) {
     float parHeight = ref->h;
     ScrollBar* sb = coq_callocTyped(ScrollBar);
     node_init(&sb->n, ref, 0.5f*parWidth - 0.5f*width, 0, width, parHeight, 0, 0);
-    
+
     // Back of scrollBar
     Frame_create(&sb->n, 1.f, 0.5*width, 0.f, parHeight,
         // texOpt ? texOpt :
-        Texture_sharedImageByName("coqlib_scroll_bar_back"), 
+        Texture_sharedImageByName("coqlib_scroll_bar_back"),
         frame_option_verticalBar);
     // Nub (sliding)
     sb->nub = Fluid_create(&sb->n, 0, 0.25f*parHeight, width, width*3, 30, 0, 0);
-    sb->nubFrame = Frame_create(&sb->nub->n, 1.f, 0.5f*width, 0.f, 0.25f*parHeight, Texture_sharedImageByName("coqlib_scroll_bar_front"), frame_option_verticalBar);
-    
+    sb->nubFrame = Frame_create(&sb->nub->n, 1.f, 0.5f*width, 0.f, 0.f, 
+                        Texture_sharedImageByName("coqlib_scroll_bar_front"), frame_option_verticalBar);
     return sb;
 }
 // Retourne false si hidden, true si affiche
@@ -50,17 +49,17 @@ bool _scrollbar_setNubHeightWithRelHeight(ScrollBar* sb, float newRelHeight) {
 }
 void _scrollbar_setNubRelY(ScrollBar* sb, float newRelY) {
     float deltaY = 0.5f*(sb->n.h - sb->nub->n.h);
-    fluid_setY(sb->nub, -newRelY * deltaY, false);
+    fluid_setY(sb->nub, -newRelY * deltaY);
 //    fl_set(&sb->nub->y, -newRelY * deltaY);
 }
 
 
 
-#pragma mark - Sliding Menu
+// MARK: - Sliding Menu
 
 typedef struct SlidingMenu {
     Node        n;
-    
+
     uint32_t       openIndex;
     uint32_t const displayedCount;
     uint32_t    totalItemCount;
@@ -109,14 +108,15 @@ void  _slidingmenu_checkItemsVisibility(SlidingMenu* sm, bool openNode) {
 void  _slidingmenu_setMenuYpos(SlidingMenu* sm, float yCandIn, bool snap, bool fix) {
     float const deltaY = sm->deltaYMax;
     if(deltaY == 0.f) {
-        fluid_setY(sm->menu, 0, true);
+        fluid_fixY(sm->menu, 0);
         return;
     }
     // Il faut "snapper" à une position.
     float yCand = snap ? roundf((yCandIn - deltaY) / sm->itemHeight) * sm->itemHeight + deltaY
         : yCandIn;
     yCand = fmaxf(fminf(yCand, deltaY), -deltaY);
-    fluid_setY(sm->menu, yCand, fix);
+    if(fix) fluid_fixY(sm->menu, yCand);
+    else    fluid_setY(sm->menu, yCand);
     if(sm->scrollBarOpt)
         _scrollbar_setNubRelY(sm->scrollBarOpt, yCand / deltaY);
 }
@@ -137,7 +137,7 @@ void  slidingmenu_checkFling_callBack_(void* smIn) {
     }
     float elapsedSec = chrono_elapsedSec(&sm->deltaT);
     if(elapsedSec > 0.030f) {
-        float deltaY = elapsedSec * fl_evalPos(sm->vitY);
+        float deltaY = elapsedSec * fl_evalPos(&sm->vitY);
         _slidingmenu_setMenuYpos(sm, fl_real(&sm->menu->y) + deltaY, false, false);
         chrono_start(&sm->deltaT);
     }
@@ -168,10 +168,11 @@ void _slidingmenu_open(Node* nd) {
     if(!pos) return;
     float smallItemHeight = sm->itemHeight / sm->spacing;
     do {
-        float scale = smallItemHeight / pos->h;
+        float const scale = smallItemHeight / pos->h;
+        Vector3 const scales = {{ scale, scale, scale }};
         Fluid *f = node_asFluidOpt(pos);
-        if(f) fluid_setScales(f, (Vector2){{scale, scale}}, true);
-        else  { pos->sx = scale; pos->sy = scale; }
+        if(f) fluid_fixScales(f, scales);
+        else  pos->scales = scales;
         pos = pos->_littleBro;
     } while(pos);
     // 4. Aligner les éléments et placer au bon endroit.
@@ -180,10 +181,10 @@ void _slidingmenu_open(Node* nd) {
     if(sm->itemRelativeFlag & relative_justifiedLeft)
         alignFlags |= node_align_leftTop;
     else if(sm->itemRelativeFlag & relative_justifiedRight)
-        alignFlags |= node_align_rightBottom; 
+        alignFlags |= node_align_rightBottom;
     node_tree_alignTheChildren(&sm->menu->n, alignFlags,
                                1.f, sm->spacing);
-                               
+
     // (On remet la largeur à celle du sliding menu, pas la width max des éléments.)
     sm->menu->n.w = menuWidth;
     float deltaY = sm->deltaYMax;
@@ -201,7 +202,7 @@ void _slidingmenu_open(Node* nd) {
         Rectangle rect = node_windowRectangle(&sm->n, true);
         float contentFactor = slidingmenu_contentFactor(sm);
         float offSetRatio = slidingmenu_offsetRatio(sm);
-        
+
         CoqEvent_addToWindowEvent((CoqEventWin) {
             .type = event_type_win_ios_scrollviewNeeded,
             .win_scrollViewInfo = { rect, contentFactor, offSetRatio },
@@ -248,10 +249,10 @@ SlidingMenu* SlidingMenu_create(Node* ref, SlidingMenuInit sid,
                         flag_t flags, const uint8_t node_place) {
     // Init as Node.
     SlidingMenu* const sm = coq_callocTyped(SlidingMenu);
-    node_init(&sm->n, ref, x, y, width, height, 
+    node_init(&sm->n, ref, x, y, width, height,
                flags|flag_parentOfButton, node_place);
     // Init as sliding menu
-    sm->n._type |= node_type_flag_scrollable;
+    sm->n._type |= node_type_scrollable;
     node_tree_addRootFlags(&sm->n, flag_parentOfButton|flag_parentOfScrollable|flag_parentOfReshapable);
     sm->n.openOpt = _slidingmenu_open;
     sm->n.closeOpt = slidingmenu_close_;
@@ -265,11 +266,11 @@ SlidingMenu* SlidingMenu_create(Node* ref, SlidingMenuInit sid,
     fl_init(&sm->vitY, 0, 4, false);
     // Structure
     float scrollBarWidth = fmaxf(width, height) * 0.025f;
-    
+
     sm->back = Frame_create(&sm->n, 1, scrollBarWidth,
-                         0.f, 0.f, 
+                         0.f, 0.f,
                          sid.backFrameTexOpt ? sid.backFrameTexOpt :
-                         Texture_sharedImageByName("coqlib_sliding_menu_back"), 
+                         Texture_sharedImageByName("coqlib_sliding_menu_back"),
                          frame_option_getSizesFromParent);
     if(sid.backFrameTexOpt) {
         drawable_setUVRect(&sm->back->d, sid.backFrameUVrect);
@@ -281,11 +282,11 @@ SlidingMenu* SlidingMenu_create(Node* ref, SlidingMenuInit sid,
     if(!sid.withoutScrollBar)
         sm->scrollBarOpt = _ScrollBar_create(&sm->n, scrollBarWidth);
     _SlidingMenu_last = sm;
-    
+
     return sm;
 }
 SlidingMenu* node_asSlidingMenuOpt(Node* n) {
-    if(n->_type & node_type_flag_scrollable) return (SlidingMenu*)n;
+    if(n->_type & node_type_scrollable) return (SlidingMenu*)n;
     return NULL;
 }
 
@@ -329,16 +330,14 @@ void  slidingmenu_removeAll(SlidingMenu* sm) {
 void slidingmenu_setOffsetRatio(SlidingMenu* sm, float offsetRatio, bool letGo) {
     float const deltaY = sm->deltaYMax;
     if(deltaY == 0.f) {
-        fluid_setY(sm->menu, 0, true);
-//        fl_fix(&sm->menu->y, 0.f);
+        fluid_fixY(sm->menu, 0);
         return;
     }
     float newy = sm->menu->n.h * offsetRatio - deltaY;
     if(letGo)
         _slidingmenu_setMenuYpos(sm, newy, true, false);
     else
-        fluid_setY(sm->menu, newy, false);
-//        fl_fix(&sm->menu->y, newy);
+        fluid_setY(sm->menu, newy);
     _slidingmenu_checkItemsVisibility(sm, true);
     if(sm->scrollBarOpt)
         _scrollbar_setNubRelY(sm->scrollBarOpt, fl_real(&sm->menu->y) / deltaY);
@@ -377,6 +376,6 @@ void  slidingmenu_trackPadScrollEnded(SlidingMenu* sm) {
     }
     chrono_start(&sm->deltaT);
     chrono_start(&sm->flingChrono);
-    
+
     slidingmenu_checkFling_callBack_(sm);
 }

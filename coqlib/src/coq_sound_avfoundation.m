@@ -8,9 +8,10 @@
 
 
 #include "coq_sound.h"
+#include "maths/math_base.h"
+#include "coq_chrono.h"
 
 #import <AVFoundation/AVFoundation.h>
-#include "math_chrono.h"
 
 
 bool             Sound_isMute = false;
@@ -31,7 +32,7 @@ const uint32_t               player_count_ = 5;
 static struct Player_        players_[player_count_] = {};
 
 typedef struct {
-    size_t            count;
+    size_t const      count;
     AVAudioPCMBuffer* buffers[1];
 } BufferArray_;
 static const char**           Sound_wavNames_ = NULL;
@@ -86,7 +87,7 @@ void  Sound_resume(void) {
     }
     // 1. Buffers
     Sound_buffers_ = coq_callocArray(BufferArray_, AVAudioPCMBuffer*, Sound_wavCount_);
-    Sound_buffers_->count = Sound_wavCount_;
+    size_initConst(&Sound_buffers_->count, Sound_wavCount_);
     NSString* wavName = [NSString stringWithUTF8String:Sound_wavNames_[0]];
     Sound_buffers_->buffers[0] = Sound_createBuffer_(wavName, nil);
     AVAudioFormat* format = Sound_buffers_->buffers[0].format;

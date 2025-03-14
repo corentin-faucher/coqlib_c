@@ -9,6 +9,8 @@
 
 #include <string.h>
 #include "../utils/util_base.h"
+#include "../coq_chrono.h"
+#include "math_base.h"
 
 void intangle_init(InterpolatedAngle* ia, float pos) {
     memset(ia->vT, 0, sizeof(ia->vT));
@@ -18,7 +20,7 @@ void intangle_init(InterpolatedAngle* ia, float pos) {
 }
 
 void intangle_push(InterpolatedAngle* ia, float newPos) {
-    int64_t time = CR_elapsedMS_;
+    int64_t time = ChronosRender.render_elapsedMS;
     if(time == ia->vT[ia->indexLast]) return;
     newPos = float_toNormalizedAngle(newPos);
     ia->vX[ia->indexCurrent] = newPos;

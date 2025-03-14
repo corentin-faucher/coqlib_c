@@ -10,7 +10,7 @@
 #include "util_locale.h"
 #include "util_string.h"
 
-#pragma mark - Langue et région
+// MARK: - Langue et région
 
 // Specifique a Apple.
 NSBundle *default_bundle_ = nil;
@@ -54,7 +54,7 @@ bool     Language_system_tryToSetTo_(Language const language) {
 }
 
 /*-----------------------------------------------------*/
-#pragma mark - Localisation des strings
+// MARK: - Localisation des strings
 
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.

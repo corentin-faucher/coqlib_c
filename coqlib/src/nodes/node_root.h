@@ -9,7 +9,6 @@
 #define coq_node_root_h
 
 #include "../coq_event.h"
-#include "../maths/math_camera.h"
 #include "node_button.h"
 #include "node_view.h"
 
@@ -36,9 +35,12 @@ typedef struct coq_Root {
   Margins margins;
   /// Matrice de projection (optionnel, par défaut pour root : M = P * V.)
   Matrix4 projectionOpt;
-  /// Camera. que les vecteurs eye, centre, up. Typiquement (0,0,4), (0,0,0),
+  /// Positionnement de la Camera : eye, centre, up. Typiquement (0,0,4), (0,0,0),
+  /// Voir `root_renderer_defaultUpdateIU_`.
   /// (0,1,0). On peut s'amuser à la bouger...
-  Camera camera;
+  FluidPos camera_center[3]; // Où on regarde (origine typiquement)
+  FluidPos camera_eye[3];    // Où est situé la caméra (typiquement un peu au dessus du plan xy, e.g. (0, 0, 5))
+  FluidPos camera_up[3];     // "Haut" de la caméra (typiquement vers les y positifs, e.g. (0, 1, 0))
   /// Couleur du fond (clearColor)
   FluidPos back_RGBA[4];
   /// Lumière ambiante (entre 0 et 1)
@@ -65,10 +67,13 @@ typedef struct coq_Root {
 
 /// A priori une root est à `parent = NULL`, pas de parents.
 /// Mais on peut faire une sous-root (i.e. avec nouvelle matrice de projection),
-/// dans ce cas il faut fournir la root absolue `parentRoot`.
-void root_and_super_init(Root *root, Root *parentRootOpt, Node* parentRootChildOpt);
+/// dans ce cas il faut fournir la root absolue `parentRoot` et le parent direct `parent` 
+/// (parentRoot et parent peuvent être le même noeud).
+void root_and_super_init(Root *root, Root *parentRootOpt, Node* parentOpt);
 /// Downcasting.
-Root *node_asRootOpt(Node *nOpt);
+static inline Root* node_asRootOpt(Node const*const nOpt) {
+    return (nOpt && (nOpt->_type & node_type_root)) ? (Root*)nOpt : NULL;
+}
 
 /// Changement de view (fermeture/release de l'ancienne view et ouverture de la nouvelle)
 void root_changeViewActiveTo(Root *rt, View *newViewOpt);
@@ -76,17 +81,15 @@ void root_changeViewActiveTo(Root *rt, View *newViewOpt);
 void root_viewResized(Root *rt, ResizeInfo info);
 /// Resize temporaire de la window.view.
 void root_justSetFrameSize_(Root *r, Vector2 frameSizePt);
-/// Landscape : w > h.
-bool root_isLandscape(Root *r);
 
 /// Obtenir le rectangle (en pixels) associé à une position (origin)
 ///  et dimensions dans le frame de la root.
 /// e.g. (0.5, 0.5), (1, 1) -> (540, 320), (290, 290).
-Rectangle root_windowRectangleFromBox(Root *rt, Box box, bool invertedY);
+Rectangle root_windowRectangleFromBox(Root const* rt, Box box, bool invertedY);
 /// Semblable à `node_hitBoxInParentReferential`, mais
 /// retourne l'espace occupé en pts dans la view de l'OS.
 /// invertedY == true pour iOS (y vont vers les bas).
-Rectangle node_windowRectangle(Node *n, bool invertedY);
+Rectangle node_windowRectangle(Node const* n, bool invertedY);
 /// Obtenir la position dans le frame de la root à partir de la position de la
 /// vue (en pixels). e.g. (540, 320) -> (0.0, 0.0), (centre d'une vue 1080 x
 /// 640).

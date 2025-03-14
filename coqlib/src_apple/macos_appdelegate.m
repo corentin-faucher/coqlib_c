@@ -6,7 +6,6 @@
 //
 #import "macos_appdelegate.h"
 
-#include "graph__metal.h"
 #include "coq_sound.h"
 #include "utils/util_system.h"
 

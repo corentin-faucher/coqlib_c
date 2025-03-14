@@ -7,91 +7,70 @@
 #include "node_root.h"
 
 #include "node_tree.h"
-#include "node_squirrel.h"
-#include "node_drawable_multi.h"
 #include "../utils/util_base.h"
-#include "../graphs/graph_colors.h"
+static float const camera_default_eye_[3] =    { 0, 0, 5 };
+static float const camera_default_up_[3] =     { 0, 1, 0 };
+static float const camera_default_center_[3] = { 0, 0, 0 };
 
 /// Mise à jour ordinaire de la matrice modèle pour une root.
-void root_updateModel_(Node* const n) {
+void root_renderer_defaultUpdateIU_(Node* const n) {
     Root* rt = (Root*)n;
-    // Positionnement par rapport à la caméra
-    Camera* const c = &rt->camera;
-    float yShift = fl_evalPos(rt->yShift);
-    Vector3 eye = fl_array_toVec3(c->pos);
+    float yShift = fl_evalPos(&rt->yShift);
+    Vector3 eye = fl_array_toVec3(rt->camera_eye);
     eye.y += yShift;
-    Vector3 center = fl_array_toVec3(c->center);
+    Vector3 center = fl_array_toVec3(rt->camera_center);
     center.y += yShift;
-    Vector3 up =     fl_array_toVec3(c->up);
+    Vector3 up =     fl_array_toVec3(rt->camera_up);
     // Projection ordinaire (pyramide de perspective...)
-    float middleZ = fl_evalPos(rt->camera.pos[2]);
-    float deltaX = 0.5*fl_evalPos(rt->fullSizeWidth);
-    float deltaY = 0.5*fl_evalPos(rt->fullSizeHeight);
-    
+    float deltaX = 0.5*fl_evalPos(&rt->fullSizeWidth);
+    float deltaY = 0.5*fl_evalPos(&rt->fullSizeHeight);
+
     // Si on veut garder projection et view séparés...
 //    matrix4_initAsPerspectiveDeltas(&rt->projectionOpt, 0.1, 50, middleZ, deltaX, deltaY);
 //    matrix4_initAsLookAt(&n->model, eye, center, up);
-    
-    matrix4_initAsPerspectiveAndLookAt(&n->_iu.model, eye, center, up, 0.1, 50, middleZ, deltaX, deltaY);
+
+    matrix4_initAsPerspectiveAndLookAt(&n->renderIU.model, eye, center, up, 0.1, 50, deltaX, deltaY);
 }
 
 void  root_deinit_(Node* n) {
     timer_cancel(&((Root*)n)->_timer);
 }
-void  root_and_super_init(Root* const root, Root* const parentRootOpt, Node* const parentRootChildOpt) {
+
+void  root_and_super_init(Root* const root, Root* const parentRootOpt,
+                          Node* const parentOpt) {
     Node* parent;
-    if(parentRootOpt && parentRootChildOpt)
-        parent = parentRootChildOpt;
+    if(parentRootOpt && parentOpt)
+        parent = parentOpt;
     else {
-        if(parentRootChildOpt) printerror("Missing parrentRoot");
+        if(parentOpt) printwarning("Missing parent root.");
+        if(parentRootOpt) printwarning("Missing parent.");
         parent = (Node*)parentRootOpt;
     }
     node_init(&root->n, parent, 0, 0, 4, 4, flags_rootDefault, 0);
-    root->n._type |= node_type_flag_root;
+    root->n._type |= node_type_root;
     root->rootParentOpt = parentRootOpt;
     root->n.deinitOpt = root_deinit_;
+    // Cadre de la view...
+    root->viewSizePt = (Vector2){{ 800, 600 }};
+    root->margins = (Margins){ 5, 5, 5, 5 };
     fl_init(&root->fullSizeWidth, 2.2f, 20.f, false);
     fl_init(&root->fullSizeHeight, 2.2f, 20.f, false);
     fl_init(&root->yShift, 0.f, 20.f, false);
-    root->viewSizePt = (Vector2){{ 800, 600 }};
-    root->margins = (Margins){ 5, 5, 5, 5 };
-    camera_init(&root->camera, 10.f);
-    fl_array_init(root->back_RGBA, color4_gray2.f_arr, 4, 5.f);
+    // Caméra
+    fl_array_init(root->camera_up,     camera_default_up_, 3, 5.f);
+    fl_array_init(root->camera_eye,    camera_default_eye_, 3, 5.f);
+    fl_array_init(root->camera_center, camera_default_center_, 3, 5.f);
+    // Couleur de fond/lumière ambiante.
+    fl_array_init(root->back_RGBA, color4_gray_40.f_arr, 4, 5.f);
     fl_init(&root->ambiantLight, 0, 5, false);
     // Override de l'update du model.
-    root->n.renderer_updateInstanceUniforms = root_updateModel_;
-}
-Root* node_asRootOpt(Node* const nOpt) {
-    if(!nOpt) return NULL;
-    if(nOpt->_type & node_type_flag_root) return (Root*)nOpt;
-    return NULL;
+    root->n.renderer_updateInstanceUniforms = root_renderer_defaultUpdateIU_;
 }
 
 void   root_deleteOldActiveView_callback_(void* rootIn) {
     Root *r = (Root*)rootIn;
     if(!r->toDeleteViewNodeOpt) return;
     noderef_destroyAndNull(&r->toDeleteViewNodeOpt);
-}
-
-void   root_releaseActiveView_(Root* rt) {
-    View * const oldActiveView = rt->viewActiveOpt;
-    if(!oldActiveView) return;
-    rt->viewActiveOpt = NULL;
-    node_tree_close(&oldActiveView->n);
-    if(oldActiveView->n.flags & flag_viewPersistent)
-        return;
-    rt->toDeleteViewNodeOpt = &oldActiveView->n;
-    if(rt->_timer) { 
-        printwarning("Root timer already used.");
-        timer_doNowAndCancel(&rt->_timer);
-    }
-    timer_scheduled(&rt->_timer, 600, false, rt, root_deleteOldActiveView_callback_);
-}
-void   root_setActiveView_(Root* rt, View* const newView) {
-    rt->viewActiveOpt = newView;
-    node_tree_openAndShow(&newView->n);
-    if(rt->changeViewOpt)
-        rt->changeViewOpt(rt);
 }
 void   root_callback_terminate_(void* rtIn) {
     Root* rt = (Root*)rtIn;
@@ -109,21 +88,43 @@ void  root_changeViewActiveTo(Root* const rt, View* const newViewOpt) {
     }
 #endif
 #endif
-    // 0. Cas réouverture
+    // Cas réouverture
     if (newViewOpt && (rt->viewActiveOpt == newViewOpt)) {
         node_tree_openAndShow(&newViewOpt->n);
         return;
     }
-    // 1. Fermer l'écran actif (déconnecter si evanescent)
-    root_releaseActiveView_(rt);
-    // 2. Si null -> fermeture de l'app.
+    // Encore une ancienne view schedulé pour delete ?
+    if(rt->_timer && rt->toDeleteViewNodeOpt) {
+        printdebug("Still old view not deleted...");
+        timer_doNowAndCancel(&rt->_timer);
+    }
+    if(rt->toDeleteViewNodeOpt) {
+        printerror("Still view to delete ?");
+    }
+    // Fermeture de l'app ?
     if(newViewOpt == NULL) {
-        rt->viewActiveOpt = NULL;
+        if(rt->viewActiveOpt) { 
+            node_tree_close(&rt->viewActiveOpt->n);
+            rt->viewActiveOpt = NULL;
+        }
         timer_scheduled(&rt->_timer, 800, false, rt, root_callback_terminate_);
         return;
     }
-    // 3. Ouverture du nouvel écran.
-    root_setActiveView_(rt, newViewOpt);
+    // Fermer l'ancienne view.
+    if(rt->viewActiveOpt) {
+        Node *const oldView = &rt->viewActiveOpt->n;
+        rt->viewActiveOpt = NULL;
+        node_tree_close(oldView);
+        if(!(oldView->flags & flag_viewPersistent)) {
+            rt->toDeleteViewNodeOpt = oldView;
+            timer_scheduled(&rt->_timer, 600, false, rt, root_deleteOldActiveView_callback_);
+        }
+    }
+    // Ouverture de la nouvelle view.
+    rt->viewActiveOpt = newViewOpt;
+    node_tree_openAndShow(&newViewOpt->n);
+    if(rt->changeViewOpt)
+        rt->changeViewOpt(rt);
 }
 
 typedef struct {
@@ -172,9 +173,9 @@ void root_viewResized(Root *rt, ResizeInfo info)
     }
     // 0. Marges et taille en pts.
     rt->margins = info.margins;
-    
+
     FullSizeAndRatios_ fsr = FullSizeAndRatios_fromMarginsAndSize_(info.margins, info.framePt.size);
-    
+
     // 2. Usable Frame
     if (fsr.realRatio > 1) { // Landscape
         rt->n.w = (1.f - fsr.ratioLR) * fsr.fullSize.w;
@@ -199,10 +200,10 @@ void root_viewResized(Root *rt, ResizeInfo info)
     }
 //    fl_set(&rt->yShift, (fsr.ratioT - fsr.ratioB) * fsr.fullSize.h / 2.f);
 //    rt->fullSize = fsr.fullSize;
-    
+
 //    rt->_yShift = (fsr.ratioT - fsr.ratioB) * fsr.fullSize.h / 2.f;
-    
-    
+
+
     // 4. Changement de taille des fonts ?
 //    double fontSize = Texture_currentFontSize();
 //    double targetFontSize = fmaxf(16.f, fminf(144.f,
@@ -217,15 +218,11 @@ root_resize_end:
     if(rt->resizeOpt) rt->resizeOpt(rt, info);
 }
 
-bool    root_isLandscape(Root* r) {
-    return r->n.w > r->n.h;
-}
-
 /*-- Init d'autres struct utilisant la root. --*/
 /// Obtenir le rectangle (en pts) associé à une position (origin)
 ///  et dimensions dans le frame de la root.
 /// e.g. (0.5, 0.5), (1, 1) -> (540, 320), (290, 290).
-Rectangle root_windowRectangleFromBox(Root *rt, Box box, bool invertedY) {
+Rectangle root_windowRectangleFromBox(Root const*const rt, Box const box, bool const invertedY) {
     float fullSizeWidth = fl_real(&rt->fullSizeWidth);
     float fullSizeHeight = fl_real(&rt->fullSizeHeight);
     float yShift =   fl_real(&rt->yShift);
@@ -244,13 +241,18 @@ Rectangle root_windowRectangleFromBox(Root *rt, Box box, bool invertedY) {
 /// Semblable à `node_hitBoxInParentReferential`, mais
 /// retourne l'espace occupé en pts dans la view de l'OS.
 /// invertedY == true pour iOS (y vont vers les bas).
-Rectangle node_windowRectangle(Node* n, bool invertedY) {
-    Squirrel sq;
-    sq_init(&sq, n, sq_scale_deltas);
-    while(sq_goUpPS(&sq)) {}
-    Root* root = node_asRootOpt(sq.pos);
+Rectangle node_windowRectangle(Node const*const n, bool const invertedY) {
+    Box n_b = node_hitBox(n);
+    Root const* root = NULL;
+    for(Node const* p = n->_parent; p; p = p->_parent) {
+        root = node_asRootOpt(p);
+        if(root) break;
+        // Sort du referentiel du parent présent avant de passer au prochain.
+        n_b = box_referentialOut(n_b, node_asReferential(p));
+    }
     if(!root) { printerror("No root."); return (Rectangle) {{ 0, 0, 10, 10 }}; }
-    return root_windowRectangleFromBox(root, (Box){.center = sq.v, .deltas = sq.s }, invertedY);
+    
+    return root_windowRectangleFromBox(root, n_b, invertedY);
 }
 /// Obtenir la position dans le frame de la root à partir de la position de la vue (en points).
 /// e.g. (540, 320) -> (0.0, 0.0), (centre d'une vue 1080 x 640).

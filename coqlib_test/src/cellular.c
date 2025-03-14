@@ -290,7 +290,7 @@ void celgrid_callback_(void* cgIn) {
     if(cg->mathieu) celgrid_updateMathieu(cg);
     else celgrid_updateCoq(cg);
     celgrid_drawPixels_(cg);
-    texture_engine_writeAllPixels(cg->d._tex, cg->pixels);
+    texture_engine_writeAllPixels(cg->d.texr.tex, cg->pixels);
 }
 void celgrid_open_(Node* n) {
     CelGrid* cg = (CelGrid*)n;
@@ -311,7 +311,7 @@ CelGrid* CelGrid_create(Node* parent, float x, float y, float height, uint32_t m
     CelGrid* cg = coq_callocArray(CelGrid, PixelBGRA, count);
     // Super inits...
     node_init(&cg->node, parent, x, y, height, height, 0, 0);
-    drawable_init(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), &mesh_sprite, 0, height);
+    drawable_init(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), Mesh_drawable_sprite, 0, height);
     // Init as CelGrid
     cg->node.openOpt =   celgrid_open_;
     cg->node.closeOpt =  celgrid_close_;

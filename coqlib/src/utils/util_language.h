@@ -70,7 +70,7 @@ Language    Language_languageWithCode(const char* const code);
 const char* language_iso(Language language);
 const char* language_name(Language language);
 
-#pragma mark - Pour la localisation des strings. ----------------
+// MARK: - Pour la localisation des strings. ----------------
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
 const char* String_createLocalized(const char* stringKey);
@@ -78,12 +78,11 @@ void        String_copyLocalizedTo(const char* stringKey, char* buffer, size_t s
 /// Version par defaut de la string, e.g. localization anglaise.
 const char* String_createLocalizedDefault(const char* stringKey);
 
-#pragma mark - Les fonts possible pour les différentes langues -
+// MARK: - Les fonts possible pour les différentes langues -
 typedef struct {
     char    name[40];
     char    short_name[20];
-    float   deltaYAdj;
-    float   extraDesc;
+    float   topMargin, bottomMargin;
 } LanguageFontInfo;
 SharedStringsArray LanguageFont_allFontNamesForLanguage(Language language);
 const char*        LanguageFont_defaultFontNameForLanguage(Language language);

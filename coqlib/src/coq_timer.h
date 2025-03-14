@@ -18,9 +18,9 @@ typedef struct coq_TimerStruct* Timer;
 void Timer_check(void);
 
 /// Création d'un timer qui call `callBack` sur `targetObject` après `deltaTimeMS`.
-/// Pour répéter à chaque "tick", mettre deltaTimeMS à 1 ms.
+/// Pour répéter à chaque "tick", mettre deltaTimeMS entre 0 et `Chrono_UpdateDeltaTMS` (50ms).
 /// A priori, il est preferable de garder la reference au timer (passer à `timerRef`) pour pouvoir cancel le timer.
-/// ** S'assurer de caller `timer_cancel` avant de dealloc `target_object`. **
+/// -> ** S'assurer de caller `timer_cancel` avant de dealloc `target_object`. **
 /// targetObjectOpt: l'objet sur lequel le callBack agit (optionel).
 void timer_scheduled(Timer *timerRef, int64_t deltaTimeMS, bool isRepeating,
                      void *targetObjectOpt, void (*callBack)(void *targetObjectOpt));

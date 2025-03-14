@@ -10,6 +10,7 @@
 
 #include "graph_texture.h"
 #include "graph_mesh.h"
+#include "graph_iusbuffer.h"
 #include "graph_base.h"
 
 #ifdef __APPLE__
@@ -20,25 +21,25 @@
 #include <GL/glew.h>
 #endif
 
-void   CoqGraph_opengl_init(bool loadCoqlibPngs);
+void   CoqGraph_opengl_init(MeshInit const* drawableSpriteInitOpt,
+                            MeshInit const* renderingQuadInitOpt);
 void   CoqGraph_opengl_deinit(void);
 
-/*-- Texture --*/
-void   Texture_opengl_init_(GLuint program);
-void   texture_glBind(Texture* tex);
-
 /*-- Mesh --*/
-void   Mesh_opengl_init_(GLuint program);
-void   mesh_glBind(Mesh *mesh);
+// Setter les "location" des "position", "uv", "color" dans un vertex.
+// (Customizable)
+extern void (*Mesh_opengl_initVertexAttributeLocations)(GLuint program);
+extern void (*mesh_opengl_setVertexAttributes)(Mesh const* mesh);
 
 
-/*-- Uniforms Buffer --*/
-void   iusbuffer_glBind(IUsBuffer* iusbuffer);
-void   instanceuniform_glBind(InstanceUniforms const *iu);
+/// MARK: - Dessiner avec OpenGL: Setter mesh, texture, instance uniforms, -> dessiner les triangles...
+void rendering_opengl_initForDrawing(void);
 
-/*-- Dessin d'une instance (groupe d'instances) --*/
-void  rendering_opengl_initForDrawing(void);
-void  rendering_opengl_draw(Mesh *mesh, Texture *tex, InstanceUniforms const* iu);
-void  rendering_opengl_drawMulti(Mesh *mesh, Texture *tex, IUsBuffer *iusBuffer);
+void rendering_opengl_setCurrentMesh(Mesh* mesh);
+void rendering_opengl_setCurrentTexture(Texture* tex);
+void rendering_opengl_setIU(InstanceUniforms const* iu);
+void rendering_opengl_setIUs(IUsToDraw iusToDraw);
+
+void rendering_opengl_drawWithCurrents(void);
 
 #endif

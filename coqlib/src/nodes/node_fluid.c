@@ -9,10 +9,32 @@
 
 #include "../utils/util_base.h"
 
-float Fluid_defaultFadeInDelta = 2.2f;
+void fluid_renderer_defaultUpdateInstanceUniforms_(Node *const n) {
+    // Cas feuille, skip...
+    if(n->_firstChild == NULL) {
+        return;
+    }
+    Fluid *const f = (Fluid*)n;
+    const Matrix4* const pm = node_parentModel(n);
+    Matrix4* const m = &n->renderIU.model;
+    Vector3 const pos = fl_array_toVec3(&f->x);
+    Vector3 const scl = fl_array_toVec3(&f->sx);
+    // Equivalent de :
+//    *m = *pm;
+//    matrix4_translate(m, pos);
+//    matrix4_scale(m, scl);
+    m->v0.v = pm->v0.v * scl.x;
+    m->v1.v = pm->v1.v * scl.y;
+    m->v2.v = pm->v2.v * scl.z; 
+    m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y + pm->v2.v * pos.z;
+}
+
+float  Fluid_defaultFadeInDelta = 2.2f;
+void (*Fluid_renderer_defaultUpdateInstanceUniforms)(Node*) = fluid_renderer_defaultUpdateInstanceUniforms_;
 
 void fluid_init(Fluid* f, float lambda) {
-    f->n._type |= node_type_flag_fluid;
+    f->n._type |= node_type_fluid;
+    f->n.renderer_updateInstanceUniforms = Fluid_renderer_defaultUpdateInstanceUniforms;
     fl_array_init(&f->sx, &f->n.sx, COQ_FLUID_DIMS_N, lambda);
     // Fonction de positionnement pour les node smooth.
     if(f->n.flags & flags_fluidOpen)
@@ -29,18 +51,22 @@ Fluid* Fluid_create(Node* const refOpt, float x, float y, float w, float h,
     fluid_init(f, lambda);
     return f;
 }
-Fluid* node_asFluidOpt(Node* n) {
-    if(n->_type & node_type_flag_fluid)
-        return (Fluid*)n;
-    return NULL;
+
+
+Box     fluid_asReferential(Fluid *const f) {
+    return (Box) {
+        .center = fl_array_toVec2(&f->x),
+        .deltas = fl_array_toVec2(&f->sx),
+    };
 }
 
-Vector3 fluid_pos(Fluid* s) {
-    return fl_array_toVec3(&s->x);
-}
 
 void    fluid_setXY(Fluid* f, Vector2 xy) {
     fl_set(&f->x, xy.x); fl_set(&f->y, xy.y);
+    f->n.x = xy.x;       f->n.y = xy.y;
+}
+void    fluid_fixXY(Fluid* f, Vector2 xy) {
+    fl_fix(&f->x, xy.x); fl_fix(&f->y, xy.y);
     f->n.x = xy.x;       f->n.y = xy.y;
 }
 void    fluid_setXYScales(Fluid* f, Box box) {
@@ -49,19 +75,24 @@ void    fluid_setXYScales(Fluid* f, Box box) {
     fl_set(&f->sx, box.Dx); fl_set(&f->sy, box.Dy);
     f->n.sx = box.Dx;       f->n.sy = box.Dy;
 }
-void    fluid_setX(Fluid* f, float x, bool fix) {
-    if(fix) fl_fix(&f->x, x); else fl_set(&f->x, x);
-    f->n.x = x;
+void    fluid_setX(Fluid* f, float x) {
+    fl_set(&f->x, x); f->n.x = x;
+}
+void    fluid_fixX(Fluid *f, float x) {
+    fl_fix(&f->x, x); f->n.x = x;
+}
+void    fluid_setY(Fluid* f, float y) {
+    fl_set(&f->y, y); f->n.y = y;
+}
+void    fluid_fixY(Fluid* f, float y) {
+    fl_fix(&f->y, y); f->n.y = y;
 }
 void    fluid_setXrelToDef(Fluid* f, float x, bool fix) {
     if(fix) fl_fix(&f->x, f->x.def + x);
     else    fl_set(&f->x, f->x.def + x);
     f->n.x = f->x.def + x;
 }
-void    fluid_setY(Fluid* f, float y, bool fix) {
-    if(fix) fl_fix(&f->y, y); else fl_set(&f->y, y);
-    f->n.y = y;
-}
+
 void    fluid_setYrelToDef(Fluid* f, float y, bool fix) {
     if(fix) fl_fix(&f->y, f->y.def + y);
     else    fl_set(&f->y, f->y.def + y);
@@ -72,15 +103,17 @@ void    fluid_setZrelToDef(Fluid* f, float z, bool fix) {
     else    fl_set(&f->z, f->z.def + z);
     f->n.z = f->z.def + z;
 }
-void    fluid_setScales(Fluid* f, Vector2 scales, bool fix) {
-    if(fix) {
-        fl_fix(&f->sx, scales.x);
-        fl_fix(&f->sy, scales.y);
-    } else {
-        fl_set(&f->sx, scales.x);
-        fl_set(&f->sy, scales.y);
-    }
-    f->n.sx = scales.x;  f->n.sy = scales.y;
+void   fluid_setScales(Fluid *const f, Vector3 const scales) {
+    fl_set(&f->sx, scales.x);
+    fl_set(&f->sy, scales.y);
+    fl_set(&f->sz, scales.z);
+    f->n.scales = scales;
+}
+void   fluid_fixScales(Fluid *const f, Vector3 const scales) {
+    fl_fix(&f->sx, scales.x);
+    fl_fix(&f->sy, scales.y);
+    fl_fix(&f->sz, scales.z);
+    f->n.scales = scales;
 }
 
 const PopingInfo popinginfo_default = {

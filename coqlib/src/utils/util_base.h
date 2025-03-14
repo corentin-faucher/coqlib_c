@@ -1,6 +1,6 @@
 //
-//  _util_.h
-//  Include et fonctions de base pratiques pour le debugging.
+//  util_base.h
+//  Fonctions de base pratiques pour alloc et debugging.
 //
 //  Created by Corentin Faucher on 2023-10-12.
 //
@@ -10,8 +10,8 @@
 #include <stdio.h>  // printf, sprintf, file, etc.
 #include <stdlib.h> // malloc, free, etc.
 #include <string.h> // strcat, strcmp, etc.
-#include <stddef.h> 
-#include <stdint.h>
+#include <stddef.h> // size_t, ptrdiff_t 
+#include <stdint.h> // Int, unsigned précis : uint32_t, int64_t, ...
 
 //#if __APPLE__
 //// Pour les `TARGET_OS_OSX`, etc.
@@ -20,10 +20,10 @@
 
 #ifdef DEBUG
 // Pour suivre les alloc/dealloc...
-// #define COQ_ALLOC
+//#define COQ_ALLOC
 #endif
 
-#pragma mark - Logs pratiques : printdebug, printwarning, printerror, ...
+// MARK: - Logs pratiques : printdebug, printwarning, printerror, ...
 #define COQ__FILENAME__                                                        \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // Les logs affichés qu'en mode "debug"
@@ -32,7 +32,7 @@
 #define printdebug(format, ...)                                                \
   printf("🐛 Debug: " format " -> %s line %d\n", ##__VA_ARGS__,                \
          COQ__FILENAME__, __LINE__)
-/// printok : Succès quelconque d'un init en mode debug.
+/// printok : Succès quelconque en mode debug.
 #define printok(format, ...)                                                \
   printf("✅ Ok: " format " -> %s line %d\n", ##__VA_ARGS__, COQ__FILENAME__, __LINE__)
 /// printhere : Affiche simplement la fonction et le fichier actuel pour suivre le déroulement (debug)
@@ -53,7 +53,7 @@
   print_trace_(4)
 
 
-#pragma mark - Alloc -----------
+// MARK: - Alloc -----------
 /// Pour avoir la taile d'une struct de type array, i.e. `struct { int const count; int arr[1] };`
 #define coq_arrayTypeSize(arrayType, elementType, elementCount) \
     sizeof(arrayType) + (elementCount-1)*sizeof(elementType)
@@ -63,6 +63,9 @@
 #define coq_callocTyped(type) (type*const)coq_calloc_(1, sizeof(type), COQ__FILENAME__, __LINE__)
 #define coq_callocArray(arrayType, elementType, elementCount) \
     (arrayType*const)coq_calloc_(1, sizeof(arrayType) + (elementCount-1)*sizeof(elementType), COQ__FILENAME__, __LINE__)
+/// Alloc d'un simple array, e.g. `int *intArray = calloc(intCount, sizeof(int));`
+#define coq_callocSimpleArray(elementCount, elementType) \
+    (elementType*const)coq_calloc_(elementCount, sizeof(elementType), COQ__FILENAME__, __LINE__)
 #define coq_malloc(size) coq_malloc_(size, COQ__FILENAME__, __LINE__)
 #define coq_calloc(count, size)                                                \
   coq_calloc_(count, size, COQ__FILENAME__, __LINE__)
@@ -74,6 +77,8 @@
 #define coq_callocTyped(type) (type*const)calloc(1, sizeof(type))
 #define coq_callocArray(arrayType, elementType, elementCount) \
     (arrayType*const)calloc(1, coq_arrayTypeSize(arrayType, elementType, elementCount))
+#define coq_callocSimpleArray(elementCount, elementType) \
+    (elementType*const)calloc(elementCount, sizeof(elementType))
 #define coq_malloc(size) malloc(size)
 #define coq_calloc(count, size) calloc(count, size)
 #define coq_free(ptr) free(ptr)
@@ -82,9 +87,14 @@
 
 
 // Test de unwrap dans le style de swift: if let a = aOpt {...}... Sans doute superflu...
-#define if_let(type, var, init_val) { type var = init_val; if(var) {
+#define if_let(type, var, init_val) { type const var = init_val; if(var) {
 #define if_let_end }}
-
+// Test alloc temporaire `safe`.
+#define with_beg(type, var_ptr, alloc_fct) { type *const var_ptr = alloc_fct; if(var_ptr) {
+#define with_end(var_ptr) coq_free((void*)var_ptr); } else { printerror("cannot alloc."); } }
+// Guard statement dans le style de swift.
+#define guard_let(type, var, init_val, else_statement, return_value) type const var = init_val; \
+    if(!var) { else_statement; return return_value; }
 
 // "Private"... Version malloc de debugging / experimentation...
 void  print_trace_(unsigned depth);

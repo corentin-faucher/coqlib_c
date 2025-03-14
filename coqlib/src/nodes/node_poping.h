@@ -14,7 +14,7 @@
 #include "../coq_timer.h"
 #include "../graphs/graph_texture.h"
 
-#pragma mark - Poping Base
+// MARK: - Poping Base
 
 typedef struct coq_View View;
 typedef struct PopingNode_ PopingNode_;
@@ -43,20 +43,20 @@ extern Fluid* popingnode_last_notSharedOpt_;
 void popingnode_last_checkForScreenSpilling(void);
 
 
-#pragma mark - Quelques exemples de PopingNode...
+// MARK: - Quelques exemples de PopingNode...
 
-#pragma mark - PopDisk, un disque de `progression`, disparaît une fois plein.
+// MARK: - PopDisk, un disque de `progression`, disparaît une fois plein.
 void   PopDisk_spawnOverAndOpen(Node *const nodeOverOpt, PopingNode_ **const refererOpt,
                    uint32_t const pngId, uint32_t const tile, float const deltaT,
                    float x, float y, float twoDyRel);
 
-#pragma mark - Sparkles ! (des feux d artifices)
+// MARK: - Sparkles ! (des feux d artifices)
 void Sparkle_init(Texture* sparkleTex, uint32_t sparkleSoundId);
 /// Exemple d'implémentation de PopingNode...
 void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture *texOpt);
 void Sparkle_spawnOverAndOpen(Node *nd, float deltaRatio);
 
-#pragma mark - PopMessage, message qui s autodétruit (e.g. error).
+// MARK: - PopMessage, message qui s autodétruit (e.g. error).
 /// Autre exemple d'implémentation de PopingNode...
 void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy,
                         float timeSec, uint32_t framePngId, NodeStringInit str,

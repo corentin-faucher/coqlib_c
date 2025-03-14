@@ -8,9 +8,8 @@
 #define my_enums_h
 
 #include "nodes/node_string.h"
+#include "nodes/node__types.h"
 
-extern const uint32_t node_type_flag_particule;
-extern const uint32_t node_type_nf_particule;
 
 typedef enum _Localizable {
     loc_app_name,

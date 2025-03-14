@@ -50,26 +50,26 @@
 }
 -(void)setUpNotifications {
     [self setPaused:YES];
-    chronochecker_set(&(self->cc));
+//    cc = chronochecker_startNew();
 #if TARGET_OS_OSX == 1
     // Notifications
     {
         // Notifications Full screen (pause unpause)
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowWillEnterFullScreenNotification
                                                           object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
-            [self setPaused:YES];
+           [self setSuspended:YES];
         }];
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidEnterFullScreenNotification
                                                           object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
-            [self setPaused:NO];
+            [self setSuspended:NO];
         }];
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowWillExitFullScreenNotification
                                                           object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
-            [self setPaused:YES];
+            [self setSuspended:YES];
         }];
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidExitFullScreenNotification
                                                           object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
-            [self setPaused:NO];
+            [self setSuspended:NO];
         }];
         // Notification Window Move (pour resize -> voir updateRootFrame)
         [[NSNotificationCenter defaultCenter] addObserverForName:NSWindowDidMoveNotification
@@ -394,31 +394,35 @@
         while(true) {
             // Checks
             if(self.isPaused) { break; }
-            Root* root = self->root;
+            
+            Root* root = self->rootOpt;
             if(root == NULL) { break; }
             if(root->shouldTerminate || [self willTerminate]) { break; }
-            chronochecker_set(&cc);
+            // Set le temps de la tic.
+            ChronoEvent_update();
+            cc = chronochecker_startNew();
             // Updates prioritaires
             CoqEvent_processEvents(root);
+            
             Timer_check();
 //            if(root->iterationUpdate) root->iterationUpdate(root);
             NodeGarbage_burn();
             // Check optionnels
-            if(chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
-                if(chronochecker_elapsedMS(&cc) > 200)
-                    printwarning("Overwork? %lld ms.", chronochecker_elapsedMS(&cc)); 
+            if(chronochecker_elapsedMS(cc) > ChronosEvent.deltaTMS) {
+                if(chronochecker_elapsedMS(cc) > 200)
+                    printwarning("Overwork? %lld ms.", chronochecker_elapsedMS(cc)); 
                 continue;
             }
-            Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
+            Texture_checkToFullyDrawAndUnused(&cc, ChronosEvent.deltaTMS - 5);
             // Sleep s'il reste du temps.
-            int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - chronochecker_elapsedMS(&cc);
+            int64_t sleepDeltaT = ChronosEvent.deltaTMS - chronochecker_elapsedMS(cc);
             if(sleepDeltaT < 1) sleepDeltaT = 1;
             struct timespec time = {0, sleepDeltaT*ONE_MILLION};
             nanosleep(&time, NULL);
         }
         // Terminate ?
         bool shouldTerminate = true;
-        if(self->root) shouldTerminate = self->root->shouldTerminate;
+        if(self->rootOpt) shouldTerminate = self->rootOpt->shouldTerminate;
         if(shouldTerminate && ![self willTerminate]) {
 #if TARGET_OS_OSX == 1
             dispatch_async(dispatch_get_main_queue(), ^{
@@ -434,31 +438,33 @@
 /// Pour si on ne veut pas de thread `coqviewcheckup.queue`.
 -(BOOL)_checkUp {
     if(self.isPaused) { return false; }
-    Root* root = self->root;
+    Root* root = self->rootOpt;
     if(root == NULL) { return false; }
     if(root->shouldTerminate || [self willTerminate]) { return false; }
-    ChronoChecker cc;
-    chronochecker_set(&cc);
-    
+    ChronoChecker cc = chronochecker_startNew();
+    // Set le temps de la tic.
+    ChronoEvent_update();
     // Updates prioritaires
     CoqEvent_processEvents(root);
     Timer_check();
     NodeGarbage_burn();
     
     // Check optionnels
-    if(chronochecker_elapsedMS(&cc) > Chrono_UpdateDeltaTMS) {
+    if(chronochecker_elapsedMS(cc) > ChronosEvent.deltaTMS) {
         printwarning("Overwork?"); return true;
     }
-    Texture_checkToFullyDrawAndUnused(&cc, Chrono_UpdateDeltaTMS - 5);
+    Texture_checkToFullyDrawAndUnused(&cc, ChronosEvent.deltaTMS - 5);
     
     // Sleep s'il reste du temps.
-    int64_t sleepDeltaT = Chrono_UpdateDeltaTMS - chronochecker_elapsedMS(&cc);
+    int64_t sleepDeltaT = ChronosEvent.deltaTMS - chronochecker_elapsedMS(cc);
     if(sleepDeltaT < 1) sleepDeltaT = 1;
     struct timespec time = {0, sleepDeltaT*ONE_MILLION};
     nanosleep(&time, NULL);
     return true;
 }
 
+/// "Pause" en plus fort. Seuls les event comme "applicationDidBecomeActive" ou "didEnterFullScreenNotification"
+/// peuvent entrer ou sortir de l'état "suspendu".
 -(void)setSuspended:(BOOL)newSuspended {
     _suspended = newSuspended;
     [self setPaused:newSuspended];
@@ -478,14 +484,14 @@
         return;
     }
     // Unpause
-    if(root) if(root->resumeAfterMSOpt) root->resumeAfterMSOpt(root, ChronoApp_lastSleepTimeMS());
+    if(rootOpt) if(rootOpt->resumeAfterMSOpt) rootOpt->resumeAfterMSOpt(rootOpt, ChronoApp_lastSleepTimeMS());
     [self startCheckUpDispatchQueue];
     win_event_timer = [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:true block:^(NSTimer * _Nonnull timer) {
         [self checkWindowEvents];
     }];
 }
 
-#pragma mark - Resizing view...
+// MARK: - Resizing view...
 
 -(void)safeAreaInsetsDidChange {
     [self updateRootFrame: self.drawableSize dontFix:YES];
@@ -529,10 +535,10 @@
 
 /*-- Input Events --------------------------------------*/
 #if TARGET_OS_OSX == 1
-#pragma mark - macOS Mouse events
+// MARK: - macOS Mouse events
 /*-- Mouse ---------------------------------------------*/
 -(void)mouseEntered:(NSEvent *)event {
-    // TODO ?
+    // TODO: Event d'entrée et sortie de la sourie ?
 }
 -(void)mouseExited:(NSEvent *)event {
 }
@@ -548,92 +554,89 @@
     [super updateTrackingAreas];
 }
 -(void)mouseMoved:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     NSPoint viewPosNSP = event.locationInWindow;
-    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    
-    CoqEvent coq_event = {
-        .type = event_type_touch_hovering, 
-        .touch_pos = root_absposFromViewPos(root, viewPos, false)
-    };
-    CoqEvent_addToRootEvent(coq_event);
+    CoqEvent_addToRootEvent((CoqEvent){
+        .type = event_type_touch_hovering,
+        .touch_info = {
+            .touch_pos = { viewPosNSP.x, viewPosNSP.y },
+        },
+    });
 }
 
 -(void)rightMouseDown:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     NSPoint viewPosNSP = event.locationInWindow;
-    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    
-    CoqEvent coq_event = {
-        .type = event_type_touch_down, 
-        .touch_pos = root_absposFromViewPos(root, viewPos, false),
-        .touch_id = 1,
-    };
-    CoqEvent_addToRootEvent(coq_event);
+    CoqEvent_addToRootEvent((CoqEvent){
+        .type = event_type_touch_down,
+        .touch_info = {
+            .touch_pos = { viewPosNSP.x, viewPosNSP.y },
+            .touch_id = 1,
+        },
+    });
 }
 -(void)rightMouseDragged:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     NSPoint viewPosNSP = event.locationInWindow;
-    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    CoqEvent coq_event = {
-        .type = event_type_touch_drag, 
-        .touch_pos = root_absposFromViewPos(root, viewPos, false),
-        .touch_id = 1,
-    };
-    CoqEvent_addToRootEvent(coq_event);
+    CoqEvent_addToRootEvent((CoqEvent){
+        .type = event_type_touch_drag,
+        .touch_info = {
+            .touch_pos = { viewPosNSP.x, viewPosNSP.y },
+            .touch_id = 1,
+        },
+    });
 }
 -(void)rightMouseUp:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
-    CoqEvent coq_event = {
+    CoqEvent_addToRootEvent((CoqEvent){
         .type = event_type_touch_up,
-        .touch_id = 1,
-    };
-    CoqEvent_addToRootEvent(coq_event);
+        .touch_info = {
+            .touch_id = 1,
+        },
+    });
 }
 -(void)mouseDown:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     NSPoint viewPosNSP = event.locationInWindow;
-    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    
-    CoqEvent coq_event = {
-        .type = event_type_touch_down, 
-        .touch_pos = root_absposFromViewPos(root, viewPos, false)
-    };
-    CoqEvent_addToRootEvent(coq_event);
+    CoqEvent_addToRootEvent((CoqEvent){
+        .type = event_type_touch_down,
+        .touch_info = {
+            .touch_pos = { viewPosNSP.x, viewPosNSP.y },
+        },
+    });
 }
 -(void)mouseDragged:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     NSPoint viewPosNSP = event.locationInWindow;
-    Vector2 viewPos = { viewPosNSP.x, viewPosNSP.y };
-    CoqEvent coq_event = {
-        .type = event_type_touch_drag, 
-        .touch_pos = root_absposFromViewPos(root, viewPos, false)
-    };
-    CoqEvent_addToRootEvent(coq_event);
+    CoqEvent_addToRootEvent((CoqEvent){
+        .type = event_type_touch_drag,
+        .touch_info = {
+            .touch_pos = { viewPosNSP.x, viewPosNSP.y },
+        },
+    });
 }
 -(void)mouseUp:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
-    CoqEvent coq_event = {
+    CoqEvent_addToRootEvent((CoqEvent){
         .type = event_type_touch_up,
-    };
-    CoqEvent_addToRootEvent(coq_event);
+    });
 }
 -(void)scrollWheel:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     // (slidingmenu a sa propre "inertie", si != 0 -> on a un "NSEventPhase" que l'on ignore)
@@ -681,7 +684,7 @@
 
 #else
 
-#pragma mark - iOS Touch events
+// MARK: - iOS Touch events
 // **-- Touches (similaire a mouse)----------------------------------------
 
 -(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
@@ -734,11 +737,11 @@
 
 #endif
 
-#pragma mark - macOS Keyboard events
+// MARK: - macOS Keyboard events
 // **-- Keyboard input ---------------------------------------------
 #if TARGET_OS_OSX == 1
 -(void)keyDown:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     if(event.isARepeat && CoqEvent_ignoreRepeatKeyDown) return;
@@ -754,7 +757,7 @@
     CoqEvent_addToRootEvent(coqEvent);
 }
 -(void)keyUp:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     if(event.isARepeat && CoqEvent_ignoreRepeatKeyDown) return;
@@ -771,7 +774,7 @@
     CoqEvent_addToRootEvent(coqEvent);
 }
 -(void)flagsChanged:(NSEvent *)event {
-    if(root == NULL) return;
+    if(rootOpt == NULL) return;
     [self setPaused:NO];
     if(self.isPaused) return;
     CoqEvent coqEvent = {
@@ -781,7 +784,7 @@
     CoqEvent_addToRootEvent(coqEvent);
 }
 #else
-#pragma mark - iOS Keyboard events
+// MARK: - iOS Keyboard events
 -(void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     [super pressesBegan:presses withEvent:event];
     if(root == NULL) return;

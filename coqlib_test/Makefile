@@ -14,7 +14,7 @@ CFLAGS=-g -DDEBUG -DWITH_OPENGL -Wall -Wno-unknown-pragmas -Iinclude \
 
 ifeq ($(OS_NAME), Darwin)
 	LFLAGS=-L../coqlib/lib -framework OpenGL -framework OpenAL \
-		   `sdl2-config --libs` -lSDL2_ttf -lSDL2_image -lglfw
+		   `sdl2-config --libs` -lSDL2_ttf -lSDL2_image -lglfw -lfreetype
 	LFLAGS2=-lcoqlib
 # -F/Library/Frameworks -framework SDL2 -framework SDL2_ttf -framework SDL2_image
 else

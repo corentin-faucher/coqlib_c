@@ -26,13 +26,15 @@
 
 ## Tester dans Xcode (macOS)
 
-1. Créer un projet macOS -> App ; mom "xc_coqlib_test", interface "XIB" (pas important, on va effacer le .xib) ; language Objective-C. Placer dans le répertoire de `coqlib_c`.
+1. Créer un projet macOS -> App ; nom "xc_coqlib_test", interface "XIB" (pas important, on va effacer le .xib) ; language Objective-C. Placer dans le répertoire de `coqlib_c`.
 
 2. Effacer les fichier créés automatiquement : AppDelegate.h et .m, Assets.xcassets, MainMenu.xib, main.m. -> Move to trash.
 
 3. Dans le projet (xc_coqlib_test.xcodeproj la racine des fichiers), dans `Info`, effacer `MainMenu` de `Main nib file base name`. Dans `Build Settings` effacer `MainMenu` de `Main nib file base name`.
 
-4. Toujours dans `Build Settings` : Search Paths -> Header Search Paths, ajouter "../coqlib/src".
+4. Toujours dans `Build Settings`, ajouter les search paths : Search Paths -> Header Search Paths, ajouter "../coqlib/src"
+(ou "/Users/<name>/<projects>/coqlib_c/coqlib/src_apple") et "../coqlib/src_apple". 
+Aussi pour Metal : Compiler header search paths : ".../coqlib_c/coqlib/src_apple".
 
 5. Au projet (xc_coqlib_test la racine des fichiers), ajouter les groupes (`New Group`) : `coqlib` ; `Resources` ; `code`.
 
@@ -49,6 +51,8 @@
 
 9. C'est tout. Run cmd-r.
 
+On peut ajouter aussi l'option `Hidden local variables` dans `Build Settings`.
+
 10. On peut aussi ajouter le script pour trier automatiquement les fichiers en ordre alphabétique...
 Cliquer le target `xc_coqlib_test` -> `Edit Scheme...` -> `Build` -> `Post action` -> `New run script action` :
 ```bash
@@ -61,7 +65,7 @@ Soit la structure
 ```c
 typedef struct A { int myInt; } A;
 ```
-Une instance sera définie par `a` (i.e. en minuscules).
+Une instance sera définie par `a`, e.g. `A a = { .myInt = 1};`.
 Pour les méthodes, on a :
 - `A_doStuf()` : Majuscule, une fonction global de la struct A, e.g. `A_create()` -> crée une instance de A.
 - `a_doStuf(A* a)` : Minuscule, une fonction appliquée à une instance de la struct A, e.g. `a_update(my_a)`.
@@ -87,10 +91,24 @@ Pour les méthodes, on a :
 - `unowned` : On n'est *pas* propriétaire du contenu du pointeur, i.e. il ne faut pas dealloc/`free`.
 - `myObjOpt` : Opt, pour les pointeurs/reference optionnels (de fonction, paramètre, variable...), i.e. *pouvant* être NULL. _Normalement_, s'il n'y a pas de *opt*, il est superflu de vérifier si le pointeur est NULL.
 
-## Notations sur les arrays
+## Notations et trucs sur les arrays
 
 - `count` vs `size` : On utilise "Count" pour le nombre d'éléments et "Size" pour la taille en bytes de l'array,
 e.g. `A myArray[myArray_count]; myArray_size = myArray_count * sizeof(A);`
+
+-Attention ! Pour les array en 2D et plus, il faut aller des crochets exterieur vers les crochets intérieurs...
+Ou premier crochet -> grand pas, dernier crochet -> petit pas...
+e.g. `int mat[4][3]` => `[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]`,
+ou encore `const char someSmallStrings[][4] = { "ab", "cd", "ef", "jk", "lm", "no", "pq" };`.
+On accède au "haut" niveau en premier.
+
+-Itérateur dans array multi-D: Soit `int mat[4][3];`, l'itérateur de ligne serait `int (*ligne)[3] = &mat[0];`.
+
+-Pour retrouver la taille d'un array :
+```
+char* stringArray[] = { "allo", "un", ...};
+size_t arrayCount = sizeof(stringArray) / sizeof(char*);
+```
 
 ## Notes et trucs diverses sur le C...
 
@@ -111,18 +129,5 @@ int my_var = ({
 });
 ```
 
--Truc pour initialiser un const dans une struct (ou pour `cast away the const`): `*(uint32_t*)&my_struct->constCount = theCount;`.
+-Truc pour initialiser un variable `const` dans une struct (ou pour `cast away the const`): `*(uint32_t*)&my_struct->constCount = theCount;`.
 
--Attention ! Pour les array en 2D et plus... ! Il faut aller des crochets exterieur vers les crochets intérieurs...
-Ou premier crochet -> grand pas, dernier crochet -> petit pas...
-e.g. `int mat[4][3]` => `[[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]`,
-ou encore `const char someSmallStrings[][4] = { "ab", "cd", "ef", "jk", "lm", "no", "pq" };`.
-On accède au "haut" niveau en premier.
-
--Pour retrouver la taille d'un array :
-```
-char* stringArray[] = { "allo", "un", ...};
-size_t arrayCount = sizeof(stringArray) / sizeof(char*);
-```
-
--Itérateur dans array multi-D: Soit `int mat[4][3];`, l'itérateur de ligne serait `int (*ligne)[3] = &mat[0];`.

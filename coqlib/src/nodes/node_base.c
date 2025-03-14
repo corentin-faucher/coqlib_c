@@ -7,14 +7,13 @@
 #include "node_base.h"
 
 #include "node_fluid.h"
-#include "node_squirrel.h"
 #include "node_tree.h"
 
 #include "../utils/util_base.h"
 #include "../coq_timer.h"
 
 
-#pragma mark -- Constructors... ----------------------------------
+// MARK: -- Constructors... ----------------------------------
 void node_disconnect_(Node * const node) {
     // Retrait
 
@@ -33,7 +32,7 @@ void node_disconnect_(Node * const node) {
 //    node->_littleBro = NULL;
 
 }
-/** Connect au parent. (Doit être fullyDeconnect.) */
+/** Connect au parent. */
 void node_connectToParent_(Node* const node, Node * const parentOpt, const bool asElder) {
     if(parentOpt == NULL) return;
     // Dans tout les cas, on a le parent:
@@ -90,20 +89,17 @@ void node_connectToBro_(Node* const node, Node* const bro, const bool asBigbro) 
         else       parent->_lastChild = node;
     }
 }
-
 Node* Node_last = NULL;
 #ifdef DEBUG
 static uint32_t Node_currentId_ = 0;
 #endif
-
-void node_init(Node* n, Node* const refOpt,
-                 float x, float y, float width, float height,
+void node_init(Node *const n, Node* const refOpt,
+                 float const x, float const y, float const width, float const height,
                  const flag_t flags, const uint8_t node_place) {
-    n->_iu.model = matrix4_identity;
+    n->renderIU.model = matrix4_identity;
     n->sizes = (Vector2) {{ width, height }};
-    n->scales = vector2_ones;
-    // Vecteur position avec 4e coordonnée (1 pour point, 0 pour vecteur). Mais bon, de toute façon on n'utilise pas w...
-    n->pos4 = (Vector4) {{ x, y, 0, 1 }};
+    n->scales = vector3_ones;
+    n->xy = (Vector2) {{ x, y }};
     n->flags =  flags & (~flags_initFlags);
     n->renderer_updateInstanceUniforms = Node_renderer_defaultUpdateInstanceUniforms;
 #ifdef DEBUG
@@ -122,16 +118,15 @@ void node_init(Node* n, Node* const refOpt,
     else
         node_connectToParent_(n, refOpt, node_place & node_place_asElderBig);
 }
-
-Node* Node_create(Node* refOpt, float x, float y, float width, float height,
+Node* Node_create(Node *const parent, float const x, float const y, float const width, float const height,
             flag_t flags, uint8_t node_place) {
     Node *n = coq_callocTyped(Node);
-    node_init(n, refOpt, x, y, width, height, flags, node_place);
+    node_init(n, parent, x, y, width, height, flags, node_place);
     return n;
 }
 
 
-#pragma mark - Garbage, emplacement temporaire avant d être deallocated.
+// MARK: - Garbage, emplacement temporaire avant d être deallocated.
 void node_tree_burnDown_(Node* const node) {
     if(node->_firstChild == NULL) {
         if(node->deinitOpt) node->deinitOpt(node);
@@ -240,40 +235,21 @@ void  noderef_slowDestroyAndNull(Node** const nodeOptRef, Timer *parentDestroyTi
     Node* const toDelete = *nodeOptRef;
     if(toDelete == NULL) return;
     *nodeOptRef = NULL;
-//    if(toDelete->flags & flag_toDelete_) {
-//        printwarning("Already to delete.");
-//        return;
-//    }
+    if(!parentDestroyTimer) {
+        printerror("No timer ref.");
+        node_throwToGarbage_(toDelete);
+        return;
+    } else if(*parentDestroyTimer) {
+        printwarning("Parent timer still active.");
+        node_throwToGarbage_(toDelete);
+        return;
+    }
     if(deltaTimeMSOpt == 0) deltaTimeMSOpt = 400;
     node_tree_close(toDelete);
     timer_scheduled(parentDestroyTimer, deltaTimeMSOpt, false, toDelete, node_throwToGarbage__);
 }
 
-
-#pragma mark -- Getters -------------------------------------------
-Vector2 node_deltas(Node* const node) {
-    Vector2 ds = {{node->w * node->sx / 2.f, node->h * node->sy / 2.f}};
-    return ds;
-}
-float   node_deltaX(Node* const node) {
-    return node->w * node->sx / 2.f;
-}
-float   node_deltaY(Node* const node) {
-    return node->h * node->sy / 2.f;
-}
-Vector3 node_pos(Node *node) {
-    Fluid* s = node_asFluidOpt(node);
-    if(s) return fl_array_toVec3(&s->x);
-    else  return node->xyz;
-}
-Vector2 node_scales(Node *node) {
-    Fluid* s = node_asFluidOpt(node);
-    if(s) return fl_array_toVec2(&s->sx);
-    else  return node->scales;
-}
-
-
-#pragma mark -- Setters -------------------------------------------
+// MARK: - Setters
 void    node_setXYrelatively(Node* node, uint32_t relative_flags, bool open) {
     Node* parent = node->_parent;
     Fluid* f = node_asFluidOpt(node);
@@ -321,7 +297,6 @@ void    node_setXYrelatively(Node* node, uint32_t relative_flags, bool open) {
     node->x = x;
     node->y = y;
 }
-
 void    node_setXrelatively(Node* n, uint32_t relativeFlags, bool open) {
     Node* const parent = n->_parent;
     Fluid* f = node_asFluidOpt(n);
@@ -381,8 +356,7 @@ void    node_setYrelatively(Node* n, uint32_t relativeFlags, bool open) {
     n->y = y;
 }
 
-
-#pragma mark -- Moving node ---------------------------------------------
+// MARK: - Moving node
 void    node_simpleMoveTo(Node* const node, Node* const destOpt, const uint8_t node_place) {
     node_disconnect_(node);
     if(node_place & node_place_asBro)
@@ -450,25 +424,53 @@ void    node_moveRight(Node* const n) {
     if(littleLittle) littleLittle->_bigBro = n;
     else             parent->_lastChild = n;
 }
-
-void    node_setInReferentialOf_(Node* const n, Node* const ref) {
-    Squirrel sqP, sqQ;
-    sq_init(&sqP, n, sq_scale_ones);
-    while(sq_goUpPS(&sqP)) {}
-    sq_init(&sqQ, ref, sq_scale_scales);
-    while(sq_goUpPS(&sqQ)) {}
-
-    Fluid* f = node_asFluidOpt(n);
-    if(f) {
-        fl_newReferential(&f->x, sqP.v.x, sqQ.v.x, sqP.s.x, sqQ.s.x);
-        fl_newReferential(&f->y, sqP.v.y, sqQ.v.y, sqP.s.y, sqQ.s.y);
-        fl_newReferentialAsDelta(&f->sx, sqP.s.x, sqQ.s.x);
-        fl_newReferentialAsDelta(&f->sy, sqP.s.y, sqQ.s.y);
+//#warning Tester nouvelle version.
+void    node_setInReferentialOf_(Node* const n, Node* const q) {
+    // Pour passer de p (parent) à q (destination),
+    // Il s'agit de mettre p dans q et sortir de "p dans q"...!
+    // Boîte parent
+    Box p_b = box_identity;
+    for(Node const* par = n->_parent; par; par = par->_parent) {
+        box_referentialOut(p_b, node_asReferential(par));
     }
-    n->x = (sqP.v.x - sqQ.v.x) / sqQ.s.x;
-    n->y = (sqP.v.y - sqQ.v.y) / sqQ.s.y;
-    n->sx = n->sx * sqP.s.x / sqQ.s.x;
-    n->sy = n->sy * sqP.s.y / sqQ.s.y;
+    // Boîte destination
+    Box q_b = node_asReferential(q);
+    for(Node const* par = q->_parent; par; par = par->_parent) {
+        box_referentialOut(q_b, node_asReferential(par));
+    }
+    // Boîte parent dans dest.
+    Box pq_b = box_referentialIn(p_b, q_b);
+    // Boîte du noeud courant (dans parent)
+    Box np_b = node_asReferential(n);
+    // Boîte dans dest.
+    Box nq_b = box_referentialOut(np_b, pq_b);
+    // Set dims dans q.
+    n->xy = nq_b.center;
+    n->scales.xy = nq_b.scales;
+    if_let(Fluid*, f, node_asFluidOpt(n))
+        fl_referentialOut(&f->x, pq_b.c_x, pq_b.Dx);
+        fl_referentialOut(&f->y, pq_b.c_y, pq_b.Dy);
+        fl_referentialOutAsDelta(&f->sx, pq_b.Dx);
+        fl_referentialOutAsDelta(&f->sy, pq_b.Dy);
+    if_let_end
+
+//    Squirrel sqP, sqQ;
+//    sq_init(&sqP, n, sq_scale_ones);
+//    while(sq_goUpPS(&sqP)) {}
+//    sq_init(&sqQ, q, sq_scale_scales);
+//    while(sq_goUpPS(&sqQ)) {}
+//
+//    Fluid* f = node_asFluidOpt(n);
+//    if(f) {
+//        fl_newReferential(&f->x, sqP.b.c_x, sqQ.b.c_x, sqP.b.Dx, sqQ.b.Dx);
+//        fl_newReferential(&f->y, sqP.b.c_y, sqQ.b.c_y, sqP.b.Dy, sqQ.b.Dy);
+//        fl_newReferentialAsDelta(&f->sx, sqP.b.Dx, sqQ.b.Dx);
+//        fl_newReferentialAsDelta(&f->sy, sqP.b.Dy, sqQ.b.Dy);
+//    }
+//    n->x = (sqP.b.c_x - sqQ.b.c_x) / sqQ.b.Dx;
+//    n->y = (sqP.b.c_y - sqQ.b.c_y) / sqQ.b.Dy;
+//    n->sx = n->sx * sqP.b.Dx / sqQ.b.Dx;
+//    n->sy = n->sy * sqP.b.Dy / sqQ.b.Dy;
 }
 /** Change de noeud de place (et ajuste sa position/scaling relatif). */
 void    node_moveToParent(Node* const n, Node* const new_parent, bool const asElder) {
@@ -485,93 +487,91 @@ void    node_moveToBro(Node* n, Node* new_bro, bool asBigBro) {
     node_connectToBro_(n, new_bro, asBigBro);
 }
 
-#pragma mark - Model matrix --
+// MARK: - Model matrix
 /// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.
 /// Equivalent de :
 ///     M = (parent.M T) S,
-/// i.e. On a scaling, puis translation, puis place dans ref du parent.
-void node_renderer_defaultUpdateInstanceUniforms_(Node *n) {
+/// i.e. On se place de le ref du parent, puis on se place à sa position (Translate)
+/// et on Scale à ses dimensions.
+void node_renderer_defaultUpdateInstanceUniforms_(Node *const n) {
     // Cas feuille, skip...
     if(n->_firstChild == NULL) {
         return;
     }
     const Matrix4* const pm = node_parentModel(n);
-    Matrix4* const m = &n->_iu.model;
-    Vector3 pos = node_pos(n);
-    Vector2 scl = node_scales(n);
+    Matrix4* const m = &n->renderIU.model;
+    Vector3 const pos = n->xyz;
+    Vector3 const scl = n->scales;
+    // Equivalent de :
+//    *m = *pm;
+//    matrix4_translate(m, pos);
+//    matrix4_scale(m, scl);
     m->v0.v = pm->v0.v * scl.x;
     m->v1.v = pm->v1.v * scl.y;
-    m->v2 =   pm->v2;  // *scl.z ... si on veut un scaling en z...?
-    m->v3 = (Vector4) {{
-        pm->v3.x + pm->v0.x * pos.x + pm->v1.x * pos.y + pm->v2.x * pos.z,
-        pm->v3.y + pm->v0.y * pos.x + pm->v1.y * pos.y + pm->v2.y * pos.z,
-        pm->v3.z + pm->v0.z * pos.x + pm->v1.z * pos.y + pm->v2.z * pos.z,
-        pm->v3.w,
-    }};
+    m->v2.v = pm->v2.v * scl.z; 
+    m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y + pm->v2.v * pos.z;
 }
 void (*Node_renderer_defaultUpdateInstanceUniforms)(Node*) = node_renderer_defaultUpdateInstanceUniforms_;
-const Matrix4* node_parentModel(Node* n) {
+const Matrix4* node_parentModel(Node const*const n) {
     Node* const parent = n->_parent;
     if(!parent) { printerror("Node without parent."); return &matrix4_identity; }
-    return &parent->_iu.model;
+    return &parent->renderIU.model;
 }
 
-#pragma mark -- Vector, Matrix... --------------------------------------
-
+// MARK: - Position spatiale (relative, absolue, ...)
+/// Noeud en tant que "boîte" référentiel remonté jusqu'à la première root parent.
+//Box node_asAbsoluteReferential(Node const* n) {
+//    Box referential = node_asReferential(n); // (Position et scales dans le parent direct)
+//    for(Node const* p = n->_parent; p; p = p->_parent) {
+//        if(p->_type & node_type_root) return referential;
+//        referential = box_referentialOut(referential, node_asReferential(p));
+//    }
+//    printerror("No root encountered.");
+//    return referential;
+//}
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
-Vector2 node_posInParentReferential(Node* n, const Node* const parentOpt) {
-    Squirrel sq;
-    sq_init(&sq, n, sq_scale_ones);
-    do {
-        if(sq.pos->_parent == parentOpt)
-            return sq.v;
-    } while (sq_goUpP(&sq));
-    printerror("No parent encountered.");
-    return sq.v;
+Vector2 node_posInParentReferential(Node const*const n, Node const*const parentOpt) {
+    Vector2 n_xy = n->xy; // (Position dans le parent direct)
+    for(Node const* p = n->_parent; p; p = p->_parent) {
+        if(parentOpt == p) return n_xy;
+        n_xy = vector2_referentialOut(n_xy, node_asReferential(p));
+    }
+    if(parentOpt) { printerror("No parent encountered."); }
+    return n_xy;
 }
-
+//Vector2 node_
 /// Donne la position et les dimension (en demi-largeur/demi-hauteur)
 /// du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
-Box     node_hitBoxInParentReferential(Node* n, const Node* parentOpt) {
-    Squirrel sq;
-    sq_init(&sq, n, sq_scale_deltas);
-    do {
-        if(sq.pos->_parent == parentOpt) {
-            return (Box){ .center = sq.v, .deltas = sq.s };
-        }
-    } while (sq_goUpPS(&sq));
+Box     node_hitBoxInParentReferential(Node const*const n, Node const*const parentOpt) {
+    Box n_b = node_hitBox(n); // (Position et sizes dans le parent direct)
+    for(Node const* p = n->_parent; p; p = p->_parent) {
+        if(parentOpt == p) return n_b;
+        n_b = box_referentialOut(n_b, node_asReferential(p));
+    }
+    if(parentOpt) { printerror("No parent encountered."); }
+    return n_b;
+}
 
-    printerror("No parent encountered.");
-    return (Box){ .center = sq.v, .deltas = sq.s };
-}
-/// Hitbox absolue (i.e. remonté à la root) d'une box dans le même référentiel que nRef (i.e. dans le ref de nRef->parent.)
-Box  box_toAbsolute(Box box, Node* nRef) {
-    Squirrel sq;
-    sq_initWithRelPos(&sq, nRef, box.center, sq_scale_ones);
-    while(sq_goUpPS(&sq)) {}
-    return (Box){ .center = sq.v, .deltas = {{ sq.s.x * box.Dx, sq.s.y * box.Dy }} };
-}
 /// Position absolue (i.e. remonté à la root) d'une position dans le même référentiel que n (i.e. dans le ref de n->parent.)
-Vector2 vector2_toAbsolute(Vector2 pos, Node* n) {
-    Squirrel sq;
-    sq_initWithRelPos(&sq, n, pos, sq_scale_ones);
-    while(sq_goUpPS(&sq)) {}
-    return sq.v;
-}
+//Vector2 vector2_toAbsolute(Vector2 pos, Node* n) {
+//    Squirrel sq;
+//    sq_initWithRelPos(&sq, n, (Box){ .center = pos });
+//    while(sq_goUpP(&sq)) {}
+//    return sq.b.center;
+//}
 /// Convertie une position absolue (au niveau de la root) en une position
 ///  dans le réferentiel de nodeOpt (si NULL -> reste absPos).
-Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 const absPos, Node* nodeOpt) {
-    if(nodeOpt == NULL) return absPos;
-    Squirrel sq;
-    sq_init(&sq, nodeOpt, sq_scale_scales);
-    while (sq_goUpPS(&sq));
-    return vector2_inReferentialOfSquirrel(absPos, &sq);
-}
+//Vector2 vector2_absPosToPosInReferentialOfNode(Vector2 const absPos, Node* nodeOpt) {
+//    if(nodeOpt == NULL) return absPos;
+//    Squirrel sq;
+//    sq_init(&sq, nodeOpt, sq_scale_scales);
+//    while (sq_goUpPS(&sq));
+//    return vector2_referentialBoxIn(absPos, sq.b);
+//}
 
-
-#pragma mark - Debug...
+// MARK: - Debug...
 const char* node_type_names_[] = {
     "node",
     "fluid",
@@ -581,12 +581,15 @@ const char* node_type_names_[] = {
     "frame",
     "root",
     "view",
-    "secHov",
     "drawMulti",
     "number",
+    "string",
+    "poping",
+    "_undefined_",
 };
+
 const char* node_debug_getTypeName(const Node* const n) {
-    uint32_t index = 32 - __builtin_clz(n->_type & node_type_flags_defaultTypes);
+    uint32_t index = 32 - __builtin_clz(n->_type & node_types_defaultTypes);
     return node_type_names_[index];
 }
 
@@ -599,7 +602,7 @@ const char* node_debug_getTypeName(const Node* const n) {
 //    return n;
 //}
 //Node* Node_default_createCopy(const Node* const other) {
-//    if(other->_type & node_type_flag_notCopyable) {
+//    if(other->_type & node_type_notCopyable) {
 //        printerror("Node of type %x is not copyable.", other->_type);
 //        return NULL;
 //    }
@@ -612,7 +615,7 @@ const char* node_debug_getTypeName(const Node* const n) {
 //    nd->lastChild = NULL;
 //    nd->bigBro = NULL;
 //    nd->littleBro = NULL;
-//    if(!(nd->_type & node_type_flag_leaf))
+//    if(!(nd->_type & node_type_leaf))
 //        node_last_nonLeaf = nd;
 //    return nd;
 //}

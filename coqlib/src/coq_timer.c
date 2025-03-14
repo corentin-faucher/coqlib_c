@@ -6,7 +6,7 @@
 //
 #include "coq_timer.h"
 
-#include "maths/math_chrono.h"
+#include "coq_chrono.h"
 #include "utils/util_base.h"
 
 typedef struct coq_TimerStruct ** TimerRef;
@@ -40,8 +40,7 @@ void timer_scheduled(Timer *const timerRef, int64_t deltaTimeMS, bool const isRe
         printerror("Too many timer active ! Max timer is %d.", Timer_count_);
         return;
     }
-    if(deltaTimeMS < 1) {
-        printwarning("deltaTimeMS < 1.");
+    if(deltaTimeMS < 1) { // Repéter à chaque tick, ou activer tout de suite.
         deltaTimeMS = 1;
     }
     if(timerRef) if(*timerRef) {
