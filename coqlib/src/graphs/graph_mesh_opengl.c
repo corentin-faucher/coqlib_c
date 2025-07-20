@@ -29,10 +29,10 @@ void (*Mesh_opengl_initVertexAttributeLocations)(GLuint program) = Mesh_opengl_d
 
 void mesh_opengl_defaultSetVertexAttributes_(Mesh const* mesh) {
     glVertexAttribPointer(Mesh_in_position_id_, 3, GL_FLOAT, GL_FALSE,
-            mesh->_vertexSize, 0);
+            mesh->vertexSize, 0);
     glEnableVertexAttribArray(Mesh_in_position_id_);
     glVertexAttribPointer(Mesh_in_uv_id_, 2, GL_FLOAT, GL_FALSE,
-            mesh->_vertexSize, BUFFER_OFFSET(sizeof(float)*3));
+            mesh->vertexSize, BUFFER_OFFSET(sizeof(float)*3));
     glEnableVertexAttribArray(Mesh_in_uv_id_);
 //    glVertexAttribPointer(_Mesh_in_normal_id, 3, GL_FLOAT, GL_FALSE,
 //            sizeof(Vertex), BUFFER_OFFSET(sizeof(GL_FLOAT)*5));
@@ -56,7 +56,7 @@ void mesh_engine_initBuffers_(Mesh* const mesh, const void* const verticesOpt,
         printwarning("Missing indices array or indexCount.");
     }
     // Binding avec vertices
-    size_t const verticesSize = mesh->vertexCount * mesh->_vertexSize;
+    size_t const verticesSize = mesh->vertexCount * mesh->vertexSize;
     glBindVertexArray(mesh->_glVertexArrayId);
     glBindBuffer(GL_ARRAY_BUFFER, mesh->_glVertexBufferId);
     glBufferData(GL_ARRAY_BUFFER, verticesSize, verticesOpt, GL_STATIC_DRAW);
@@ -66,6 +66,7 @@ void mesh_engine_initBuffers_(Mesh* const mesh, const void* const verticesOpt,
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, indicesOpt, GL_STATIC_DRAW);
     }
     // Setter le mapping des attributs d'un vertex (pos, uv, color, normal...)
+    // Customizable en fonction de la structure des Vertex.
     mesh_opengl_setVertexAttributes(mesh);
 }
 void   mesh_engine_deinit_(Mesh*const mesh) {
@@ -75,36 +76,53 @@ void   mesh_engine_deinit_(Mesh*const mesh) {
         glDeleteBuffers(1, &mesh->_glIndicesBufferId);
     if(mesh->_glVertexArrayId)
         glDeleteVertexArrays(1, &mesh->_glVertexArrayId);
+    mesh->_glVertexBufferId = 0;
+    mesh->_glVertexArrayId = 0;
+    mesh->_glIndicesBufferId = 0;
 }
 void   mesh_render_tryToUpdateVerticesAndIndiceCount(Mesh *const mesh) {
-    if(!(mesh->_flags & mesh_flag_mutable)) return;
-    if(!(mesh->_flags & mesh_flag__needUpdate)) return;
-    size_t const verticesSize = mesh->vertexCount * mesh->_vertexSize;
+    if(!(mesh->flags & mesh_flag_mutable)) return;
+    if(!(mesh->flags & mesh_flag__needUpdate)) return;
+    size_t const verticesSize = mesh->vertexCount * mesh->vertexSize;
     // Copier les nouveaux vertex
     glBindBuffer(GL_ARRAY_BUFFER, mesh->_glVertexBufferId);
     void* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_READ_WRITE);
-    memcpy(vertices, mesh->_verticesEdit, verticesSize);
+    memcpy(vertices, mesh->verticesEdit, verticesSize);
     glUnmapBuffer(GL_ARRAY_BUFFER);
     // Nouveau nombre d'indices actifs ?
-    if(mesh->_newIndexCountOpt) {
-        uint_initConst(&mesh->actualIndexCount, uminu(mesh->_newIndexCountOpt, mesh->maxIndexCount));
-        mesh->_newIndexCountOpt = 0;
+    if(mesh->newIndexCountOpt) {
+        uint_initConst(&mesh->actualIndexCount, uminu(mesh->newIndexCountOpt, mesh->maxIndexCount));
+        mesh->newIndexCountOpt = 0;
     }
     // Ok, fini d'updater
-    mesh->_flags &= ~mesh_flag__needUpdate;
+    mesh->flags &= ~mesh_flag__needUpdate;
 }
 
+// De "gl3.h" :
+//#define GL_POINTS                         0x0000
+//#define GL_LINES                          0x0001
+//#define GL_LINE_LOOP                      0x0002
+//#define GL_LINE_STRIP                     0x0003
+//#define GL_TRIANGLES                      0x0004
+//#define GL_TRIANGLE_STRIP                 0x0005
+//#define GL_TRIANGLE_FAN                   0x0006
+static uint32_t Mesh_GLprimitiveOfMyPrimitive_[] = {
+    0, // points
+    1, // lines
+    3, // lineStrip (skip line_loop)
+    4, // triangles
+    5, // triangleStrip
+};
 MeshToDraw mesh_render_getMeshToDraw(Mesh const*const mesh) {
     return (MeshToDraw) {
         .vertexCount =    mesh->vertexCount,
-        .verticesSize =   mesh->_verticesSize,
+        .verticesSize =   mesh->verticesSize,
         .indexCount =     mesh->actualIndexCount,
-        .primitive_type = mesh->primitive_type,
         .cull_mode =      mesh->cull_mode,
-        .verticesOpt =    mesh->_verticesReadOpt,
         .glVertexArrayId = mesh->_glVertexArrayId,
         .glVertexBufferId = mesh->_glVertexBufferId,
         .glIndicesBufferId = mesh->_glIndicesBufferId,
+        .glPrimitiveType = Mesh_GLprimitiveOfMyPrimitive_[mesh->primitive_type],
     };
 }
 

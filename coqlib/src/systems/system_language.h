@@ -1,5 +1,5 @@
 //
-//  util_language.h
+//  system_language.h
 //  Pour la localisation des strings...
 //
 //  Created by Corentin Faucher on 2023-10-25.
@@ -7,7 +7,7 @@
 #ifndef COQ_UTIL_LANGUAGE_H
 #define COQ_UTIL_LANGUAGE_H
 
-#include "util_string.h"
+#include "../utils/util_string.h"
 
 typedef enum {
     language_french,
@@ -74,19 +74,14 @@ const char* language_name(Language language);
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
 const char* String_createLocalized(const char* stringKey);
-void        String_copyLocalizedTo(const char* stringKey, char* buffer, size_t size_max_opt);
+void        String_copyLocalizedTo(const char* stringKey, char* dstBuffer, size_t size_max_opt);
 /// Version par defaut de la string, e.g. localization anglaise.
 const char* String_createLocalizedDefault(const char* stringKey);
 
 // MARK: - Les fonts possible pour les différentes langues -
-typedef struct {
-    char    name[40];
-    char    short_name[20];
-    float   topMargin, bottomMargin;
-} LanguageFontInfo;
 SharedStringsArray LanguageFont_allFontNamesForLanguage(Language language);
 const char*        LanguageFont_defaultFontNameForLanguage(Language language);
-const LanguageFontInfo* LanguageFont_getFontInfoOpt(const char* fontNameOpt);
+const char*        LanguageFont_getFontShortName(const char* fontNameOpt);
 
 void Language_test_fontLanguage_(void);
 

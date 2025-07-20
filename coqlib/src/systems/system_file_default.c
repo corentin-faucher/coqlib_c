@@ -9,13 +9,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <string.h>
-#include "../utils/util_file.h"
+#include "../systems/system_file.h"
 #include "../utils/util_base.h"
 
 // Espace où est stocker le dernier path demandé.
 static char  FileManager_tmpPath_[PATH_MAX];
 char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
-                        const char* fileExtOpt, const char* subDirOpt) {
+                        const char* fileExtOpt, const char* subDirOpt) 
+{
     memset(FileManager_tmpPath_, 0, PATH_MAX);
     if(fileNameOpt) {
         if(subDirOpt) {

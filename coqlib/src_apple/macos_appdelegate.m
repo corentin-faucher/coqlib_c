@@ -6,14 +6,14 @@
 //
 #import "macos_appdelegate.h"
 
-#include "coq_sound.h"
-#include "utils/util_system.h"
+#include "systems/system_sound.h"
+#include "systems/system_base.h"
 
 @implementation AppDelegateBase
 
 - (void)applicationWillBecomeActive:(NSNotification *)notification {
     Texture_resume();
-    Sound_resume();
+    Sound_resume_();
 }
 - (void)applicationDidBecomeActive:(NSNotification *)notification {
     [view setSuspended:NO];
@@ -24,7 +24,7 @@
 }
 - (void)applicationDidResignActive:(NSNotification *)notification {
     Texture_suspend();
-    Sound_suspend();
+    Sound_suspend_();
 }
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
     [view setWillTerminate:YES];

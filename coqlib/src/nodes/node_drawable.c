@@ -8,7 +8,7 @@
 #include "node_drawable.h"
 
 #include "../utils/util_base.h"
-#include "../utils/util_language.h"
+#include "../systems/system_language.h"
 #include <stdlib.h>
 
 // MARK: - ChronoTiny : un mini chrono de 2 octets -
@@ -218,7 +218,7 @@ Vector4 Drawable_renderIU_defaultColor = {{ 1, 1, 1, 1 }};
 void      drawable_deinit_(Node* nd){
     Drawable* d = (Drawable*)nd;
     meshref_releaseAndNull(&d->_mesh);
-    textureref2_releaseAndNull(&d->texr);
+    textureref_releaseAndNull(&d->texr);
 }
 void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh,
                         float const twoDxOpt, float const twoDy) {
@@ -227,7 +227,7 @@ void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh,
     // Init
     d->trShow = SmoothFlag_new();
     d->trExtra = SmoothFlag_new();
-    textureref2_init(&d->texr, tex);
+    textureref_init(&d->texr, tex);
     d->_mesh = mesh;
     d->n._type |= node_type_drawable;
     // Override de l'update de la matrice model.
@@ -334,8 +334,8 @@ float     drawable_updateShow(Drawable *const d) {
 }
 
 void      drawable_changeTexToPngId(Drawable* d, uint32_t const newPngId) {
-    textureref2_releaseAndNull(&d->texr);
-    textureref2_init(&d->texr, Texture_sharedImage(newPngId));
+    textureref_releaseAndNull(&d->texr);
+    textureref_init(&d->texr, Texture_sharedImage(newPngId));
     d->n.renderIU.uvRect.size = d->texr.dims.DuDv; 
     float const twoDy = d->n.sy * d->n.h;
     d->n.w = 1; d->n.h = 1;
@@ -357,7 +357,7 @@ void      drawableref_destroyAndNull(Drawable** const drawableOptRef) {
 // MARK: -- Setters -----------------------------------------------
 void      drawable_checkRatioWithUVrectAndTexture(Drawable *const d, float const newTwoDyOpt) {
     if(newTwoDyOpt) d->n.sy = newTwoDyOpt;
-    d->n.sx = d->n.sy * d->texr.dims.width / d->texr.dims.height * d->n.renderIU.uvRect.w / d->n.renderIU.uvRect.h;
+    d->n.sx = d->n.sy * (float)d->texr.dims.width / (float)d->texr.dims.height * d->n.renderIU.uvRect.w / d->n.renderIU.uvRect.h;
 }
 void      drawable_last_setTile(uint32_t const i, uint32_t const j) {
     if(drawable_last_ == NULL) {

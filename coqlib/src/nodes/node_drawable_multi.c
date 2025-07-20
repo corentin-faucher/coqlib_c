@@ -11,16 +11,16 @@
 
 void drawablemulti_deinit(Node* n) {
     DrawableMulti* dm = (DrawableMulti*)n;
-    // (Drawable super)
+    // drawable_deinit_
     meshref_releaseAndNull(&dm->d._mesh);
-    textureref2_releaseAndNull(&dm->d.texr);
-    
-    iusbufferref_releaseAndNull(&dm->iusBuffer);
+    textureref_releaseAndNull(&dm->d.texr);
+    // DrawableMulti : liberer le buffer.
+    iusbuffer_deinit(&dm->iusBuffer);
 }
 void drawablemulti_init(DrawableMulti* dm, uint32_t const maxInstanceCount, InstanceUniforms const*const defaultIUOpt) {
     dm->n._type |= node_type_drawMulti;
     dm->n.deinitOpt = drawablemulti_deinit;  // (override drawable deinit)
-    dm->iusBuffer = IUsBuffer_create(maxInstanceCount, defaultIUOpt);
+    iusbuffer_init(&dm->iusBuffer, maxInstanceCount, defaultIUOpt);
 }
 
 

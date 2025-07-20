@@ -7,11 +7,17 @@ SRCDIR := src
 OBJDIR := obj
 LIBDIR := lib
 LIBNAME := coqlib
+OS_NAME := $(shell uname -s)
 # Flags du compileur
-CFLAGS=-g -Wall -Wno-deprecated-declarations -Wno-unknown-pragmas -Iinclude \
-       -DDEBUG -DWITH_OPENGL `sdl2-config --cflags` \
-       -I/usr/local/include/freetype2
-#-F/Library/Frameworks -framework SDL2
+# Ici, on ajoute le flag `DEBUG` pour voir les logs, e.g. les printdebug("allo").
+# Pour freetype, il faut aller dans le sous-répertoire freetype2.
+ifeq ($(OS_NAME), Darwin)
+	CFLAGS=-g -Wall -Wno-deprecated-declarations -Wno-unknown-pragmas \
+		-DDEBUG -I/usr/local/include/freetype2
+else
+	CFLAGS=-g -Wall -Wno-deprecated-declarations -Wno-unknown-pragmas \
+       -DDEBUG -I/usr/include/freetype2
+endif
 
 # Lister les fichiers c.
 SRCS := $(shell find $(SRCDIR) -name "*.c")
@@ -20,13 +26,14 @@ OBJS := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 # Emplacement de la librairie.
 LIB := $(LIBDIR)/lib$(LIBNAME).a
 
-# Rule primaire : créé la librairie (package de .o)
+# Rule primaire : créé la librairie (package/archive de .o)
 $(LIB): $(OBJS)
 	@echo Creating library $@.
 	@test -d $(@D) || mkdir -p $(@D)
 	@ar -rcs $@ $(OBJS)
 	@echo Done!
 
+# Compilations des .c en .o.
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling object $@...
 	@test -d $(@D) || mkdir -p $(@D)

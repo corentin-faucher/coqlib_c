@@ -9,18 +9,17 @@ BINNAME := coqlib_test
 BIN :=     $(BINDIR)/$(BINNAME)
 OS_NAME := $(shell uname -s)
 
-CFLAGS=-g -DDEBUG -DWITH_OPENGL -Wall -Wno-unknown-pragmas -Iinclude \
-       -I../coqlib/src `sdl2-config --cflags`
+CFLAGS=-g -DDEBUG -Wall -I../coqlib/src
+# Pas de SDL...
+# `sdl2-config --cflags`  -Iinclude  -Wno-unknown-pragmas
 
 ifeq ($(OS_NAME), Darwin)
 	LFLAGS=-L../coqlib/lib -framework OpenGL -framework OpenAL \
-		   `sdl2-config --libs` -lSDL2_ttf -lSDL2_image -lglfw -lfreetype
+		-lglfw -lfreetype
 	LFLAGS2=-lcoqlib
-# -F/Library/Frameworks -framework SDL2 -framework SDL2_ttf -framework SDL2_image
 else
-	LFLAGS=-L../coqlib/lib -lunwind -lm -lGLEW -lGL \
-	       -lSDL2 -lSDL2_ttf -lSDL2_image -lopenal
-	LFLAGS2=-lcoqlib
+	LFLAGS=  
+	LFLAGS2= -L../coqlib/lib -lcoqlib -lunwind -lopenal -lm -lglad -lglfw -lfreetype
 endif
 
 # Lister les fichiers c.
@@ -36,6 +35,7 @@ $(BIN): $(OBJS)
 	@echo Linking $@
 	@test -d $(@D) || mkdir -p $(@D)
 	@$(CC) $(LFLAGS) $(OBJS) -o $@ $(LFLAGS2)
+# 	@$(CC) -o $@ $(LFLAGS) $(OBJS)  $(LFLAGS2)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	@echo Compiling object $@...

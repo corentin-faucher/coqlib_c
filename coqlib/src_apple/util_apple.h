@@ -23,11 +23,17 @@ static inline CGRect    rectangle_toCGRect(Rectangle const rect) {
 static inline CGSize    vector2_toCGSize(Vector2 const v) {
     return (CGSize) { v.x, v.y };
 }
+static inline CGPoint    vector2_toCGPoint(Vector2 const v) {
+    return (CGPoint) { v.x, v.y };
+}
 static inline Rectangle CGRect_toRectangle(CGRect const rect) {
     return (Rectangle) { rect.origin.x, rect.origin.y, rect.size.width, rect.size.height };
 }
 static inline Vector2   CGSize_toVector2(CGSize const size) {
     return (Vector2) { size.width, size.height };
+}
+static inline Vector2   CGPoint_toVector2(CGPoint const point) {
+    return (Vector2) { point.x, point.y };
 }
 static inline MTLClearColor vector4_toMTLClearColor(Vector4 v) {
     return (MTLClearColor) { v.x, v.y, v.z, v.w };

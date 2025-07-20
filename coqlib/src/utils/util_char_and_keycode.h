@@ -38,32 +38,32 @@ enum {
 };
 
 /** Les char spéciaux et "importans" */
-extern const Character spchar_null; // = {0}
-extern const Character spchar_delete; // = "\u{8}"
-extern const Character spchar_deleteSymbol; // = "␈"
-extern const Character spchar_questionMark; // "?"
-extern const Character spchar_tab; // = "\t"
-extern const Character spchar_tabSymbol; // = "␉"
-extern const Character spchar_return_; // = "\r"
-extern const Character spchar_newline_;// = "\n"
-extern const Character spchar_returnSymbol; // = "␍"
-extern const Character spchar_space; // = " "
-extern const Character spchar_spaceSymbol; // = "␠"
-extern const Character spchar_spaceNobreak; // = " "
-extern const Character spchar_spaceIdeographic; // = "　"
-extern const Character spchar_spaceThin; // = "\u{2009}"
-extern const Character spchar_bottomBracket; // = "⎵"
-extern const Character spchar_underscore; // = "_"
-extern const Character spchar_overline;//  = "‾"
-extern const Character spchar_openBox; // = "␣"
-extern const Character spchar_interpunct; // = "·"
-extern const Character spchar_dot; // = "•"
-extern const Character spchar_butterfly; // = "🦋"
-extern const Character spchar_dodo; // = "🦤"
-extern const Character spchar_maru; // "◯"
-extern const Character spchar_batu; // "❌"
-extern const Character spchar_checkmark; // "✓" };
-extern const Character spchar_greenCheckmark; // "✅"
+#define spchar_null (Character){ 0 }
+#define spchar_delete (Character){ "\b" }
+#define spchar_deleteSymbol (Character){ "␈" }
+#define spchar_questionMark (Character){ "?" }
+#define spchar_tab (Character){ "\t" }
+#define spchar_tabSymbol (Character) { "␉" }
+#define spchar_return_ (Character) { "\r" }
+#define spchar_newline_ (Character) { "\n" }
+#define spchar_returnSymbol (Character) { "␍" }
+#define spchar_space (Character) { " " }
+#define spchar_spaceSymbol (Character) { "␠" }
+#define spchar_spaceNobreak (Character) { " " }
+#define spchar_spaceIdeographic (Character) { "　" }
+#define spchar_spaceThin (Character) { "\u2009" }
+#define spchar_bottomBracket (Character) { "⎵" }
+#define spchar_underscore (Character) { "_" }
+#define spchar_overline (Character) {"‾" }
+#define spchar_openBox (Character) { "␣" }
+#define spchar_interpunct (Character) { "·" }
+#define spchar_dot (Character) { "•" }
+#define spchar_butterfly (Character) { "🦋" }
+#define spchar_dodo (Character) { "🦤" }
+#define spchar_maru (Character) { "◯" }
+#define spchar_batu (Character) { "❌" }
+#define spchar_checkmark (Character) { "✓" }
+#define spchar_greenCheckmark (Character) { "✅" }
 
 /// Conversion de utf8 vers unicode 32 (récupère les bits utiles de la mini-string).
 uint32_t character_toUnicode32(Character c);
@@ -236,6 +236,7 @@ enum {
     mkc_S = 25,
     mkc_D = 26,
     mkc_F = 27,
+    mkc_J = 30,
     mkc_Z = 35,
     mkc_X = 36,
     mkc_C = 37,
@@ -249,7 +250,6 @@ enum {
     mkc_iso_backslash = 50,
     // Espace
     mkc_space = 51,  // Dernier keycode "standard".
-
     // Keycodes spéciaux ayant une string associable
     mkc_backspace = 52,
     mkc_return_ = 53,
@@ -272,7 +272,7 @@ enum {
     mkc_escape = 70,
     mkc_jis_eisu = 71,
     mkc_jis_kana = 72,
-    // mkc_app ? le "menu" dans windows...
+    // mkc_app = 73, ? le "menu" dans windows...
 
     // Clavier numerique
     // 74~79  -> ".", enter, "+", "-", "*", "/".
@@ -280,6 +280,7 @@ enum {
     mkc_numpad_first_dot = 74,
     mkc_numpad_enter = 75,
     mkc_numpad_0 = 80, // 1, 2, 3,...
+    mkc_numpad_5 = 85,
     mkc_numpad_9 = 89,
 
     // Touches de directions
@@ -287,7 +288,7 @@ enum {
     mkc_arrowRight = 91,
     mkc_arrowDown =  92,
     mkc_arrowUp =    93,
-    // Ajouter ? genre 94 à 97
+    // Utile ? Ajouter genre 94 à 97 :
 //    mkc_pageUp, mkc_pageDown, mkc_home, mkc_end, mkc_delete,
 
     // Text input (virtual)
@@ -296,13 +297,19 @@ enum {
     mkc_empty = 99,
     mkc_total_mkcs = 100,
 };
+/// Pour les touche avec un affichage "non-localisé", e.g. "Enter", "Escape", "Ctrl",...
+/// i.e. pas des lettres fonction du layout.
+static inline bool mkc_notALayoutLetter(uint16_t mkc) {
+    return ((mkc > mkc_space) && (mkc < mkc_numpad_first_dot)) ||
+            (mkc > mkc_numpad_9) || (mkc == mkc_numpad_enter);
+}
 
 /// Mapping de mkc -> keycode.
 extern const uint16_t MKC_keycode_of_mkc[];
 /// Mapping de keycode -> mkc.
 extern const uint16_t MKC_of_keycode[];
 
-/// // MARK: - Keyboard input, une entrée clavier -> voir `coq_event.h`.
+/// // MARK: - Keyboard input, une entrée clavier -> voir `util_event.h`.
 typedef struct {
     uint32_t  modifiers;
     uint16_t  keycode;

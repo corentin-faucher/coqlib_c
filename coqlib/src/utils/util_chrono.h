@@ -1,5 +1,5 @@
 //
-//  coq_chrono.h
+//  utils/util_chrono.h
 //
 //  Created by Corentin Faucher on 2023-10-13.
 //
@@ -43,6 +43,7 @@ typedef struct Chronos {
     int64_t const app_elapsedMS;
     int64_t const render_elapsedMS;
     int64_t const event_elapsedMS;
+    uint32_t const tick; // Nombre de capture effectué depuis le début (à toute les deltaTMS).
     /// Temp de vie estimé de la capture, i.e. 16 ms pour le render, 50 ms pour le event.
     int64_t const deltaTMS;
 } Chronos;
@@ -50,7 +51,7 @@ typedef struct Chronos {
 // MARK: - ChronoRender : chrono global pour les animation de rendering. Mis à jour à chaque frame de (typiquement) +1/60 sec (pas le vrai temps écoulé)
 /// Capture des chronos mise à jour au début de chaque frame, e.g. 60 fois par sec -> à chaque ~16ms.
 extern Chronos ChronosRender;
-void     ChronoRender_update(int64_t deltaTMS);
+void     ChronoRender_update(void);
 void     ChronoRender_setPaused(bool isPaused);
 /// Pas d'activité ? -> Mettre en pause le rendering.
 bool      ChronoRender_shouldSleep(void);
@@ -66,6 +67,7 @@ extern Chronos ChronosEvent;
 /// Mise à jour à chaque tic, e.g. 20 fois par sec -> à chaque ~50ms.
 void     ChronoEvent_update(void);
 /// Changer le delta T entre les tics pour une durée custom.
+/// Le changement aura lieu au prochain `ChronoEvent_update`.
 void     ChronoEvent_setTicDeltaT(int64_t newDeltaTMS);
 
 // MARK: - Chrono ordinaire. Se base sur ChronoApp.

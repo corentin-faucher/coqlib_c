@@ -8,9 +8,9 @@
 #ifndef coq_node_root_h
 #define coq_node_root_h
 
-#include "../coq_event.h"
 #include "node_button.h"
 #include "node_view.h"
+#include "../utils/util_event.h"
 
 // Racine, noeud de base de l'app.
 // Une root gère le framing de ses descendants.
@@ -54,14 +54,11 @@ typedef struct coq_Root {
   Node *toDeleteViewNodeOpt;
   Root *rootParentOpt;
 
-  /// Events... ? Juste shouldTerminate pour l'instant.
-  bool shouldTerminate;
   // Actions optionnelles à definir pour differents events...
   /// Action à faire à chaque changement de vue, e.g. faire un bruit.
   void (*changeViewOpt)(Root *);
-  void (*resizeOpt)(Root *, ResizeInfo);
+  void (*resizeOpt)(Root *, ViewSizeInfo);
   void (*resumeAfterMSOpt)(Root *, int64_t);
-  //    void        (*willTerminateOpt)(Root*);  // Utile ?
   Timer _timer;
 } Root;
 
@@ -78,8 +75,8 @@ static inline Root* node_asRootOpt(Node const*const nOpt) {
 /// Changement de view (fermeture/release de l'ancienne view et ouverture de la nouvelle)
 void root_changeViewActiveTo(Root *rt, View *newViewOpt);
 /// Resize de la window.view.
-void root_viewResized(Root *rt, ResizeInfo info);
-/// Resize temporaire de la window.view.
+void root_viewResized(Root *rt, ViewSizeInfo info);
+/// Resize temporaire de la window.view (durant une rotation de l'écran)
 void root_justSetFrameSize_(Root *r, Vector2 frameSizePt);
 
 /// Obtenir le rectangle (en pixels) associé à une position (origin)

@@ -45,7 +45,7 @@ static inline Fluid* node_asFluidOpt(Node* n) {
 void    fluid_init(Fluid* f, float lambda);
 
 // Getters
-Box     fluid_asReferential(Fluid *f);
+Box     fluid_referential(Fluid *f);
 static inline Vector3 fluid_pos(Fluid *const s) {
     return fl_array_toVec3(&s->x);
 }
@@ -63,6 +63,7 @@ void    fluid_setYrelToDef(Fluid* f, float y, bool fix);
 void    fluid_setZrelToDef(Fluid* f, float z, bool fix);
 void    fluid_setScales(Fluid* f, Vector3 scales);
 void    fluid_fixScales(Fluid *f, Vector3 scales);
+/// Synonyme de setReferential...
 void    fluid_setXYScales(Fluid* f, Box box);
 
 /// Paramètres pour appliquer un effet d'apparition. Décalage de la position/scaling à l'open/création.

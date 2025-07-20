@@ -16,7 +16,7 @@ static const float    partpool_r0_ =      0.03f;
 static const float    partpool_brownian_ = 3.1f;
 static const float    partpool_repuls_ =   1.5f;
 
-#pragma mark - Particule Pool ------------------------------
+// MARK: - Particule Pool
 typedef struct _Particule {
 // Position et vitesse utilisées pour interpoller la position (affichage, actif à tour de rôle)
 // Seulement pour lecture...
@@ -216,7 +216,7 @@ void            particulespool_update(ParticulesPool* pp) {
 }
 
 
-#pragma mark - DrawableMulti de la particule pool ------------
+// MARK: - DrawableMulti de la particule pool
 
 typedef struct DrawableMultiPP_ {
     union {
@@ -241,7 +241,7 @@ void   drawablemultiPP_renderer_updateIU_(Node* const n) {
     // Boucle sur les particules
     Particule* p =            dmpp->pp->particules;
     Particule *const p_end = &dmpp->pp->particules[dmpp->pp->count];
-    IUsToEdit ius = iusbuffer_rendering_retainIUsToEdit(dmpp->dm.iusBuffer);
+    withIUsToEdit_beg(ius, &dmpp->dm.iusBuffer)
     for(; (p < p_end) && (ius.iu < ius.end); ius.iu++, p++) {
         Matrix4* m = &ius.iu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
@@ -252,7 +252,7 @@ void   drawablemultiPP_renderer_updateIU_(Node* const n) {
         m->v2.v =   pm->v2.v * scl.z;
         m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y;
     }
-    iustoedit_release(ius);
+    withIUsToEdit_end(ius)
 }
 DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     DrawableMultiPP_* dmpp = coq_callocTyped(DrawableMultiPP_);
@@ -263,18 +263,17 @@ DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     dmpp->n.renderer_updateInstanceUniforms = drawablemultiPP_renderer_updateIU_;
     dmpp->pp = pp;
     // Init des per instance uniforms (juste setter une tile.)
-    IUsToEdit ius = iusbuffer_retainIUsToInit(dmpp->dm.iusBuffer);
+    withIUsToEdit_beg(ius, &dmpp->dm.iusBuffer)
     for(; ius.iu < ius.end; ius.iu++) {
         *ius.iu = InstanceUniforms_default;
         ius.iu->uvRect = texturedims_uvRectOfTile(dmpp->d.texr.dims, rand(), 0);
     }
-    iustoedit_release(ius);
+    ius.init = true;
+    withIUsToEdit_end(ius)
     return dmpp;
 }
 
-
-#pragma mark - Particule pool node --------------
-
+// MARK - Particule pool node
 void ppnode_callback_(void* ppnIn) {
     PPNode* ppn = (PPNode*)ppnIn;
 
@@ -303,7 +302,7 @@ PPNode* PPNode_create(Node* ref) {
     ppn->n.closeOpt =  ppnode_close_;
     ppn->n.deinitOpt = ppnode_deinit_;
     // Struct
-    Frame_create(&ppn->n, 0.5f, 0.1f*partpool_height_, 0.f, 0.f, Texture_sharedImage(png_frame_gray_back), frame_option_getSizesFromParent);
+    Frame_create(&ppn->n, 0.5f, 0.1f*partpool_height_, 0.f, 0.f, Texture_sharedImage(png_coqlib_frame_gray_back), frame_option_getSizesFromParent);
     DrawableMultiPP_create(&ppn->n, ppn->pp);
 
     return ppn;

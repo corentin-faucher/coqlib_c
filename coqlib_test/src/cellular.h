@@ -9,7 +9,7 @@
 
 #include "utils/util_base.h"
 #include "nodes/node_drawable.h"
-#include "coq_timer.h"
+#include "utils/util_timer.h"
 
 // Un noeud (drawable) avec automate cellulaire
 typedef struct CelGrid CelGrid;

@@ -19,13 +19,12 @@ void   bar_update_(Frame* bar, Vector2 deltas) {
     bar->n.sx = 2.f*actualDx;
     bar->n.sy = 2.f*delta;
     float xPos = 0.5f * smallDeltaX / actualDx;
-    Vertex* vertices = mesh_retainVerticesOpt(bar->d._mesh);
-    if(!vertices) { printerror("No vertices for bar."); return; }
-    vertices[2].pos.x = -xPos;
-    vertices[3].pos.x = -xPos;
-    vertices[4].pos.x =  xPos;
-    vertices[5].pos.x =  xPos;
-    mesh_releaseVertices(bar->d._mesh, 0);
+    withMeshToEdit_beg(me, bar->d._mesh, Vertex, v)
+    v[2].pos.x = -xPos;
+    v[3].pos.x = -xPos;
+    v[4].pos.x =  xPos;
+    v[5].pos.x =  xPos;
+    withMeshToEdit_end(me)
 }
 void   vbar_update_(Frame* vbar, Vector2 deltas) {
     float inside = fminf(1.f, fmaxf(0.f, vbar->inside));
@@ -37,47 +36,26 @@ void   vbar_update_(Frame* vbar, Vector2 deltas) {
     vbar->n.sx = 2.f*delta;
     vbar->n.sy = 2.f*actualDy;
     float yPos = 0.5f * smallDeltaY / actualDy;
-    Vertex* vertices = mesh_retainVerticesOpt(vbar->d._mesh);
-    if(!vertices) { printerror("No vertices for vbar."); return; }
-    vertices[2].pos.y =  yPos;
-    vertices[3].pos.y =  yPos;
-    vertices[4].pos.y = -yPos;
-    vertices[5].pos.y = -yPos;
-    mesh_releaseVertices(vbar->d._mesh, 0);
+    withMeshToEdit_beg(me, vbar->d._mesh, Vertex, v)
+    v[2].pos.y =  yPos;
+    v[3].pos.y =  yPos;
+    v[4].pos.y = -yPos;
+    v[5].pos.y = -yPos;
+    withMeshToEdit_end(me)
 }
 void   frame_update_(Frame* frame, Vector2 deltas) {
-    float inside = fminf(1.f, fmaxf(0.f, frame->inside));
-    float delta = frame->delta;
-    float smallDeltaX = fmaxf(0.f, deltas.x - delta * inside);
-    float smallDeltaY = fmaxf(0.f, deltas.y - delta * inside);
-    float actualDx = (smallDeltaX + delta);
-    float actualDy = (smallDeltaY + delta);
+    float const inside = fminf(1.f, fmaxf(0.f, frame->inside));
+    float const delta = frame->delta;
+    float const smallDeltaX = fmaxf(0.f, deltas.x - delta * inside);
+    float const smallDeltaY = fmaxf(0.f, deltas.y - delta * inside);
+    float const actualDx = (smallDeltaX + delta);
+    float const actualDy = (smallDeltaY + delta);
     frame->n.w = 1.f;
     frame->n.h = 1.f;
     frame->n.sx = 2.f*actualDx;
     frame->n.sy = 2.f*actualDy;
-    Vertex* vertices = mesh_retainVerticesOpt(frame->d._mesh);
-    if(!vertices) { printerror("No vertices for frame."); return; }
-    float xPos = 0.5f * smallDeltaX / (smallDeltaX + delta);
-    vertices[4].pos.x = -xPos;
-    vertices[5].pos.x = -xPos;
-    vertices[6].pos.x = -xPos;
-    vertices[7].pos.x = -xPos;
-    vertices[8].pos.x =  xPos;
-    vertices[9].pos.x =  xPos;
-    vertices[10].pos.x = xPos;
-    vertices[11].pos.x = xPos;
-    float yPos = 0.5f * smallDeltaY / (smallDeltaY + delta);
-    vertices[1].pos.y =   yPos;
-    vertices[5].pos.y =   yPos;
-    vertices[9].pos.y =   yPos;
-    vertices[13].pos.y =  yPos;
-    vertices[2].pos.y =  -yPos;
-    vertices[6].pos.y =  -yPos;
-    vertices[10].pos.y = -yPos;
-    vertices[14].pos.y = -yPos;
-    mesh_releaseVertices(frame->d._mesh, 0);
-
+    mesh_frame_setCenterRatios(frame->d._mesh, smallDeltaX/actualDx,
+                               smallDeltaY/actualDy);
     if(!(frame->n.flags & flag_giveSizeToParent)) return;
     Node* parent = frame->n._parent;
     if(parent == NULL) return;
@@ -97,7 +75,7 @@ void   drawable_and_frame_init_(Frame* frame, Texture* tex,
                                 float inside, float delta, uint16_t options) {
     frame->d.trShow =  SmoothFlag_new();
     frame->d.trExtra = SmoothFlag_new();
-    textureref2_init(&frame->d.texr, tex);
+    textureref_init(&frame->d.texr, tex);
     frame->n._type |= node_type_drawable|node_type_frame;
     // Mesh (owner) et fonction pour setter les dimensions du frame.
     if(options & frame_option_horizotalBar) {

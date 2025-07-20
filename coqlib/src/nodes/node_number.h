@@ -15,33 +15,6 @@
 
 #define NUMBER_MAX_DIGITS_ 14
 
-typedef enum _Digit {
-    digit_zero,
-    digit_one,
-    digit_two,
-    digit_three,
-    digit_four,
-    digit_five,
-    digit_six,
-    digit_seven,
-    digit_eight,
-    digit_nine,
-    digit_space,
-    digit_unused1,
-    digit_underscore,
-    digit_plus,
-    digit_minus,
-    digit_mult,
-    digit_div,
-    digit_dot,
-    digit_comma,
-    digit_second,
-    digit_percent,
-    digit_equal,
-    digit_question,
-    digit_unused2,
-} Digit;
-
 typedef struct Number {
     union {
         Node          n;

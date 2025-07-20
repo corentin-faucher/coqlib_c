@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2024-02-28.
 //
 
-#include "util_locale.h"
+#include "system_locale.h"
 
 #import <Foundation/Foundation.h>
 

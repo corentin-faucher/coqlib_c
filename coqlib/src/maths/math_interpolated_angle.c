@@ -9,7 +9,7 @@
 
 #include <string.h>
 #include "../utils/util_base.h"
-#include "../coq_chrono.h"
+#include "../utils/util_chrono.h"
 #include "math_base.h"
 
 void intangle_init(InterpolatedAngle* ia, float pos) {

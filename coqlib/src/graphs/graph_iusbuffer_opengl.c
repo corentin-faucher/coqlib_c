@@ -9,84 +9,63 @@
 #include "../coq__buildConfig.h"
 #include "../utils/util_base.h"
 
-typedef struct IUsBuffer {
-    size_t const       max_count;
-    size_t             actual_count;
-    size_t const       iusSize;
-    bool               editing;
-//    const void* const  mtlBufferOptA_cptr;  // Buffer Metal
-//    const void* const  mtlBufferOptB_cptr;
-    InstanceUniforms   ius[1];
-} IUsBuffer;
-
-/// Création du buffer.
-IUsBuffer* IUsBuffer_create(uint32_t maxCount, InstanceUniforms const*const defaultIUOpt) {
-    uint32_t const actualCount = maxCount;
+/// Init du buffer.
+void   iusbuffer_init(IUsBuffer* iusbuffer, uint32_t maxCount, InstanceUniforms const* defaultIUOpt)
+{
+    if(iusbuffer->iusOpt) {
+        printerror("Arleady init."); return;
+    }
     if(maxCount < 2) {
         if(IUsBuffer_warningMaxCount) printwarning("IUsBuffer with maxCount < 2.");
         maxCount = 2;
     }
     size_t const iusSize = maxCount * sizeof(InstanceUniforms);
-    IUsBuffer *const iusbuffer = coq_callocArray(IUsBuffer, InstanceUniforms, maxCount);
+    memset(iusbuffer, 0, sizeof(IUsBuffer));
+    size_initConst(&iusbuffer->actual_count, maxCount);
+    size_initConst(&iusbuffer->actual_size, iusSize);
     size_initConst(&iusbuffer->max_count, maxCount);
-    size_initConst(&iusbuffer->iusSize, iusSize);
-    iusbuffer->actual_count = actualCount;
-    InstanceUniforms *const end = &iusbuffer->ius[maxCount];
-    if(defaultIUOpt) for(InstanceUniforms* iu = iusbuffer->ius; iu < end; iu++) {
+    *(InstanceUniforms**)&iusbuffer->iusOpt = coq_callocSimpleArray(maxCount, InstanceUniforms);
+    InstanceUniforms*const beg = (InstanceUniforms*)iusbuffer->iusOpt;
+    InstanceUniforms*const end = &beg[maxCount];
+    if(defaultIUOpt) for(InstanceUniforms* iu = beg; iu < end; iu++) {
         *iu = *defaultIUOpt;
     }
-    return iusbuffer;
 }
-/// Libère l'espace du buffer (et array de piu si nécessaire)
-void   iusbufferref_releaseAndNull(IUsBuffer** iusref) {
-    if(!iusref) { printerror("No ius ref."); return; }
-    IUsBuffer *const ius = *iusref;
-    *iusref = NULL;
-    coq_free(ius);
+/// Libère l'espace du buffer
+void   iusbuffer_deinit(IUsBuffer* iusbuffer) 
+{
+    if(iusbuffer->iusOpt) {
+        coq_free((InstanceUniforms*)iusbuffer->iusOpt);
+        *(InstanceUniforms**)&iusbuffer->iusOpt = NULL;
+    }
 }
 
-IUsToEdit   iusbuffer_retainIUsToInit(IUsBuffer *iusBuffer) {
-    if(iusBuffer->editing) { printwarning("Already editing."); }
-    iusBuffer->editing = true;
-//    iusBuffer->initEdit = true;
+IUsToEdit iusbuffer_retainIUsToEdit(IUsBuffer *const iusBuffer) {
+    if(iusBuffer->_editing) { 
+        printwarning("Already editing.");
+        return (IUsToEdit) {};
+    }
+    if(!iusBuffer->iusOpt) { printerror("Buffer not init."); return (IUsToEdit) {}; }
+    iusBuffer->_editing = true;
+    InstanceUniforms *const beg = (InstanceUniforms*)iusBuffer->iusOpt;
     return (IUsToEdit) {
-        .beg =  iusBuffer->ius,
-        .end = &iusBuffer->ius[iusBuffer->max_count],
-        .iu =   iusBuffer->ius,
-        ._iusBuffer = iusBuffer,
-    };
-}
-IUsToEdit iusbuffer_rendering_retainIUsToEdit(IUsBuffer *const iusBuffer) {
-    if(iusBuffer->editing) { printerror("Already editing."); return (IUsToEdit) {}; }
-    iusBuffer->editing = true;
-    return (IUsToEdit) {
-        .beg =  iusBuffer->ius,
-        .end = &iusBuffer->ius[iusBuffer->max_count],
-        .iu =   iusBuffer->ius,
+        .beg =  beg,
+        .end = &beg[iusBuffer->max_count],
+        .iu =   beg,
         ._iusBuffer = iusBuffer,
     };
 }
 // Ok, finit d'éditer, prêt pour drawing.
 void  iustoedit_release(IUsToEdit const edited) {
     IUsBuffer *const iusBuffer = edited._iusBuffer;
-    if(!iusBuffer->editing) { printwarning("Not editing."); return; }
-    iusBuffer->editing = false;
+    if(!iusBuffer->_editing) { printwarning("Not editing."); return; }
+    iusBuffer->_editing = false;
     size_t newCount = edited.iu - edited.beg;
     if(newCount > iusBuffer->max_count) {
         printerror("Overflow buffer size. newCount = %zu.", newCount);
         newCount = iusBuffer->max_count;
     }
-    iusBuffer->actual_count = newCount;
+    size_initConst(&iusBuffer->actual_count, newCount);
+    size_initConst(&iusBuffer->actual_size, newCount*sizeof(InstanceUniforms));
 }
 
-IUsToDraw   iusbuffer_rendering_getToDraw(IUsBuffer const* iusBuffer) {
-    if(iusBuffer->editing) {
-        printerror("Editing not released.");
-        return (IUsToDraw) { };
-    }
-    return (IUsToDraw) {
-        .count =  iusBuffer->actual_count,
-        .size =   iusBuffer->actual_count * sizeof(InstanceUniforms),
-        .iusOpt = iusBuffer->ius,
-    };
-}

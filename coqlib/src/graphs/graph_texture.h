@@ -9,7 +9,7 @@
 #define COQ_GRAPH_TEXTURE_H
 
 #include "graph_base.h"
-#include "../coq_chrono.h"
+#include "../utils/util_chrono.h"
 
 #define TEXTURE_CHECK_MINI_NEEDED 0
 
@@ -27,10 +27,7 @@ typedef struct TextureDims {
         struct { float Du, Dv; };
     };
     // Dimensions en pixels et ratio d'une tile.
-    union {
-        Vector2 sizes;
-        struct { float width, height; };
-    };
+    size_t    width, height;
     float tileRatio;  // (w n) / (h m)
     // (ratio ordinaire est juste width/height, superflu...)
 } TextureDims;
@@ -38,7 +35,7 @@ typedef struct TextureDims {
 // Info pour renderer pour setter la texture à dessiner.
 typedef struct TextureToDraw {
     union {
-        const void* metal_texture_cptr;
+        const void* mtlTexture;
         uint32_t    glTextureId;
     };
     bool isNearest; // (Style pixélisé)
@@ -66,6 +63,15 @@ void            Texture_loadProjectPngs(PngInfo const*const pngInfosOpt, const u
 /// (privé -> voir `CoqGraph_init...`)
 void            Texture_init_(void);
 
+typedef struct TextureRef {
+    /// Référence à la texture.
+    Texture *const    tex;
+    /// Les infos pratique à propos de la texture.
+    TextureDims const dims;
+} TextureRef;
+void  textureref_init(TextureRef* texref, Texture *tex);
+void  textureref_releaseAndNull(TextureRef* texref);
+
 // MARK: - Texture de png --------
 Texture*        Texture_sharedImage(uint32_t const pngId);
 Texture*        Texture_sharedImageByName(const char* pngName);
@@ -73,19 +79,10 @@ Texture*        Texture_sharedImageByName(const char* pngName);
 // MARK: - Texture de pixels
 /// Texture avec array de pixels en mode brgra, i.e. en hexadecimal : 0xAARRGGBB.
 /// (Les bit/bytes plus significatifs viennent après les bits moins significatifs dans un array.)
-Texture*        Texture_createWithPixels(const void* pixelsBGRA8Opt, uint32_t width, uint32_t height,
-                                         bool shared, bool nearest);
+Texture*        Texture_createWithPixels(const void* pixelsBGRA8Opt, 
+                        uint32_t width, uint32_t height, uint32_t flags);
 
-typedef struct TextureRef {
-    /// Référence à la texture.
-    Texture *const    tex;
-    /// Les infos pratique à propos de la texture.
-    TextureDims const dims;
-} TextureRef;
-void  textureref2_init(TextureRef* texref, Texture *tex);
-void  textureref2_releaseAndNull(TextureRef* texref);
-
-// MARK: - Methode
+// MARK: - Getters
 /// Obtenir les dimensions de la texture.
 TextureDims const texture_dims(Texture const* tex);
 // Obtenir la région en coord uv d'une "tile" de la texture.
@@ -94,35 +91,39 @@ static inline Rectangle texturedims_uvRectOfTile(TextureDims texDims, uint32_t i
 static inline RectangleUint texturedims_pixelRegionFromUVrect(TextureDims texDims, Rectangle UVrect);
 /// Convertie les coord. pixels (dans [0, width/height]) en coord. UV (dans [0, 1])
 static inline Rectangle     texturedims_UVrectFromPixelRegion(TextureDims texDims, RectangleUint region);
-/// Info pour dessiner par le renderer (et empêche de libérer)
-TextureToDraw   texture_engine_touchAndGetToDraw(Texture * tex);
-// Dépend de l'engine (Metal / OpenGL)...
-/// Copier un array de pixels dans la texture.
-void           texture_engine_writeAllPixels(Texture* tex, const void* pixelsBGRA8);
-/// Copier un array de pixels dans la texture aux coordonées de `region`.
-void           texture_engine_writePixelsToRegion(Texture* tex, const void* pixelsBGRA8, RectangleUint region);
-/// Copier une partie (region) de la texture vers un array de pixels (l'array de pixels doit être de taille suffisante)
-void           texture_engine_writeRegionToPixels(const Texture* tex, void* pixelBGRA8, RectangleUint region);
+
+// MARK: - Conversion en array de pixels
+PixelBGRAArray* PixelBGRAArray_engine_createFromTextureOpt(Texture* tex);
+PixelBGRAArray* PixelBGRAArray_engine_createFromTextureSubRegionOpt(Texture* tex, RectangleUint region);
+
+// MARK: - Edition
+void texture_engine_writePixelsAt(Texture* tex, PixelBGRAArray const* pixels, UintPair origin);
 /// Copier une région d'une texture vers une autre texture.
-void           texture_engine_copyRegionTo(const Texture* tex, Texture* texDest,
-                                           RectangleUint srcRect, UintPair destOrig);
+/// Équivalent de `PixelBGRAArray_engine_createFromTextureSubRegionOpt`, `texture_engine_writePixelsAt`.
+void texture_engine_copyRegionTo(const Texture* texSrc, RectangleUint srcRect,
+                                 Texture* texDst, UintPair dstOrig);
+
+// MARK: - Dessin (renderer)
+void            texture_render_touchAndUpdate(Texture* tex);
+/// Info pour dessiner par le renderer (et empêche de libérer)
+TextureToDraw   texture_render_getTextureToDraw(Texture* tex);
 
 // MARK: - Flags d'une texture -------------------------------------
 enum {
-//    tex_flag_string_localized = string_flag_localized,
-    tex_flag_shared           = 0x0002,   // Partagé (pas deallocated quand released)
-//    tex_flag_string_mutable   = string_flag_mutable,
+// Flags utilisable pour init `Texture_createWithPixels`.
+    tex_flag_shared           = 0x0001,  // Partagé (pas deallocated quand released)
+    tex_flag_doubleBuffer     = 0x0004,  // Mutable avec double buffer pour édition "live".
     tex_flag_nearest          = 0x0008,  // Style pixélisé (pas de smoothing linéaire des pixels)
-//    tex_flag_string           = 0x0010,
-//    tex_flag_png              = 0x0020, // Image de png (devrait être shared aussi...)
-    tex_flag_png_coqlib       = 0x0040, // (png inclus par défaut)
     
-//    tex_flags_string_         = 0x000F,
-    tex_flag_fullyDrawn_      = 0x0100,
-    tex_flag_tmpDrawn_        = 0x0200,
-    tex_flags_drawn_          = 0x0300,
-    tex_flag_static_          = 0x0400, // Ne peut pas être dealloc.
-    
+// Flags "privés"...
+    tex_flags__initFlags      = 0x000f,
+    tex_flag__dbEdited        = 0x0010,  // Double buffer édité, swaper pour le rendering.
+    tex_flag__dbSecondLive    = 0x0040,
+    tex_flag__png_coqlib       = 0x0080, // (png inclus par défaut)
+    tex_flag__fullyDrawn      = 0x0100,
+    tex_flag__tmpDrawn        = 0x0200,
+    tex_flags__drawn          = 0x0300,
+    tex_flag__static          = 0x0400, // Ne peut pas être dealloc.
 };
 
 

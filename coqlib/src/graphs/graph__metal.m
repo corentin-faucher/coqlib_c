@@ -12,7 +12,7 @@
 
 #include "utils/util_base.h"
 #include "utils/util_string.h"
-#include "utils/util_language.h"
+#include "systems/system_language.h"
 
 // MARK: - Metal globals
 id<MTLDevice>       CoqGraph_metal_device = nil;
@@ -120,9 +120,6 @@ void commandencoder_initForDrawing(id<MTLRenderCommandEncoder> encoder) {
     currentTex = NULL;
     currentMesh = NULL;
 }
-//bool CommandEncoder_isCurrentMesh(Mesh const*const mesh) {
-//    return mesh == currentMesh;
-//}
 void commandencoder_setCurrentMesh(id<MTLRenderCommandEncoder> encoder, Mesh *const newMesh) {
     if(newMesh == currentMesh) { return; }
     currentMesh = newMesh;
@@ -132,50 +129,47 @@ void commandencoder_setCurrentMesh(id<MTLRenderCommandEncoder> encoder, Mesh *co
         lastCullMode = (MTLCullMode)currentMeshToDraw.cull_mode;
         [encoder setCullMode:(MTLCullMode)currentMeshToDraw.cull_mode];
     }
-    id<MTLBuffer> verticesBufferOpt = (__bridge id<MTLBuffer>)currentMeshToDraw.metal_verticesBufferOpt_cptr;
-    if(verticesBufferOpt)
-        [encoder setVertexBuffer:verticesBufferOpt offset:0 atIndex:0];
-    else {
-        if(currentMeshToDraw.verticesOpt)
-            [encoder setVertexBytes:currentMeshToDraw.verticesOpt length:currentMeshToDraw.verticesSize atIndex:0];
-        else { printerror("Mesh without buffer or verticesRead."); }
+    if(currentMeshToDraw.metal_verticesMTLBufferOpt) {
+        [encoder setVertexBuffer:(__bridge id<MTLBuffer>)currentMeshToDraw.metal_verticesMTLBufferOpt offset:0 atIndex:0];
+        return;
     }
-}
-void commandencoder_setIU(id<MTLRenderCommandEncoder> encoder, InstanceUniforms const*const iu) {
-    currentIUS_instanceCount = 1;
-    [encoder setVertexBytes:iu length:sizeof(InstanceUniforms) atIndex:1];
-}
-void commandencoder_setIUs(id<MTLRenderCommandEncoder> encoder, IUsToDraw const iusToDraw) {
-    currentIUS_instanceCount = iusToDraw.count;
-    id<MTLBuffer> bufferOpt = (__bridge id<MTLBuffer>)(iusToDraw.metal_bufferOpt);
-    if(bufferOpt) {
-        [encoder setVertexBuffer:bufferOpt offset:0 atIndex:1];
-    } else {
-        if(iusToDraw.iusOpt) {
-            [encoder setVertexBytes:iusToDraw.iusOpt length:iusToDraw.size atIndex:1];
-        } else { printerror("IUSBuffer without buffer or ius."); }
-    }
+    if(!currentMeshToDraw.metal_verticesOpt) { printerror("Mesh without buffer or verticesRead."); return; }
+    [encoder setVertexBytes:currentMeshToDraw.metal_verticesOpt length:currentMeshToDraw.verticesSize atIndex:0];
 }
 void commandencoder_setCurrentTexture(id<MTLRenderCommandEncoder> encoder, Texture *const newTex) {
     if(currentTex == newTex) { return; }
     currentTex = newTex;
-    currentTexToDraw = texture_engine_touchAndGetToDraw(newTex);
+    texture_render_touchAndUpdate(newTex);
+    currentTexToDraw = texture_render_getTextureToDraw(newTex);
     if(currentTexToDraw.isNearest != lastIsNearest) {
         lastIsNearest = currentTexToDraw.isNearest;
         [encoder setFragmentSamplerState:(currentTexToDraw.isNearest ? CoqGraph_metal_samplerNearest : CoqGraph_metal_samplerLinear)
                                  atIndex:0];
     }
-    id<MTLTexture> mtlTexture = (__bridge id<MTLTexture>)currentTexToDraw.metal_texture_cptr;
+    id<MTLTexture> mtlTexture = (__bridge id<MTLTexture>)currentTexToDraw.mtlTexture;
     [encoder setFragmentTexture:mtlTexture atIndex:0];
+}
+void commandencoder_setIU(id<MTLRenderCommandEncoder> encoder, InstanceUniforms const*const iu) {
+    currentIUS_instanceCount = 1;
+    [encoder setVertexBytes:iu length:sizeof(InstanceUniforms) atIndex:1];
+}
+void commandencoder_setIUs(id<MTLRenderCommandEncoder> encoder, IUsBuffer const*const ius) {
+    currentIUS_instanceCount = ius->actual_count;
+    if(ius->mtlBufferOpt) {
+        [encoder setVertexBuffer:(__bridge id<MTLBuffer>)ius->mtlBufferOpt offset:0 atIndex:1];
+        return;
+    }
+    if(!ius->iusOpt) { printerror("IUSBuffer without buffer or ius."); return; }
+    [encoder setVertexBytes:ius->iusOpt length:ius->actual_size atIndex:1];
 }
 void commandencoder_drawWithCurrents(id<MTLRenderCommandEncoder> encoder) {
     if(!currentIUS_instanceCount) return;
-    if(currentMeshToDraw.metal_indicesBufersOpt_cptr) {
-        [encoder drawIndexedPrimitives:currentMeshToDraw.primitive_type indexCount:currentMeshToDraw.indexCount
-            indexType:MTLIndexTypeUInt16 indexBuffer:(__bridge id<MTLBuffer>)currentMeshToDraw.metal_indicesBufersOpt_cptr 
+    if(currentMeshToDraw.metal_indicesMTLBufersOpt) {
+        [encoder drawIndexedPrimitives:currentMeshToDraw.metal_primitiveType indexCount:currentMeshToDraw.indexCount
+            indexType:MTLIndexTypeUInt16 indexBuffer:(__bridge id<MTLBuffer>)currentMeshToDraw.metal_indicesMTLBufersOpt 
             indexBufferOffset:0 instanceCount:currentIUS_instanceCount];
     } else {
-        [encoder drawPrimitives:currentMeshToDraw.primitive_type vertexStart:0 
+        [encoder drawPrimitives:currentMeshToDraw.metal_primitiveType vertexStart:0 
             vertexCount:currentMeshToDraw.vertexCount instanceCount:currentIUS_instanceCount];
     }
 }
@@ -214,8 +208,6 @@ void commandencoder_drawWithCurrents(id<MTLRenderCommandEncoder> encoder) {
 //    // 4. Dessiner
 //    commandencoder_justDrawWithCurrentMeshAndTexture(encoder);
 //}
-
-
 //void commandencoder_testDraw(id<MTLRenderCommandEncoder> encoder, 
 //                         Mesh *const mesh, Texture *const tex, const InstanceUniforms *const iu)
 //{

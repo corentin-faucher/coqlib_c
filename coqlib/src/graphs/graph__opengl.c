@@ -8,12 +8,8 @@
 #include "graph__opengl.h"
 
 #include "../utils/util_base.h"
-#include "../utils/util_file.h"
+#include "../systems/system_file.h"
 #include "../utils/util_string.h"
-#include "graph_base.h"
-#include "graph_mesh.h"
-#include "graph_texture.h"
-#include <OpenGL/OpenGL.h>
 
 /// MARK: - CoqGraph_Init, Init du stuff graphique : buffer, mesh, texture...
 static bool isOpenGL_3_1_ = false;
@@ -50,7 +46,7 @@ void   CoqGraph_opengl_init(MeshInit const* drawableSpriteInitOpt,
     GLchar* info_str;
     const char* glsl_version = isOpenGL_3_1_ ? "\n\n#version 410\n\n" : "\n\n#version 300 es\n\n";
     const char* shader_path = FileManager_getResourcePathOpt("vertex_shader", "glsl", NULL);
-    const char* shader_content = FILE_stringContentOptAt(shader_path);
+    const char* shader_content = FILE_stringContentOptAt(shader_path, false);
     if(!shader_content) {
         printerror("Cannot load shader."); return;
     }
@@ -71,7 +67,7 @@ void   CoqGraph_opengl_init(MeshInit const* drawableSpriteInitOpt,
     }
     // Fragment shader
     shader_path = FileManager_getResourcePathOpt("fragment_shader", "glsl", NULL);
-    shader_content = FILE_stringContentOptAt(shader_path);
+    shader_content = FILE_stringContentOptAt(shader_path, false);
     const char* fragmentShader_content = String_createCat(glsl_version, shader_content);
     GLuint fragmentShaderId = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentShaderId, 1, &fragmentShader_content, NULL);
@@ -131,7 +127,7 @@ static MeshToDraw    currentMeshToDraw_;
 static size_t        currentInstanceCount_ = 1;
 static InstanceUniforms const* currentIUs_ = NULL;
 
-void  rendering_opengl_initForDrawing(void) {
+void rendering_opengl_initForDrawing(void) {
     currentMesh_ = NULL;
     currentTexture_ = NULL;
     currentInstanceCount_ = 1;
@@ -146,7 +142,8 @@ void rendering_opengl_setCurrentMesh(Mesh*const mesh) {
 void rendering_opengl_setCurrentTexture(Texture*const tex) {
     if(tex == currentTexture_) return;
     currentTexture_ = tex;
-    currentTextureToDraw_ = texture_engine_touchAndGetToDraw(currentTexture_);
+    texture_render_touchAndUpdate(tex);
+    currentTextureToDraw_ = texture_render_getTextureToDraw(tex);
     glBindTexture(GL_TEXTURE_2D, currentTextureToDraw_.glTextureId);
 }
 void rendering_opengl_setIU(InstanceUniforms const* iu) {
@@ -155,14 +152,14 @@ void rendering_opengl_setIU(InstanceUniforms const* iu) {
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
     currentInstanceCount_ = 1;
 }
-void rendering_opengl_setIUs(IUsToDraw const iusToDraw) {
-    currentInstanceCount_ = iusToDraw.count;
-    currentIUs_ = iusToDraw.iusOpt;
+void rendering_opengl_setIUs(IUsBuffer const*const ius) {
+    currentInstanceCount_ = ius->actual_count;
+    currentIUs_ = ius->iusOpt;
     if(currentInstanceCount_ > IUB_MaxInstances) {
         printwarning("To many instance %zu, max is %d.", currentInstanceCount_, IUB_MaxInstances);
         currentInstanceCount_ = IUB_MaxInstances;
     }
-    if(!iusToDraw.count || !iusToDraw.iusOpt) {
+    if(!ius->actual_count || !ius->iusOpt) {
         printwarning("IUs missing.");
         currentInstanceCount_ = 0;
         currentIUs_ = NULL;
@@ -172,6 +169,7 @@ void rendering_opengl_setIUs(IUsToDraw const iusToDraw) {
         currentInstanceCount_ * sizeof(InstanceUniforms), currentIUs_);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
+
 void rendering_opengl_drawWithCurrents(void) {
     if(0 == currentInstanceCount_) return;
     if(1 == currentInstanceCount_) {
@@ -180,7 +178,7 @@ void rendering_opengl_drawWithCurrents(void) {
             glDrawElements(GL_TRIANGLES, currentMeshToDraw_.indexCount,
                 GL_UNSIGNED_SHORT, NULL);
         } else {
-            glDrawArrays(currentMeshToDraw_.primitive_type, 0,
+            glDrawArrays(currentMeshToDraw_.glPrimitiveType, 0,
                 currentMeshToDraw_.vertexCount);
         }
         return;
@@ -192,7 +190,7 @@ void rendering_opengl_drawWithCurrents(void) {
             glDrawElementsInstanced(GL_TRIANGLES, currentMeshToDraw_.indexCount,
                     GL_UNSIGNED_SHORT, NULL, (GLsizei)currentInstanceCount_);
         } else {
-            glDrawArraysInstanced(currentMeshToDraw_.primitive_type, 0,
+            glDrawArraysInstanced(currentMeshToDraw_.glPrimitiveType, 0,
                     currentMeshToDraw_.vertexCount, (GLsizei)currentInstanceCount_);
         }
         return;

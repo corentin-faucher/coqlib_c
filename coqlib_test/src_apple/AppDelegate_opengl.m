@@ -7,8 +7,8 @@
 
 #import "AppDelegate_opengl.h"
 #include "graph__opengl.h"
-#include "coq_sound.h"
-#include "utils/util_system.h"
+#include "systems/system_sound.h"
+#include "systems/system_base.h"
 
 // Includes du projet
 //#include "metal_renderer.h"

@@ -53,7 +53,7 @@ Fluid* Fluid_create(Node* const refOpt, float x, float y, float w, float h,
 }
 
 
-Box     fluid_asReferential(Fluid *const f) {
+Box     fluid_referential(Fluid *const f) {
     return (Box) {
         .center = fl_array_toVec2(&f->x),
         .deltas = fl_array_toVec2(&f->sx),

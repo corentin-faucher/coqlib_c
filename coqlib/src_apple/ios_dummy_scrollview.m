@@ -55,24 +55,24 @@
     [self->metalView setPaused:NO];
     float offSetRatio = (float)scrollView.contentOffset.y / scrollView.contentSize.height;
     CoqEvent_addToRootEvent((CoqEvent) {
-        .type = event_type_scroll,
-        .scroll_info = {.scrollType = scroll_type_offSet, .offset_ratio = offSetRatio, .offset_letGo = false }
+        .type = eventtype_scroll,
+        .scroll_info = {.scrollType = scrolltype_offSet, .offset_ratio = offSetRatio, .offset_letGo = false }
     });
 }
 -(void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
     [self->metalView setPaused:NO];
     float offSetRatio = (float)scrollView.contentOffset.y / scrollView.contentSize.height;
     CoqEvent_addToRootEvent((CoqEvent) {
-        .type = event_type_scroll,
-        .scroll_info = {.scrollType = scroll_type_offSet, .offset_ratio = offSetRatio, .offset_letGo = true }
+        .type = eventtype_scroll,
+        .scroll_info = {.scrollType = scrolltype_offSet, .offset_ratio = offSetRatio, .offset_letGo = true }
     });
 }
 -(void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
     [self->metalView setPaused:NO];
     float offSetRatio = (float)scrollView.contentOffset.y / scrollView.contentSize.height;
     CoqEvent_addToRootEvent((CoqEvent) {
-        .type = event_type_scroll,
-        .scroll_info = {.scrollType = scroll_type_offSet, .offset_ratio = offSetRatio, .offset_letGo = true }
+        .type = eventtype_scroll,
+        .scroll_info = {.scrollType = scrolltype_offSet, .offset_ratio = offSetRatio, .offset_letGo = true }
     });
 }
 @end

@@ -9,8 +9,6 @@
 #import "AppDelegate.h"
 
 int main(int argc, const char * argv[]) {
-
-//    AppDelegateOpenGL *delegate = [AppDelegateOpenGL new];
     AppDelegate *delegate = [AppDelegate new];
     NSApplication *app = [NSApplication sharedApplication];
     [app setDelegate:delegate];   

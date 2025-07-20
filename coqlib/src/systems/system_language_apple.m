@@ -5,10 +5,11 @@
 //
 #import <Foundation/Foundation.h>
 
-#include "util_language.h"
-#include "util_base.h"
-#include "util_locale.h"
-#include "util_string.h"
+#include "system_language.h"
+
+#include "system_locale.h"
+#include "../utils/util_base.h"
+#include "../utils/util_string.h"
 
 // MARK: - Langue et région
 
@@ -77,7 +78,7 @@ const char* String_createLocalized(const char* stringKey) {
     printerror("Cannot localized %s.", stringKey);
     return String_createCopy(stringKey);
 }
-void  String_copyLocalizedTo(const char* stringKey, char* buffer, size_t size_max_opt) {
+void  String_copyLocalizedTo(const char*const stringKey, char*const buffer, size_t const size_max_opt) {
     if(current_bundle_ == nil) { printerror("Language not init."); return;}
     if(!buffer) { printerror("No dest. to copy to."); return;}
     NSString* key = [NSString stringWithUTF8String:stringKey];

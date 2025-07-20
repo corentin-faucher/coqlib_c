@@ -13,33 +13,6 @@
 #include "util_base.h"
 #include "util_string.h"
 
-const Character spchar_null = { 0 };
-const Character spchar_delete = { "\b" };
-const Character spchar_deleteSymbol = { "␈" };
-const Character spchar_questionMark = { "?" };
-const Character spchar_tab = { "\t" };
-const Character spchar_tabSymbol = { "␉" };
-const Character spchar_return_ = { "\r" };
-const Character spchar_newline_ = { "\n" };
-const Character spchar_returnSymbol = { "␍" };
-const Character spchar_space = { " " };
-const Character spchar_spaceSymbol = { "␠" };
-const Character spchar_spaceNobreak = { " " };
-const Character spchar_spaceIdeographic = { "　" };
-const Character spchar_spaceThin = { "\u2009" };
-const Character spchar_bottomBracket = { "⎵" };
-const Character spchar_underscore = { "_" };
-const Character spchar_overline = {"‾" };
-const Character spchar_openBox = { "␣" };
-const Character spchar_interpunct = { "·" };
-const Character spchar_dot = { "•" };
-const Character spchar_butterfly = { "🦋" };
-const Character spchar_dodo = { "🦤" };
-const Character spchar_maru = { "◯" };
-const Character spchar_batu = { "❌" };
-const Character spchar_checkmark = { "✓" };
-const Character spchar_greenCheckmark = { "✅" };
-
 const uint16_t MKC_keycode_of_mkc[] = {
 #if TARGET_OS_OSX == 1
     0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19, 0x1D, 0x1B, 0x18, // 1, 2, 3, ...

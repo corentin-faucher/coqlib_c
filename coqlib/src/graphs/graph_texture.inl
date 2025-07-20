@@ -24,8 +24,8 @@ static inline RectangleUint texturedims_pixelRegionFromUVrect(TextureDims const 
 /// Convertie les coord. pixels (dans [0, width/height]) en coord. UV (dans [0, 1])
 static inline Rectangle     texturedims_UVrectFromPixelRegion(TextureDims const texDims, RectangleUint const region) {
     return (Rectangle) {{
-        (float)region.o_x / texDims.width, (float)region.o_y / texDims.height,
-        (float)region.w   / texDims.width, (float)region.h   / texDims.height,
+        (float)region.o_x / (float)texDims.width, (float)region.o_y / (float)texDims.height,
+        (float)region.w   / (float)texDims.width, (float)region.h   / (float)texDims.height,
     }};
 }
 

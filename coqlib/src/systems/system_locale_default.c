@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2024-04-09.
 //
 
-#include "../utils/util_locale.h"
+#include "system_locale.h"
 
 #define     coqlocale_default_countryCode_ "US"
 #define     coqlocale_default_languageCode_ "en"

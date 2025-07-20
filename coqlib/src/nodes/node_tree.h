@@ -10,6 +10,7 @@
 
 #include "node_base.h"
 #include "node_button.h"
+#include "../utils/util_event.h"
 
 // MARK: - "Squirrel": Méthodes pour déplacer un pointeur de noeud dans l'arbre de la structure.
 void nodeptr_goRightForced(Node ** sq, Node *(*createNew)(void *), void *paramsOpt);
@@ -30,12 +31,8 @@ void  node_tree_hideAndTryToClose(Node* nd);
 void  node_tree_reshape(Node* nd);
 
 // MARK: - Recherche de noeud dans une branche.
-typedef struct ButtonPosRel {
-    Button *const button;
-    Vector2 const posRel; // Position dans "button".
-} ButtonPosRel;
-ButtonPosRel node_tree_searchActiveButtonWithPosOpt(Node * n, Vector2 pos, Node const* nodeToAvoidOpt);
-Button*      node_tree_searchFirstButtonWithDataOpt(Node * n, uint32_t typeOpt, uint32_t data0);
+NodeTouch    node_tree_searchActiveButtonWithPosOpt(NodeTouch nt, Node const* nodeToAvoidOpt);
+Node*        node_tree_searchFirstOfTypeWithDataOpt(Node * n, uint32_t type, uint32_t data0);
 Node*        node_tree_searchFirstOfTypeInBranchOpt(Node * n, uint32_t type_flag, flag_t parentFlag);
 
 // MARK: - Aligement des enfants

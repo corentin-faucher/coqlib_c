@@ -12,11 +12,11 @@
 #include <string.h>
 
 // MARK: - Button ------
-void   button_default_touch_(Button*const b, Vector2 const posRel) {
-    printwarning("Button %p action not overrided. Touched at %f, %f.", b, posRel.x, posRel.y);
+void   button_default_touch_(NodeTouch const bt) {
+    printwarning("Button %p action not overrided. Touching at %f, %f.", bt.n, bt.posAbs.x, bt.posAbs.y);
 }
 static Button* button_last_ = NULL;
-void    button_init(Button* b, void (* const touch)(Button*, Vector2)) {
+void    button_init(Button* b, void (* const touch)(NodeTouch)) {
     b->n._type |= node_type_button;
     if(touch)
         b->touch = touch;
@@ -27,7 +27,7 @@ void    button_init(Button* b, void (* const touch)(Button*, Vector2)) {
     node_tree_addRootFlags(&b->n, flag_parentOfButton);
     button_last_ = b;
 }
-Button* Button_create(Node* refOpt, void (*const touch)(Button*, Vector2),
+Button* Button_create(Node* refOpt, void (*const touch)(NodeTouch),
                                   float const x, float const y, float const height, 
                                   float const lambda, flag_t const flags) 
 {
@@ -37,31 +37,13 @@ Button* Button_create(Node* refOpt, void (*const touch)(Button*, Vector2),
     button_init(b, touch);
     return b;
 }
-Button* node_asActiveButtonOpt(Node *const n) {
-    return ((n->_type & node_type_button) && !(n->flags & flag_buttonInactive)) ?
-         (Button*)n : NULL;
-}
-Button* node_asButtonOpt(Node *const n) {
-    return (n->_type & node_type_button) ? (Button*)n : NULL;
-}
-//void    button_last_setData(ButtonData data) {
-//    if(!button_last_) { printerror("No last button."); return; }
-//    button_last_->data = data;
-//}
-//void    button_last_setDataUint0(uint32_t data_uint0) {
-//    if(!button_last_) { printerror("No last button."); return; }
-//    button_last_->n.nodrawData.uint0 = data_uint0;
-//}
-//void    button_last_overrideAction(void (*newAction)(Button*)) {
-//    if(!button_last_) { printerror("No last button."); return; }
-//    button_last_->action = newAction;
-//}
+
 Button* const Button_getLastOpt(void) {
     return button_last_;
 }
 
 // Fonction dummy quand il n'y a rien à faire.
-void    button_touchOrDrag_pass_(Button* b, Vector2 v) {
+void    button_touchOrDrag_pass_(NodeTouch bt) {
     // (pass)
 }
 
@@ -71,51 +53,54 @@ enum {
     button_switch_flag_didDrag =  0x02,
     button_switch_flag_inverted = 0x04,
 };
-void button_switch_touch_(Button* b, Vector2 pos_init) {
-    b->n.nodrawData._uint7 &= ~ button_switch_flag_didDrag;
+void button_switch_touch_(NodeTouch const bt) {
+    bt.n->nodrawData.data1.u3 &= ~ button_switch_flag_didDrag;
 }
 /** Déplacement en cours du "nub", aura besoin de letGoNub.
 * newX doit être dans le ref. du SwitchButton.
 * Effectue l'action si changement d'état. */
-void button_switch_drag_(Button* b, Vector2 pos_rel) {
+void button_switch_drag_(NodeTouch const bt) {
+    guard_let(Button*, b, node_asButtonOpt(bt.n), printerror("No button."), )
     Fluid* nub = node_asFluidOpt(b->n._lastChild);
     Drawable* back = node_asDrawableOpt(b->n._firstChild);
     if(!nub || !back) { printerror("Switch without nub or back."); return; }
+    Vector2 const posRel = nodetouch_evalPosRel(bt);
     // 1. Ajustement de la position du nub.
-    fluid_setX(nub, fminf(fmaxf(pos_rel.x, -0.375), 0.375));
+    fluid_setX(nub, fminf(fmaxf(posRel.x, -0.375), 0.375));
     // 2. Vérif si changement
-    bool oldIsOn = (b->n.nodrawData._uint7 & button_switch_flag_isOn) != 0;
-    bool newIsOn = pos_rel.x >= 0;
+    bool oldIsOn = (bt.n->nodrawData.data1.u3 & button_switch_flag_isOn) != 0;
+    bool newIsOn = posRel.x >= 0;
     if(oldIsOn != newIsOn) {
         if(newIsOn)
-            b->n.nodrawData._uint7 |= button_switch_flag_isOn;
+            b->n.nodrawData.data1.u3 |= button_switch_flag_isOn;
         else
-            b->n.nodrawData._uint7 &= ~ button_switch_flag_isOn;
+            b->n.nodrawData.data1.u3 &= ~ button_switch_flag_isOn;
         back->n.renderIU.color = newIsOn ? color4_green_electric : color4_red_vermilion;
-        if(b->draggableActionOpt) b->draggableActionOpt(b);
+        if(b->draggableActionOpt) b->draggableActionOpt(bt);
     }
-    b->n.nodrawData._uint7 |= button_switch_flag_didDrag;
+    b->n.nodrawData.data1.u3 |= button_switch_flag_didDrag;
 }
-void button_switch_letGo_(Button* b) {
+void button_switch_letGo_(NodeTouch const bt) {
+    guard_let(Button*, b, node_asButtonOpt(bt.n), printerror("No button."), )
     Fluid* nub = node_asFluidOpt(b->n._lastChild);
     Drawable* back = node_asDrawableOpt(b->n._firstChild);
     if(!nub || !back) { printerror("Switch without nub or back."); return; }
     // Pas dragé ? suppose simple touche pour permuter
     bool isOn;
-    if(!(b->n.nodrawData._uint7 & button_switch_flag_didDrag)) {
-        isOn = !(b->n.nodrawData._uint7 & button_switch_flag_isOn);
+    if(!(b->n.nodrawData.data1.u3 & button_switch_flag_didDrag)) {
+        isOn = !(b->n.nodrawData.data1.u3 & button_switch_flag_isOn);
         if(isOn)
-            b->n.nodrawData._uint7 |= button_switch_flag_isOn;
+            b->n.nodrawData.data1.u3 |= button_switch_flag_isOn;
         else
-            b->n.nodrawData._uint7 &= ~ button_switch_flag_isOn;
+            b->n.nodrawData.data1.u3 &= ~ button_switch_flag_isOn;
         back->n.renderIU.color = isOn ? color4_green_electric : color4_red_vermilion;
-        if(b->draggableActionOpt) b->draggableActionOpt(b);
+        if(b->draggableActionOpt) b->draggableActionOpt(bt);
     } else {
-        isOn = b->n.nodrawData._uint7 & button_switch_flag_isOn;
+        isOn = b->n.nodrawData.data1.u3 & button_switch_flag_isOn;
     }
     fluid_setX(nub, isOn ? 0.375 : -0.375);
 }
-Button* Button_createSwitch(Node* refOpt, void (*const action)(Button*), bool const isOn,
+Button* Button_createSwitch(Node* refOpt, void (*const action)(NodeTouch), bool const isOn,
                             float const x, float const y, float const height, 
                             float const lambda, flag_t const flags) 
 {
@@ -126,7 +111,7 @@ Button* Button_createSwitch(Node* refOpt, void (*const action)(Button*), bool co
     fluid_init(&b->f, lambda);
     button_init(b, button_switch_touch_);
     // Init as switch
-    b->n.nodrawData._uint7 = isOn ? 1 : 0;
+    b->n.nodrawData.data1.u3 = isOn ? 1 : 0;
     // La switch est un bouton "draggable"...
     b->dragOpt =  button_switch_drag_;
     b->letGoOpt = button_switch_letGo_;
@@ -144,15 +129,15 @@ void button_switch_set(Button* b, bool isOn) {
     Drawable* back = node_asDrawableOpt(b->n._firstChild);
     if(!back) { printerror("Switch without back."); return; }
     if(isOn)
-        b->n.nodrawData._uint7 |= button_switch_flag_isOn;
+        b->n.nodrawData.data1.u3 |= button_switch_flag_isOn;
     else
-        b->n.nodrawData._uint7 &= ~ button_switch_flag_isOn;
+        b->n.nodrawData.data1.u3 &= ~ button_switch_flag_isOn;
     back->n.renderIU.color = isOn ? color4_green_electric : color4_red_vermilion;
 }
 bool    button_switch_value(Button* b) {
-    return b->n.nodrawData._uint7 & button_switch_flag_isOn;
+    return b->n.nodrawData.data1.u3 & button_switch_flag_isOn;
 }
-Button* Button_createDummySwitch(Node* refOpt, void (*const touchOpt)(Button*,Vector2), uint32_t data,
+Button* Button_createDummySwitch(Node* refOpt, void (*const touchOpt)(NodeTouch), uint32_t data,
                                  float x, float y, float height, float lambda, flag_t flags) 
 {
     Button* b = coq_callocTyped(Button);
@@ -171,21 +156,24 @@ Button* Button_createDummySwitch(Node* refOpt, void (*const touchOpt)(Button*,Ve
 }
 
 // MARK: - Slider ------------------
-void button_slider_drag_(Button* b, Vector2 pos_rel) {
-    Fluid* nub = node_asFluidOpt(b->n._lastChild);
+void button_slider_drag_(NodeTouch const bt) {
+    guard_let(Button*, b, node_asButtonOpt(bt.n), printerror("No button."), )
+    guard_let(Fluid*, nub, node_asFluidOpt(b->n._lastChild), printerror("No nub."), )
     float half_w = 0.5*fmaxf(b->n.w - b->n.h, b->n.h);
     // 1. Ajustement de la position du nub (et valeur du slider).
-    float nub_x = fminf(fmaxf(pos_rel.x, -half_w), half_w);
+    Vector2 const posRel = nodetouch_evalPosRel(bt);
+    float nub_x = fminf(fmaxf(posRel.x, -half_w), half_w);
     float value = 0.5f*(nub_x / half_w + 1.f);
     fluid_setX(nub, nub_x);
-    b->n.nodrawData._float7 = value;
+    b->n.nodrawData.data1.v.w = value;
     // b->action(b); // Non, en fait c'est juste au let go a priori.
     // Si on veut vraiment en peut redéfinir aussi le drag.
 }
-void button_slider_letGo_(Button* b) {
-    if(b->draggableActionOpt) b->draggableActionOpt(b);
+void button_slider_letGo_(NodeTouch const bt) {
+    guard_let(Button*, b, node_asButtonOpt(bt.n), printerror("No button."), )
+    if(b->draggableActionOpt) b->draggableActionOpt(bt);
 }
-Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
+Button* Button_createSlider(Node* refOpt, void (*action)(NodeTouch),
                             float value, float x, float y, float width, float height,
                             float lambda, flag_t flags) {
     // Check width
@@ -202,7 +190,7 @@ Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
     b->draggableActionOpt = action;
     if(!action) printwarning("No action for slider.");
     value = fminf(fmaxf(value, 0.f), 1.f);
-    b->n.nodrawData._float7 = value;
+    b->n.nodrawData.data1.v.w = value;
     // Structure
     Frame_create(&b->n, 0, 0.25*height, slide_width, height,
                  Texture_sharedImageByName("coqlib_bar_in"), frame_option_horizotalBar);
@@ -213,7 +201,7 @@ Button* Button_createSlider(Node* refOpt, void (*action)(Button*),
     return b;
 }
 float   button_slider_value(Button* b) {
-    return b->n.nodrawData._float7;
+    return b->n.nodrawData.data1.v.w;
 }
 
 // MARK: - Secure/Hoverable button
@@ -236,20 +224,21 @@ void buttonhov_stopHovering_(Button* b) {
 void buttonsecure_action_callback_(void* bsIn) {
     ButtonSecureHov_*const bt = (ButtonSecureHov_*)bsIn;
     popingnoderef_cancel(&bt->poping);
-    if(bt->b.draggableActionOpt) bt->b.draggableActionOpt(&bt->b);
+    if(bt->b.draggableActionOpt && bt->touch.n) bt->b.draggableActionOpt(bt->touch);
     bt->didActivate = true;
 }
-void buttonsecure_touch_(Button* sel, Vector2 pos) {
-    ButtonSecureHov_*const bt = (ButtonSecureHov_*)sel;
+void buttonsecure_touch_(NodeTouch const touch) {
+    ButtonSecureHov_*const bt = (ButtonSecureHov_*)touch.n;
     bt->didActivate = false;
+    nodetouch_init(&bt->touch, touch);
     popingnoderef_cancel(&bt->poping);
     PopDisk_spawnOverAndOpen(&bt->n, &bt->poping, bt->spi.popPngId, bt->spi.popTile, bt->spi.holdTimeSec,
                              0, 0, 1);
     timer_scheduled(&bt->timer, (int64_t)(bt->spi.holdTimeSec * 1000.f), false,
                     &bt->n, buttonsecure_action_callback_);
 }
-void buttonsecure_letGo_(Button* but) {
-    ButtonSecureHov_*const bt = (ButtonSecureHov_*)but;
+void buttonsecure_letGo_(NodeTouch const touch) {
+    ButtonSecureHov_*const bt = (ButtonSecureHov_*)touch.n;
     popingnoderef_cancel(&bt->poping);
     timer_cancel(&bt->timer);
     if(bt->didActivate) return;
@@ -260,8 +249,8 @@ void buttonsecure_letGo_(Button* but) {
 void buttonsecurehov_deinit_(Node* n) {
     timer_cancel(&((ButtonSecureHov_*)n)->timer);
 }
-Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
-                SecurePopInfo const spi, uint32_t popFramePngId, NodeStringInit const popMessage,
+Button* ButtonSecureHov_create(Node* refOpt, void (*action)(NodeTouch),
+                SecurePopInfo const spi, uint32_t popFramePngId, StringGlyphedInit const popMessage,
                 float x, float y, float height, float lambda, flag_t flags)
 {
     ButtonSecureHov_ *sec = coq_callocTyped(ButtonSecureHov_);
@@ -282,7 +271,7 @@ Button* ButtonSecureHov_create(Node* refOpt, void (*action)(Button*),
     return &sec->b;
 }
 /// Juste secure pas de pop-over lors du survol.
-Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
+Button* ButtonSecure_create(Node* refOpt, void (*action)(NodeTouch),
                             SecurePopInfo spi, float x, float y, float height,
                             float lambda, flag_t flags) 
 {
@@ -301,7 +290,7 @@ Button* ButtonSecure_create(Node* refOpt, void (*action)(Button*),
 }
 
 void buttonsecurehov_initHoverable_(ButtonSecureHov_*const bsh, uint32_t const popFramePngId, 
-                                    NodeStringInit const popMessage) 
+                                    StringGlyphedInit const popMessage) 
 {
     bsh->b.startHoveringOpt = buttonhov_startHovering_;
     bsh->b.stopHoveringOpt =  buttonhov_stopHovering_;
@@ -309,8 +298,8 @@ void buttonsecurehov_initHoverable_(ButtonSecureHov_*const bsh, uint32_t const p
     bsh->popFramePngId =      popFramePngId;
     bsh->popMessage =         popMessage;          
 }
-Button* ButtonHoverable_create(Node* refOpt, void (*const touch)(Button*, Vector2),
-                uint32_t const popFramePngId, NodeStringInit const popMessage,
+Button* ButtonHoverable_create(Node* refOpt, void (*const touch)(NodeTouch),
+                uint32_t const popFramePngId, StringGlyphedInit const popMessage,
                 float const x, float const y, float const height, 
                 float const lambda, flag_t const flags) 
 {

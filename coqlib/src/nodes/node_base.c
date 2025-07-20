@@ -10,8 +10,6 @@
 #include "node_tree.h"
 
 #include "../utils/util_base.h"
-#include "../coq_timer.h"
-
 
 // MARK: -- Constructors... ----------------------------------
 void node_disconnect_(Node * const node) {
@@ -431,17 +429,17 @@ void    node_setInReferentialOf_(Node* const n, Node* const q) {
     // Boîte parent
     Box p_b = box_identity;
     for(Node const* par = n->_parent; par; par = par->_parent) {
-        box_referentialOut(p_b, node_asReferential(par));
+        box_referentialOut(p_b, node_referential(par));
     }
     // Boîte destination
-    Box q_b = node_asReferential(q);
+    Box q_b = node_referential(q);
     for(Node const* par = q->_parent; par; par = par->_parent) {
-        box_referentialOut(q_b, node_asReferential(par));
+        box_referentialOut(q_b, node_referential(par));
     }
     // Boîte parent dans dest.
     Box pq_b = box_referentialIn(p_b, q_b);
     // Boîte du noeud courant (dans parent)
-    Box np_b = node_asReferential(n);
+    Box np_b = node_referential(n);
     // Boîte dans dest.
     Box nq_b = box_referentialOut(np_b, pq_b);
     // Set dims dans q.
@@ -519,39 +517,40 @@ const Matrix4* node_parentModel(Node const*const n) {
 }
 
 // MARK: - Position spatiale (relative, absolue, ...)
-/// Noeud en tant que "boîte" référentiel remonté jusqu'à la première root parent.
-//Box node_asAbsoluteReferential(Node const* n) {
-//    Box referential = node_asReferential(n); // (Position et scales dans le parent direct)
-//    for(Node const* p = n->_parent; p; p = p->_parent) {
-//        if(p->_type & node_type_root) return referential;
-//        referential = box_referentialOut(referential, node_asReferential(p));
-//    }
-//    printerror("No root encountered.");
-//    return referential;
-//}
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
 Vector2 node_posInParentReferential(Node const*const n, Node const*const parentOpt) {
     Vector2 n_xy = n->xy; // (Position dans le parent direct)
     for(Node const* p = n->_parent; p; p = p->_parent) {
         if(parentOpt == p) return n_xy;
-        n_xy = vector2_referentialOut(n_xy, node_asReferential(p));
+        n_xy = vector2_referentialOut(n_xy, node_referential(p));
     }
     if(parentOpt) { printerror("No parent encountered."); }
     return n_xy;
 }
-//Vector2 node_
 /// Donne la position et les dimension (en demi-largeur/demi-hauteur)
 /// du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du noeud.
-Box     node_hitBoxInParentReferential(Node const*const n, Node const*const parentOpt) {
-    Box n_b = node_hitBox(n); // (Position et sizes dans le parent direct)
-    for(Node const* p = n->_parent; p; p = p->_parent) {
-        if(parentOpt == p) return n_b;
-        n_b = box_referentialOut(n_b, node_asReferential(p));
+Box     node_hitboxInParent(Node const*const n, Node const*const parentOpt) {
+    Box hitbox = node_hitbox(n); // (Position et sizes dans le parent direct)
+    Node const* p = n->_parent;
+    for(; p && (p != parentOpt); p = p->_parent) {
+        hitbox = box_referentialOut(hitbox, node_referential(p));
     }
-    if(parentOpt) { printerror("No parent encountered."); }
-    return n_b;
+    if(parentOpt && !p) { printerror("Parent %p not encountered.", p); }
+    return hitbox;
+}
+/// Noeud en tant que "boîte référentiel" remonté jusqu'au (grand) parent.
+Box node_referentialInParent(Node const*const n, Node const*const parentOpt) {
+    Box referential = node_referential(n);
+    // (arrêt si parent cible)
+    Node const* p = n->_parent;
+    for(; p && (p != parentOpt); p = p->_parent) {
+        // "Sortir" du parent intermédiaire... 
+        referential = box_referentialOut(referential, node_referential(p));
+    }
+    if(parentOpt && !p) { printerror("Parent %p not encountered.", p); }
+    return referential;
 }
 
 /// Position absolue (i.e. remonté à la root) d'une position dans le même référentiel que n (i.e. dans le ref de n->parent.)

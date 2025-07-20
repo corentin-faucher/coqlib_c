@@ -38,7 +38,7 @@ enum {
     cgm_states = 0x00F0,
 };
 
-#pragma mark - Méthodes d'une cellule
+// MARK: - Méthodes d'une cellule
 
 uint8_t   cel_evalCoq(uint8_t c, uint8_t left, uint8_t right, uint8_t down, uint8_t up) {
     // Propagation vers cette cellule...
@@ -121,7 +121,7 @@ PixelBGRA cel_toPixelMathieu(uint8_t c) {
     return (PixelBGRA){0x80808080};
 }
 
-#pragma mark - Une grille de cellules
+// MARK: - Une grille de cellules
 
 typedef struct CelGrid {
     union {
@@ -133,10 +133,10 @@ typedef struct CelGrid {
     // Alternance entre grille 0 et 1 (lecture/écriture)
     bool      now01;
     uint8_t   *cels0, *cels1;
+    PixelBGRAArray* pa;
 
     bool      mathieu;
     Timer     timer;
-    PixelBGRA pixels[1]; // Array des pixels pour l'affichage
 } CelGrid;
 
 // Style horizontal/vertical avec petites "rotations locales"
@@ -279,7 +279,7 @@ void celgrid_drawPixels_(CelGrid* const cg) {
     uint32_t const mn = cg->m * cg->n;
     uint8_t const *       cel     = cg->now01 ?  cg->cels1     :  cg->cels0;
     uint8_t const * const cel_end = cg->now01 ? &cg->cels1[mn] : &cg->cels0[mn];
-    PixelBGRA* pixel = cg->pixels;
+    PixelBGRA* pixel = cg->pa->pixels;
     while(cel < cel_end) {
         *pixel = cel_toPixel(*cel);
         cel++; pixel++;
@@ -290,7 +290,7 @@ void celgrid_callback_(void* cgIn) {
     if(cg->mathieu) celgrid_updateMathieu(cg);
     else celgrid_updateCoq(cg);
     celgrid_drawPixels_(cg);
-    texture_engine_writeAllPixels(cg->d.texr.tex, cg->pixels);
+    texture_engine_writePixelsAt(cg->d.texr.tex, cg->pa, uintpair_zeros);
 }
 void celgrid_open_(Node* n) {
     CelGrid* cg = (CelGrid*)n;
@@ -304,14 +304,15 @@ void celgrid_deinit_(Node* n) {
     CelGrid* cg = (CelGrid*)n;
     coq_free(cg->cels0);
     coq_free(cg->cels1);
+    coq_free(cg->pa);
 }
 CelGrid* CelGrid_create(Node* parent, float x, float y, float height, uint32_t m, uint32_t n, bool mathieu) {
     uint32_t count = m*n;
     if(count == 0) { printerror("No cells."); return NULL; }
-    CelGrid* cg = coq_callocArray(CelGrid, PixelBGRA, count);
+    CelGrid* cg = coq_callocTyped(CelGrid);
     // Super inits...
     node_init(&cg->node, parent, x, y, height, height, 0, 0);
-    drawable_init(&cg->d, Texture_createWithPixels(cg->pixels, m, n, false, true), Mesh_drawable_sprite, 0, height);
+    drawable_init(&cg->d, Texture_createWithPixels(NULL, m, n, tex_flag_nearest), Mesh_drawable_sprite, 0, height);
     // Init as CelGrid
     cg->node.openOpt =   celgrid_open_;
     cg->node.closeOpt =  celgrid_close_;
@@ -321,6 +322,7 @@ CelGrid* CelGrid_create(Node* parent, float x, float y, float height, uint32_t m
     uint_initConst(&cg->n, n);
     cg->cels0 = coq_calloc(m*n, sizeof(uint8_t));
     cg->cels1 = coq_calloc(m*n, sizeof(uint8_t));
+    cg->pa = PixelBGRAArray_createEmpty(m, n);
     if(mathieu) celgrid_setGridMathieu(cg); else celgrid_setGridCoq(cg);
 
     return cg;

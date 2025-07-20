@@ -7,9 +7,11 @@
 
 #include "math_smflage.h"
 #include <math.h>
-#include "../coq_chrono.h"
+#include "../utils/util_chrono.h"
 #include "../utils/util_base.h"
 
+#define SFE_elapsedTicks      (int16_t)ChronosEvent.tick
+#define SFE_elapsedNextTicks ((int16_t)ChronosEvent.tick + 1)
 
 // MARK: - ChronoTiny : un mini chrono de 2 octets -
 /// Mini chrono de 2 octets.
@@ -17,19 +19,20 @@
 /// La sruct est simplement {int16_t time}.
 /// Optenir un ChronoTiny que l'on "start" a zero.
 static inline int16_t chronotinyE_startedChrono(void) {
-    return SFE_Chronos_elapsedMS;
+    return SFE_elapsedTicks;
 }
 /// Optenir un ChronoTiny que l'on "start" a elapsedMS.
-static inline int16_t chronotinyE_setToElapsedMS(int16_t elapsedMS) {
-    return SFE_Chronos_elapsedMS - elapsedMS;
+static inline int16_t chronotinyE_setToElapsedTicks(int16_t elapsedTicks) {
+    return SFE_elapsedTicks - elapsedTicks;
 }
 // Temps écoulé... oui, c'est la meme chose que setToElapsedMS ;)
-static inline int16_t chronotinyE_elapsedMS(int16_t t) {
-    return SFE_Chronos_elapsedMS - t;
+static inline int16_t chronotinyE_elapsedTicks(int16_t t) {
+    return SFE_elapsedTicks - t;
 }
-static inline int16_t chronotinyE_elapsedNextMS(int16_t t) {
-    return SFE_Chronos_elapsedNextMS - t;
+static inline int16_t chronotinyE_elapsedNextTicks(int16_t t) {
+    return SFE_elapsedNextTicks - t;
 }
+
 
 // MARK: - SmoothFlag
 enum {
@@ -42,9 +45,7 @@ enum {
     sm_state_maxDelta_ =     0x028F, // 655 ticks -> 32750 ms < 32767.
     sm_state_deltaTmask_ =   0x03FF,
 };
-#define ST_MIN_MS   6  // Minimum elapsed time
 static uint16_t     sm_defTransTimeTicks_ = 10;
-#define SF_DELTATMS ((st->_flags & sm_state_deltaTmask_) * 50)
 
 SmoothFlagE SmoothFlagE_new(bool const isOn, uint16_t const transTimeTicksOpt) {
     return (SmoothFlagE) {
@@ -65,13 +66,14 @@ void    SmoothFlagE_setDefaultTransTimeTicks(uint16_t transTimeTicks) {
 float smoothflagE_setOn(SmoothFlagE *const st) {
     // On verifie les cas du plus probable au moins probable.
     // Callé à chaque frame pour vérifier le on/off de "show".
-    float const max = 1.f; // - (float)st->_sub/(float)UINT16_MAX;
+    float const max = 1.f;
     if(st->_flags & sm_state_isUp_)
         return max;
-    int16_t elapsedMS = chronotinyE_elapsedMS(st->_t);
+    int16_t elapsedTicks = chronotinyE_elapsedTicks(st->_t);
+    int16_t const deltaTicks = (st->_flags & sm_state_deltaTmask_);
     // Going up
     if(st->_flags & sm_state_goingUp_) {
-        if(elapsedMS > SF_DELTATMS) {
+        if(elapsedTicks > deltaTicks) {
             st->_flags &= ~sm_state_goingUp_;
             st->_flags |= sm_state_isUp_;
             return max;
@@ -79,40 +81,33 @@ float smoothflagE_setOn(SmoothFlagE *const st) {
     }
     // down -> goingUp ou up 
     else if((st->_flags & sm_state_flags_) == sm_state_isDown_) {
-//        if(st->_flags & sm_flag_hard_) {
-//            st->_flags |= sm_state_isUp_;
-//            return max;
-//        }
         st->_flags |= sm_state_goingUp_;
         st->_t = chronotinyE_startedChrono();
-        elapsedMS = ST_MIN_MS; // (Min 6ms de temps écoulé)
+        elapsedTicks = 1; // min
     }
     // going down -> goingUp 
     else {
         st->_flags &= ~sm_state_goingDown_;
         st->_flags |= sm_state_goingUp_;
-        if(elapsedMS < SF_DELTATMS) {
-            elapsedMS = SF_DELTATMS - elapsedMS;
-            st->_t = chronotinyE_setToElapsedMS(elapsedMS);
+        if(elapsedTicks < deltaTicks) {
+            elapsedTicks = deltaTicks - elapsedTicks;
+            st->_t = chronotinyE_setToElapsedTicks(elapsedTicks);
         } else {
             st->_t = chronotinyE_startedChrono();
-            elapsedMS = ST_MIN_MS;
+            elapsedTicks = 1;
         }
     }
     // Ici on est going up... (si up déjà sorti)
-    float ratio = (float)elapsedMS / (float)SF_DELTATMS;
-//    if(st->_flags & sm_flag_poping_)
-//        return max * (sm_a_ + sm_b_ * cosf(M_PI * ratio)
-//                  + ( 0.5f - sm_a_) * cosf(2.f * M_PI * ratio)
-//                  + (-0.5f - sm_b_) * cosf(3.f * M_PI * ratio)); // pippop
+    float ratio = (float)elapsedTicks / (float)deltaTicks;
     return max * (1.f - cosf(M_PI * ratio)) / 2.f; // smooth
 }
 float smoothflagE_setOff(SmoothFlagE *const st) {
     if((st->_flags & sm_state_flags_) == sm_state_isDown_)
         return 0.0f;
-    int16_t elapsed = chronotinyE_elapsedMS(st->_t);
+    int16_t elapsed = chronotinyE_elapsedTicks(st->_t);
+    int16_t const deltaTicks = (st->_flags & sm_state_deltaTmask_);
     if(st->_flags & sm_state_goingDown_) {
-        if(elapsed > SF_DELTATMS) {
+        if(elapsed > deltaTicks) {
             st->_flags &= ~sm_state_flags_; // (down)
             return 0.0f;
         }
@@ -124,23 +119,23 @@ float smoothflagE_setOff(SmoothFlagE *const st) {
 //            return 0.0f;
         st->_flags |= sm_state_goingDown_;
         st->_t = chronotinyE_startedChrono();
-        elapsed = ST_MIN_MS;
+        elapsed = 1;
     }
     // Going up
     else {
         st->_flags &= ~sm_state_goingUp_;
         st->_flags |= sm_state_goingDown_;
-        if(elapsed < SF_DELTATMS) {
-            elapsed = SF_DELTATMS - elapsed;
-            st->_t = chronotinyE_setToElapsedMS(elapsed);
+        if(elapsed < deltaTicks) {
+            elapsed = deltaTicks - elapsed;
+            st->_t = chronotinyE_setToElapsedTicks(elapsed);
         } else {
             st->_t = chronotinyE_startedChrono();
-            elapsed = ST_MIN_MS;
+            elapsed = 1;
         }
     }
     // Ici on est going down... (si down déjà sorti)
-    float ratio = (float)elapsed / (float)SF_DELTATMS;
-    float const max = 1.f; // - (float)st->_sub/(float)UINT16_MAX;
+    float ratio = (float)elapsed / (float)deltaTicks;
+    float const max = 1.f;
     return  max * (1.f + cosf(M_PI * ratio)) / 2.f; // (smoothDown)
 }
 float smoothflagE_value(SmoothFlagE *const st) {
@@ -149,10 +144,11 @@ float smoothflagE_value(SmoothFlagE *const st) {
     float const max = 1.f; // - (float)st->_sub/(float)UINT16_MAX;
     if(st->_flags & sm_state_isUp_)
         return max;
-    int16_t elapsed = chronotinyE_elapsedMS(st->_t);
+    int16_t elapsed = chronotinyE_elapsedTicks(st->_t);
+    int16_t const deltaTicks = (st->_flags & sm_state_deltaTmask_);
     // On est goingUpOrDown...
-    if(elapsed < SF_DELTATMS) {
-        float ratio = (float)elapsed / (float)SF_DELTATMS;
+    if(elapsed < deltaTicks) {
+        float ratio = (float)elapsed / (float)deltaTicks;
         if(st->_flags & sm_state_goingUp_) {
 //            if(st->_flags & sm_flag_poping_)
 //                return max * (sm_a_ + sm_b_ * cosf(M_PI * ratio)
@@ -179,10 +175,11 @@ float smoothflagE_valueNext(SmoothFlagE const*const st) {
     float const max = 1.f; // - (float)st->_sub/(float)UINT16_MAX;
     if(st->_flags & sm_state_isUp_)
         return max;
-    int16_t elapsed = chronotinyE_elapsedNextMS(st->_t);
+    int16_t elapsed = chronotinyE_elapsedNextTicks(st->_t);
+    int16_t const deltaTicks = (st->_flags & sm_state_deltaTmask_);
     // On est goingUpOrDown...
-    if(elapsed < SF_DELTATMS) {
-        float ratio = (float)elapsed / (float)SF_DELTATMS;
+    if(elapsed < deltaTicks) {
+        float ratio = (float)elapsed / (float)deltaTicks;
         if(st->_flags & sm_state_goingUp_) {
             return max * (1.f - cosf(M_PI * ratio)) / 2.f; // smoothUp
         }
@@ -196,20 +193,7 @@ float smoothflagE_valueNext(SmoothFlagE const*const st) {
     // Down
     return 0.f;
 }
-
-//void  smoothflag_setMaxValue(SmoothFlag *st, float newMax) {
-//    st->_sub = UINT16_MAX - (uint16_t)roundf(fminf(1.f, fmaxf(0.f, newMax))*(float)UINT16_MAX);
-//}
-//void  smoothflag_setOptions(SmoothFlag *st, bool isHard, bool isPoping) {
-//    if(isHard)
-//        st->_flags |= sm_flag_hard_;
-//    else
-//        st->_flags &= ~sm_flag_hard_;
-//    if(isPoping)
-//        st->_flags |=  sm_flag_poping_;
-//    else
-//        st->_flags &= ~sm_flag_poping_;
-//}
-//void  smoothflag_setDeltaT(SmoothFlag *st, int16_t deltaT) {
-//    st->_D = deltaT;
-//}
+void  smoothflagE_setTransitionTime(SmoothFlagE*const sf, uint16_t const newTransTimeTicks) {
+    sf->_flags = (sf->_flags & sm_state_flags_) | 
+        (newTransTimeTicks > sm_state_maxDelta_ ? sm_state_maxDelta_ : newTransTimeTicks);
+}

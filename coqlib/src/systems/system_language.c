@@ -4,11 +4,11 @@
 //
 //  Created by Corentin Faucher on 2024-10-07.
 //
-#include "util_language.h"
+#include "system_language.h"
 
-#include "util_base.h"
-#include "util_locale.h"
-#include "../coq_map.h"
+#include "system_locale.h"
+#include "../utils/util_base.h"
+#include "../utils/util_map.h"
 
 const Language  Language_defaultLanguage = language_english;
 static Language        language_system_ =     language_english;
@@ -110,48 +110,6 @@ const char*    language_name(Language language) {
 }
 
 // MARK: - Font possibles par langues - 
-static const LanguageFontInfo fontInfo_arr_[] = {
-    {"American Typewriter", "Amer. Typ.", 0.05,   },
-    {"Chalkboard SE", "Chalkboard", },
-    {"Chalkduster", "Chalkduster", 0.15, 0.05 },
-    {"Comic Sans MS", "Comic Sans", 0.07, },
-    {"Courier", "Courier", 0.10, },
-    {"Futura", "Futura", 0.13, },
-    {"Helvetica", "Helvetica", 0.17, },
-    {"Luciole", "Luciole", },
-    {"Snell Roundhand", "Snell Round.", .1, },
-    {"Times New Roman", "Times New R.", 0.13, },
-    {"Verdana", "Verdana", 0.13, },
-    {"Nanum Gothic", "NanumGothic",},
-    //    {"Nanum Myeongjo", "NanumMyeongjo", 1.f, 1.2f},
-    {"Nanum Pen Script", "Nanum Pen", },
-    {"BM Kirang Haerang", "Kirang",   },
-    {"GungSeo", "GungSeo",            },
-    {"PilGi", "PilGi", 0.25,          },
-    {"Hiragino Maru Gothic ProN", "Hiragino MGP",},
-    {"Klee", "Klee", },
-    {"OpenDyslexic3", "Op. Dyslex3", },
-    {"Osaka", "Osaka", },
-    {"Toppan Bunkyu Gothic", "Toppan BG", },
-    {"Toppan Bunkyu Midashi Gothic", "Toppan BMG", },
-    {"Toppan Bunkyu Midashi Mincho", "Toppan BMM", },
-    {"Toppan Bunkyu Mincho", "Toppan BM", },
-    {"Tsukushi A Round Gothic", "Tsukushi A", },
-    {"Tsukushi B Round Gothic", "Tsukushi B", },
-    {"YuKyokasho Yoko", "YuKyokasho", },
-    {"YuMincho", "YuMincho", },
-    {"Apple SD Gothic Neo", "Apple SD Goth.N.", },
-    {"Apple LiSung", "Apple LiSung", },
-    {"Baoli SC", "Baoli", },
-    {"GB18030 Bitmap", "Bitmap", },
-    {"HanziPen SC", "HanziPen", },
-    {"Hei", "Hei", },
-    {"LingWai TC", "LingWai", },
-    {"AppleMyungjo", "Myungjo", },
-    {"PingFang SC", "PingFang", },
-    {"Weibei SC", "Weibei", },
-    {"Farah", "Farah", },
-};
 static const char* const _defaultFontNames[] = {
     "American Typewriter",
     "Chalkboard SE",
@@ -281,26 +239,69 @@ const char*        LanguageFont_defaultFontNameForLanguage(Language language) {
             return _defaultFontNames[0];
     }
 }
-const LanguageFontInfo* LanguageFont_getFontInfoOpt(const char *const fontNameOpt) {
+typedef char Char16Arr_[16]; // Test de typedef de array... probablement pas une bonne idée en général.
+typedef struct { char name[32]; Char16Arr_ shortName; } StringPair_;
+static const StringPair_ fontInfo_arr_[] = {
+    {"American Typewriter", "Amer. Typ.",},
+    {"Chalkboard SE", "Chalkboard", },
+    {"Chalkduster", "Chalkduster",},
+    {"Comic Sans MS", "Comic Sans", },
+    {"Courier", "Courier",},
+    {"Futura", "Futura",},
+    {"Helvetica", "Helvetica", },
+    {"Luciole", "Luciole", },
+    {"Snell Roundhand", "Snell Round.",  },
+    {"Times New Roman", "Times New R.",  },
+    {"Verdana", "Verdana", },
+    {"Nanum Gothic", "NanumGothic",},
+    //    {"Nanum Myeongjo", "NanumMyeongjo", 1.f, 1.2f},
+    {"Nanum Pen Script", "Nanum Pen", },
+    {"BM Kirang Haerang", "Kirang",   },
+    {"GungSeo", "GungSeo",            },
+    {"PilGi", "PilGi",          },
+    {"Hiragino Maru Gothic ProN", "Hiragino MGP",},
+    {"Klee", "Klee", },
+    {"OpenDyslexic3", "Op. Dyslex3", },
+    {"Osaka", "Osaka", },
+    {"Toppan Bunkyu Gothic", "Toppan BG", },
+    {"Toppan Bunkyu Midashi Gothic", "Toppan BMG", },
+    {"Toppan Bunkyu Midashi Mincho", "Toppan BMM", },
+    {"Toppan Bunkyu Mincho", "Toppan BM", },
+    {"Tsukushi A Round Gothic", "Tsukushi A", },
+    {"Tsukushi B Round Gothic", "Tsukushi B", },
+    {"YuKyokasho Yoko", "YuKyokasho", },
+    {"YuMincho", "YuMincho", },
+    {"Apple SD Gothic Neo", "Apple SD Goth.N.", },
+    {"Apple LiSung", "Apple LiSung", },
+    {"Baoli SC", "Baoli", },
+    {"GB18030 Bitmap", "Bitmap", },
+    {"HanziPen SC", "HanziPen", },
+    {"Hei", "Hei", },
+    {"LingWai TC", "LingWai", },
+    {"AppleMyungjo", "Myungjo", },
+    {"PingFang SC", "PingFang", },
+    {"Weibei SC", "Weibei", },
+    {"Farah", "Farah", },
+};
+const char* LanguageFont_getFontShortName(const char* fontNameOpt) {
     if(!fontNameOpt) return NULL;
     static StringMap* fontInfoOfNamed = NULL;
     // Init ?
     if(fontInfoOfNamed == NULL) {
-        fontInfoOfNamed = Map_create(40, sizeof(LanguageFontInfo));
-        size_t count = sizeof(fontInfo_arr_)/sizeof(LanguageFontInfo);
-        const LanguageFontInfo* p = &fontInfo_arr_[0];
-        const LanguageFontInfo* end = &fontInfo_arr_[count];
+        fontInfoOfNamed = Map_create(40, sizeof(Char16Arr_));
+        const StringPair_* p =   fontInfo_arr_;
+        const StringPair_* end = coq_simpleArrayEnd(fontInfo_arr_, StringPair_);
         while(p < end) {
-            map_put(fontInfoOfNamed, p->name, p);
+            map_put(fontInfoOfNamed, p->name, p->shortName);
             p++;
         }
     }
-    const LanguageFontInfo* ci = (const LanguageFontInfo*)map_valueRefOptOfKey(fontInfoOfNamed, fontNameOpt);
-    if(ci == NULL) {
+    char const*const shortName = map_valueRefOptOfKey(fontInfoOfNamed, fontNameOpt);
+    if(shortName == NULL) {
         printwarning("Font %s not found.", fontNameOpt);
         return NULL;
     }
-    return ci;
+    return shortName;
 }
 
 void Language_test_fontLanguage_(void) {

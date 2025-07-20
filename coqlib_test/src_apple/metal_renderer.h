@@ -6,17 +6,8 @@
 //
 
 #import <MetalKit/MetalKit.h>
-#include "coq_nodes.h"
 
 #define EFFECTS_COUNT 100
-
-typedef struct FinalFragmentUniforms {
-    float       extra0;
-    float       extra1;
-    float       extra2;
-    uint32_t    effect_count;
-    AfterEffect effects[EFFECTS_COUNT];
-} FinalFragmentUniforms;
 
 @interface Renderer : NSObject <MTKViewDelegate> {
     id<MTLCommandQueue>        queue;
@@ -29,10 +20,6 @@ typedef struct FinalFragmentUniforms {
     MTLRenderPassDescriptor*   firstRenderPassDescr;
     id<MTLRenderPipelineState> secondPipelineState;
     
-    FinalFragmentUniforms fu;
-    
-    FluidPos         smDeltaT;     // Calcul du temps entre les frame.
-    Chrono           chronoDeltaT;
 @public
     BOOL             noSleep;
 }

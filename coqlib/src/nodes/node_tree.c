@@ -254,63 +254,71 @@ check_littleBro:
     if(sq == NULL) { printerror("Root not found."); return; }
     goto check_littleBro;
 }
-// Vérifier si une position (dans le referentiel de n) est dans sa hitbox.
-//static inline bool vector2_isInNode(Vector2 const v, Node const*const n) {
-//    return fabsf(v.x) <= 0.5*n->w && fabsf(v.y) <= 0.5*n->h;
-//}
-ButtonPosRel node_tree_searchActiveButtonWithPosOpt(Node *const n, Vector2 pos, Node const*const nodeToAvoidOpt) {
-    // Au début, pos est dans le ref du parent de n.
-    if((n == nodeToAvoidOpt) || !vector2_isInBox(pos, node_hitBox(n)) || !(n->flags & flag_show)) 
-        return (ButtonPosRel) {};
-    if_let(Button*, button, node_asActiveButtonOpt(n))
-        pos = vector2_referentialIn(pos, node_asReferential(n));
-        return (ButtonPosRel) { .button = button, .posRel = pos, }; 
+NodeTouch node_tree_searchActiveButtonWithPosOpt(NodeTouch const nt, Node const*const nodeToAvoidOpt) {
+    if(!nt.n) { printerror("No node to search in."); return (NodeTouch) {}; }
+    Vector2 posInPar;
+    if(nt.n->_parent) {
+        Box parRef = node_referentialInParent(nt.n->_parent, NULL);
+        posInPar = vector2_referentialIn(nt.posAbs, parRef);
+    } else {
+        posInPar = nt.posAbs;
+    }
+    // Premier check avant d'aller au descendents. (noeud fourni)
+    if((nt.n == nodeToAvoidOpt) || !vector2_isInBox(posInPar, node_hitbox(nt.n)) || !(nt.n->flags & flag_show)) 
+        return (NodeTouch) {};
+    if_let(Button*, button, node_asActiveButtonOpt(nt.n))
+    return (NodeTouch) {
+        .n = nt.n,
+        .posAbs = nt.posAbs,
+        .touchId = nt.touchId,
+        ._posRelOpt = vector2_referentialIn(posInPar, node_referential(nt.n)),
+        ._posRelDefined = true,
+    }; 
     if_let_end
-    // Go down, referential pour les enfants est "n".
-    pos = vector2_referentialIn(pos, node_asReferential(n));
-    Node* sq = n->_firstChild;
-    if(sq == NULL) return (ButtonPosRel) {};
+    posInPar = vector2_referentialIn(posInPar, node_referential(nt.n));
+    Node* sq = nt.n->_firstChild;
+    if(sq == NULL) return (NodeTouch) {};
 check_node:
-    if((sq->flags & flag_show) && (sq != nodeToAvoidOpt) && vector2_isInBox(pos, node_hitBox(sq))) {
-        if_let(Button*, button, node_asActiveButtonOpt(sq))
-            pos = vector2_referentialIn(pos, node_asReferential(sq));
-            return (ButtonPosRel) { .button = button, .posRel = pos, };
-        if_let_end
-        if((sq->flags & flag_parentOfButton) && sq->_firstChild) {
-            pos = vector2_referentialIn(pos, node_asReferential(sq));
-            sq = sq->_firstChild;
+    if((sq->flags & flag_show) && (sq != nodeToAvoidOpt) && vector2_isInBox(posInPar, node_hitbox(sq))) {
+        if(node_asActiveButtonOpt(sq)) {
+            return (NodeTouch) {
+                .n = sq,
+                .posAbs = nt.posAbs,
+                .touchId = nt.touchId,
+                ._posRelOpt = vector2_referentialIn(posInPar, node_referential(sq)),
+                ._posRelDefined = true,
+            };
+        }
+        Node*const child = sq->_firstChild;
+        if((sq->flags & flag_parentOfButton) && child) {
+            posInPar = vector2_referentialIn(posInPar, node_referential(sq));
+            sq = child;
             goto check_node;
         }
     }
 check_littleBro:
-    if(sq->_littleBro) {
-        sq = sq->_littleBro;
+    if_let(Node*, bro, sq->_littleBro)
+        sq = bro;
         goto check_node;
-    }
+    if_let_end
     // Remonte
     sq = sq->_parent;
-    if(sq == n) return (ButtonPosRel) {};
-    if(sq == NULL) { printerror("Root not found."); return (ButtonPosRel) {}; }
-    pos = vector2_referentialOut(pos, node_asReferential(sq));
+    if(sq == nt.n) return (NodeTouch) {};
+    if(sq == NULL) { printerror("Root not found."); return (NodeTouch) {}; }
+    posInPar = vector2_referentialOut(posInPar, node_referential(sq));
     goto check_littleBro;
 }
-Button* node_tree_searchFirstButtonWithDataOpt(Node* const n, uint32_t const typeOpt, uint32_t const data0) {
-    if_let(Button*, b, node_asButtonOpt(n))
-    if(data0 == b->n.nodrawData.uint0) {
-        if(!typeOpt) return b;
-        if(b->n._type & typeOpt) return b;
+Node* node_tree_searchFirstOfTypeWithDataOpt(Node* const n, uint32_t const type, uint32_t const data0) 
+{
+    if(!type || (type & node_type_drawable)) {
+        printerror("Bad type for search with data."); return NULL;
     }
-    if_let_end
+    if((n->_type & type) && (n->nodrawData.data0.u0 == data0)) return n;
     Node* sq = n->_firstChild;
     if(!sq) return NULL;
 check:
-    if_let(Button*, b, node_asButtonOpt(sq))
-    if(data0 == b->n.nodrawData.uint0) {
-        if(!typeOpt) return b;
-        if(b->n._type & typeOpt) return b;
-    }
-    if_let_end
-    if((sq->flags & flag_parentOfButton) && sq->_firstChild) {
+    if((sq->_type & type) && (n->nodrawData.data0.u0 == data0)) return sq;
+    if(sq->_firstChild) {
         sq = sq->_firstChild;
         goto check;
     }

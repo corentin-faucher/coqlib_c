@@ -16,7 +16,7 @@ typedef struct DrawableMulti {
         Node     n;
         Drawable d;
     };
-    IUsBuffer*   iusBuffer;
+    IUsBuffer    iusBuffer;
 } DrawableMulti;
 
 static inline DrawableMulti* node_asDrawableMultiOpt(Node* nOpt) {

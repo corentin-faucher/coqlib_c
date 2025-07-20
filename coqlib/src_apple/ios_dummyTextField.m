@@ -57,12 +57,12 @@
     // Backspace
     if(string.length == 0) {
         coqevent = (CoqEvent){
-            .type = event_type_key_down,
+            .type = eventtype_key_down,
             .key = { 0, keycode_delete, mkc_delete, false }
         };
     } else {
         coqevent = (CoqEvent){
-            .type = event_type_key_down,
+            .type = eventtype_key_down,
             .key = { 0, keycode__text, mkc__text, false }
         };
         strncpy(coqevent.key.typed.c_str, [string UTF8String], CHARACTER_MAX_SIZE);
@@ -75,7 +75,7 @@
 -(BOOL)textFieldShouldReturn:(UITextField *)textField {
     [metalView setPaused:NO];
     CoqEvent coqevent = {
-        .type = event_type_key_down,
+        .type = eventtype_key_down,
         .key = { 0, keycode_return_, mkc_return_, false, spchar_return_ }
     };
     CoqEvent_addToRootEvent(coqevent);

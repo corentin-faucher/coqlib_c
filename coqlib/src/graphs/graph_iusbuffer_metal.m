@@ -11,154 +11,123 @@
 #include "../utils/util_base.h"
 //#import <MetalKit/MetalKit.h>
 
-typedef struct IUsBuffer {
-    size_t const       max_count;
-    size_t             actual_count;
-    size_t const       iusSize;
-    bool               editing, initEdit, AisLive;
-    const void* const  mtlBufferOptA_cptr;  // Buffer Metal
-    const void* const  mtlBufferOptB_cptr;
-    InstanceUniforms   ius[1];
-} IUsBuffer;
-
-/// Création du buffer.
-IUsBuffer* IUsBuffer_create(uint32_t maxCount, InstanceUniforms const*const defaultIUOpt) {
-    uint32_t const actualCount = maxCount;
+/// Init du buffer.
+void       iusbuffer_init(IUsBuffer*const iusbuffer, uint32_t maxCount, InstanceUniforms const*const defaultIUOpt) 
+{
+    if(iusbuffer->iusOpt || iusbuffer->_mtlBufferOptA || iusbuffer->_mtlBufferOptB) {
+        printerror("Arleady init."); return;
+    }
     if(maxCount < 2) {
         if(IUsBuffer_warningMaxCount) printwarning("IUsBuffer with maxCount < 2.");
         maxCount = 2;
     }
-    size_t const iusSize = maxCount * sizeof(InstanceUniforms);
-    bool const withBuffer = iusSize >= IUsBuffer_sizeForBuffer;
-    IUsBuffer *const iusbuffer = withBuffer ? coq_callocTyped(IUsBuffer) :
-        coq_callocArray(IUsBuffer, InstanceUniforms, maxCount); // (Sinon juste dans ius)
+    size_t const max_size = maxCount * sizeof(InstanceUniforms);
+    memset(iusbuffer, 0, sizeof(IUsBuffer));
+    size_initConst(&iusbuffer->actual_count, 0);
+    size_initConst(&iusbuffer->actual_size, 0);
     size_initConst(&iusbuffer->max_count, maxCount);
-    size_initConst(&iusbuffer->iusSize, iusSize);
-    iusbuffer->actual_count = actualCount;
-    InstanceUniforms *iuA, *iuB;
-    if(withBuffer) {
-        id<MTLBuffer> mtlBufferA = [CoqGraph_metal_device newBufferWithLength:iusSize
+    InstanceUniforms *iusA = NULL, *iusB = NULL;
+    // Cas simple, pas besoin de metal buffer (envoie direct d'un array de IUs).
+    if(max_size < IUsBuffer_sizeForBuffer) {
+        *(InstanceUniforms**)&iusbuffer->iusOpt = coq_callocSimpleArray(maxCount, InstanceUniforms);
+        iusA = (InstanceUniforms*)iusbuffer->iusOpt;
+    }
+    // Cas double buffer de MTLBuffer
+    else {
+        id<MTLBuffer> mtlBufferA = [CoqGraph_metal_device newBufferWithLength:max_size
                                     options:MTLResourceCPUCacheModeDefaultCache];
-        id<MTLBuffer> mtlBufferB = [CoqGraph_metal_device newBufferWithLength:iusSize
+        id<MTLBuffer> mtlBufferB = [CoqGraph_metal_device newBufferWithLength:max_size
                                     options:MTLResourceCPUCacheModeDefaultCache];
-        *(const void**)&iusbuffer->mtlBufferOptA_cptr = CFBridgingRetain(mtlBufferA);
-        *(const void**)&iusbuffer->mtlBufferOptB_cptr = CFBridgingRetain(mtlBufferB);
-        iuA = [mtlBufferA contents];
-        iuB = [mtlBufferB contents];
+        *(const void**)&iusbuffer->_mtlBufferOptA = CFBridgingRetain(mtlBufferA);
+        *(const void**)&iusbuffer->_mtlBufferOptB = CFBridgingRetain(mtlBufferB);
+        *(const void**)&iusbuffer->mtlBufferOpt = iusbuffer->_mtlBufferOptA;
+        iusA = [mtlBufferA contents];
+        iusB = [mtlBufferB contents];
         mtlBufferA = nil;
         mtlBufferB = nil;
-    } else {
-        iuA = iusbuffer->ius;
-        iuB = NULL;
     }
-    // Fill
+    // Préremplissage du buffer.
     if(defaultIUOpt) {
-        InstanceUniforms *const end = &iuA[maxCount];
-        for(InstanceUniforms* iu = iuA; iu < end; iu++) { *iu = *defaultIUOpt; }
-        if(iuB) memcpy(iuB, iuA, iusSize);
+        InstanceUniforms *const end = &iusA[maxCount];
+        for(InstanceUniforms* iu = iusA; iu < end; iu++) { *iu = *defaultIUOpt; }
+        if(iusB) memcpy(iusB, iusA, max_size);
     }
-    return iusbuffer;
 }
 /// Libère l'espace du buffer (et array de piu si nécessaire)
-void   iusbufferref_releaseAndNull(IUsBuffer** iusref) {
-    if(!iusref) { printerror("No ius ref."); return; }
-    IUsBuffer *const ius = *iusref;
-    *iusref = NULL;
-    if(!ius) return; // (ok pas grave, déjà release)
-    if(ius->mtlBufferOptA_cptr) {
-        CFRelease(ius->mtlBufferOptA_cptr);
-        *(const void**)&ius->mtlBufferOptA_cptr = NULL;
+void   iusbuffer_deinit(IUsBuffer*const iusbuffer) {
+    if(iusbuffer->_mtlBufferOptA) {
+        CFRelease(iusbuffer->_mtlBufferOptA);
+        *(const void**)&iusbuffer->_mtlBufferOptA = NULL;
     }
-    if(ius->mtlBufferOptB_cptr) {
-        CFRelease(ius->mtlBufferOptB_cptr);
-        *(const void**)&ius->mtlBufferOptB_cptr = NULL;
+    if(iusbuffer->_mtlBufferOptB) {
+        CFRelease(iusbuffer->_mtlBufferOptB);
+        *(const void**)&iusbuffer->_mtlBufferOptB = NULL;
     }
-    coq_free(ius);
+    if(iusbuffer->iusOpt) {
+        coq_free((InstanceUniforms*)iusbuffer->iusOpt);
+        *(InstanceUniforms**)&iusbuffer->iusOpt = NULL;
+    }
 }
 
-IUsToEdit   iusbuffer_retainIUsToInit(IUsBuffer *iusBuffer) {
-    if(iusBuffer->editing) { printwarning("Already editing."); }
-    iusBuffer->editing = true;
-    iusBuffer->initEdit = true;
-    if(!iusBuffer->mtlBufferOptA_cptr)
+IUsToEdit iusbuffer_retainIUsToEdit(IUsBuffer *const iusBuffer) {
+    if(!iusBuffer) { printerror("No iusBuffer."); return (IUsToEdit) {}; }
+    if(iusBuffer->_editing) { printerror("Already editing."); return (IUsToEdit) {}; }
+    // Cas rien à éditer...
+    if(!iusBuffer->max_count) {
+        return (IUsToEdit) {};
+    }
+    iusBuffer->_editing = true;
+    // Cas simple sans buffer metal (juste l'array ius)
+    if(iusBuffer->iusOpt) {
+        InstanceUniforms *const beg = (InstanceUniforms*)iusBuffer->iusOpt;
         return (IUsToEdit) {
-            .beg =  iusBuffer->ius,
-            .end = &iusBuffer->ius[iusBuffer->max_count],
-            .iu =      iusBuffer->ius,
+            .beg =  beg,
+            .end = &beg[iusBuffer->max_count],
+            .iu =   beg,
             ._iusBuffer = iusBuffer,
         };
-    InstanceUniforms *const beg = [(__bridge id<MTLBuffer>)iusBuffer->mtlBufferOptA_cptr contents];
+    }
+    if(!iusBuffer->_mtlBufferOptA) { printerror("Buffer not init."); return (IUsToEdit) {}; }
+    // Sinon, on édite le MTLBuffer qui n'est pas actif...
+    bool const AisLive = iusBuffer->mtlBufferOpt == iusBuffer->_mtlBufferOptA;
+    void const*const mtlBufferToEdit = AisLive ?
+        iusBuffer->_mtlBufferOptB : iusBuffer->_mtlBufferOptA;;
+    InstanceUniforms *const beg = [(__bridge id<MTLBuffer>)mtlBufferToEdit contents];
     return (IUsToEdit) {
         .beg =  beg,
         .end = &beg[iusBuffer->max_count],
-        .iu =       beg,
+        .iu =   beg,
         ._iusBuffer = iusBuffer,
     };
 }
-IUsToEdit iusbuffer_rendering_retainIUsToEdit(IUsBuffer *const iusBuffer) {
-    if(iusBuffer->editing) { printerror("Already editing."); return (IUsToEdit) {}; }
-    iusBuffer->editing = true;
-    if(!iusBuffer->mtlBufferOptA_cptr)
-        return (IUsToEdit) {
-            .beg =  iusBuffer->ius,
-            .end = &iusBuffer->ius[iusBuffer->max_count],
-            .iu =      iusBuffer->ius,
-            ._iusBuffer = iusBuffer,
-        };
-    // On édite celui qui n'est pas actif...
-    id<MTLBuffer> mtlBuffer = (__bridge id<MTLBuffer>)(
-        (iusBuffer->AisLive) ? iusBuffer->mtlBufferOptB_cptr : iusBuffer->mtlBufferOptA_cptr 
-    );
-    InstanceUniforms *const beg = [mtlBuffer contents];
-    return (IUsToEdit) {
-        .beg =  beg,
-        .end = &beg[iusBuffer->max_count],
-        .iu =      beg,
-        ._iusBuffer = iusBuffer,
-    };
-}
-// Ok, finit d'éditer, prêt pour drawing.
+
 void  iustoedit_release(IUsToEdit const edited) {
     IUsBuffer *const iusBuffer = edited._iusBuffer;
-    if(!iusBuffer->editing) { printwarning("Not editing."); return; }
-    iusBuffer->editing = false;
+    if(!iusBuffer->_editing) { printwarning("Not editing."); return; }
+    iusBuffer->_editing = false;
     size_t newCount = edited.iu - edited.beg;
     if(newCount > iusBuffer->max_count) {
         printerror("Overflow buffer size. newCount = %zu.", newCount);
         newCount = iusBuffer->max_count;
     }
-    iusBuffer->actual_count = newCount;
-    if(!iusBuffer->mtlBufferOptA_cptr)
+    size_initConst(&iusBuffer->actual_count, newCount);
+    size_initConst(&iusBuffer->actual_size, newCount*sizeof(InstanceUniforms));
+    // (Cas simple array de IU, rien à faire)
+    if(!iusBuffer->_mtlBufferOptA)
         return;
-    if(iusBuffer->initEdit) {
-        iusBuffer->initEdit = false;
-        // A l'init copier A dans B.
-        id<MTLBuffer> mtlBufferA = (__bridge id<MTLBuffer>)iusBuffer->mtlBufferOptA_cptr;
-        id<MTLBuffer> mtlBufferB = (__bridge id<MTLBuffer>)iusBuffer->mtlBufferOptB_cptr;
-        InstanceUniforms* const iuA = [mtlBufferA contents];
-        InstanceUniforms* const iuB = [mtlBufferB contents];
-        memcpy(iuB, iuA, iusBuffer->iusSize);
+    bool const AisLive = iusBuffer->mtlBufferOpt == iusBuffer->_mtlBufferOptA;
+    void const*const mtlBufferLive = AisLive ?
+        iusBuffer->_mtlBufferOptA : iusBuffer->_mtlBufferOptB;
+    void const*const mtlBufferEdited = AisLive ?
+        iusBuffer->_mtlBufferOptB : iusBuffer->_mtlBufferOptA;
+    if(edited.init) {
+        // Si init du buffer on copie le buffer édité dans l'autre copie.
+        InstanceUniforms* const src = [(__bridge id<MTLBuffer>)mtlBufferEdited contents];
+        InstanceUniforms* const dst = [(__bridge id<MTLBuffer>)mtlBufferLive contents];
+        size_t const bufferSize = iusBuffer->max_count * sizeof(InstanceUniforms);
+        memcpy(dst, src, bufferSize);
     }
     // Swap (celui qui vient d'être édité sera le prochain "live")
-    iusBuffer->AisLive = !iusBuffer->AisLive;
+    *(const void**)&iusBuffer->mtlBufferOpt = mtlBufferEdited;
 }
 
-IUsToDraw   iusbuffer_rendering_getToDraw(IUsBuffer const* iusBuffer) {
-    if(iusBuffer->editing) {
-        printerror("Editing not released.");
-        return (IUsToDraw) { };
-    }
-    if(!iusBuffer->mtlBufferOptA_cptr) {
-        return (IUsToDraw) {
-            .count =  iusBuffer->actual_count,
-            .size =   iusBuffer->actual_count * sizeof(InstanceUniforms),
-            .iusOpt = iusBuffer->ius,
-        };
-    } else {
-        return (IUsToDraw) {
-            .count = iusBuffer->actual_count,
-            .size =  iusBuffer->actual_count * sizeof(InstanceUniforms),
-            .metal_bufferOpt = iusBuffer->AisLive ? iusBuffer->mtlBufferOptA_cptr : iusBuffer->mtlBufferOptB_cptr,
-        };
-    }
-}

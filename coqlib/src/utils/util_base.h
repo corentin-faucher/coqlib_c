@@ -11,7 +11,8 @@
 #include <stdlib.h> // malloc, free, etc.
 #include <string.h> // strcat, strcmp, etc.
 #include <stddef.h> // size_t, ptrdiff_t 
-#include <stdint.h> // Int, unsigned précis : uint32_t, int64_t, ...
+#include <stdint.h> // uint32_t, int64_t, ...
+#include <stdbool.h>
 
 //#if __APPLE__
 //// Pour les `TARGET_OS_OSX`, etc.
@@ -57,6 +58,7 @@
 /// Pour avoir la taile d'une struct de type array, i.e. `struct { int const count; int arr[1] };`
 #define coq_arrayTypeSize(arrayType, elementType, elementCount) \
     sizeof(arrayType) + (elementCount-1)*sizeof(elementType)
+#define coq_simpleArrayEnd(array, elementType) &array[sizeof(array)/sizeof(elementType)];
 
 #ifdef COQ_ALLOC
 /// ** A utiliser en priorité, plus safe. ** (cast avec type -> warning si mauvais type)
@@ -84,17 +86,23 @@
 #define coq_free(ptr) free(ptr)
 #define coq_realloc(ptr, size) realloc(ptr, size)
 #endif
-
+#define coq_createArrayCopy(arrayType, elementType, elementCount, srcArray) ({ \
+    size_t const size = coq_arrayTypeSize(arrayType, elementType, elementCount); \
+    arrayType* new = coq_calloc(1, size); \
+    memcpy(new, srcArray, size); \
+    new; \
+    })
 
 // Test de unwrap dans le style de swift: if let a = aOpt {...}... Sans doute superflu...
 #define if_let(type, var, init_val) { type const var = init_val; if(var) {
 #define if_let_end }}
-// Test alloc temporaire `safe`.
+// Alloc temporaire `safe`.
 #define with_beg(type, var_ptr, alloc_fct) { type *const var_ptr = alloc_fct; if(var_ptr) {
-#define with_end(var_ptr) coq_free((void*)var_ptr); } else { printerror("cannot alloc."); } }
+#define with_end(var_ptr) coq_free((void*)var_ptr); } else { printerror("Cannot alloc. %s", #var_ptr); } }
 // Guard statement dans le style de swift.
-#define guard_let(type, var, init_val, else_statement, return_value) type const var = init_val; \
+#define guard_let(type, var, varOpt, else_statement, return_value) type const var = varOpt; \
     if(!var) { else_statement; return return_value; }
+
 
 // "Private"... Version malloc de debugging / experimentation...
 void  print_trace_(unsigned depth);

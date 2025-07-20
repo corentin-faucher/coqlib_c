@@ -33,7 +33,6 @@ typedef enum {
     node_types_defaultTypes =     0x0FFF,
     node_types_defaultDrawables = node_type_drawable|node_type_drawMulti,
     node_type__last_ =        0x80000000,  // (uint32_t)
-    
-} node_t;
+} CoqNodeType;
 
 #endif /* node_types_h */

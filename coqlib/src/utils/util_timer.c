@@ -4,10 +4,10 @@
 //
 //  Created by Corentin Faucher on 2023-10-23.
 //
-#include "coq_timer.h"
+#include "util_timer.h"
 
-#include "coq_chrono.h"
-#include "utils/util_base.h"
+#include "util_chrono.h"
+#include "util_base.h"
 
 typedef struct coq_TimerStruct ** TimerRef;
 struct coq_TimerStruct {

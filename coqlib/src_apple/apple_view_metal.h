@@ -14,7 +14,6 @@
 @interface CoqMetalView : MTKView {
     
 @public
-    Root*            rootOpt;
 #if TARGET_OS_OSX == 1
     NSTrackingArea*  trackingArea;
 #else
@@ -26,6 +25,7 @@
 
 @property (nonatomic, getter=isSuspended) BOOL suspended;
 @property (nonatomic) BOOL willTerminate;
+@property (nonatomic) BOOL shouldTerminate;
 @property (nonatomic) BOOL transitioning;
 @property (nonatomic) BOOL didTransition;
 @property (nonatomic) BOOL iosForceVirtualKeyboard;
@@ -33,6 +33,7 @@
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device;
 - (void)setUpNotifications;
 - (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix;
+- (Margins)getMargins;
 
 // Méthodes à overrider. Superflu ?
 //- (NodeRoot *)getRootNode;

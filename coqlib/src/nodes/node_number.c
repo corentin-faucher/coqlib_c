@@ -29,7 +29,7 @@ void number_renderer_updateIUs_(Node* const n) {
     Vector3 const scales = nb->n.scales;
     Vector3 const*      uvx =      nb->_U0V0Xs;
     Vector3 const*const uvx_end = &nb->_U0V0Xs[nb->_digitCount];
-    IUsToEdit iusEdit = iusbuffer_rendering_retainIUsToEdit(nb->dm.iusBuffer);
+    withIUsToEdit_beg(iusEdit, &nb->dm.iusBuffer)
     for(; uvx < uvx_end; iusEdit.iu++, uvx++) {
         iusEdit.iu->show = show;
         iusEdit.iu->uvRect.origin = uvx->xy;
@@ -41,7 +41,7 @@ void number_renderer_updateIUs_(Node* const n) {
         m->v2.v = pm->v2.v * scales.z * pop;
         m->v3.v = pm->v3.v + pm->v0.v * pos_x + pm->v1.v * pos_y + pm->v2.v * pos_z;
     }
-    iustoedit_release(iusEdit);
+    withIUsToEdit_end(iusEdit)
 }
 void (*Number_renderer_defaultUpdateIUs)(Node*) = number_renderer_updateIUs_;
 void number_and_super_init_(Number* const nb, Node* refOpt, int32_t value,
@@ -160,8 +160,8 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
 
 void     number_last_setDigitTexture(Texture* const digitTexture) {
     if(!number_last_) { printerror("No last number."); return; }
-    textureref2_releaseAndNull(&number_last_->d.texr);
-    textureref2_init(&number_last_->d.texr, digitTexture);
+    textureref_releaseAndNull(&number_last_->d.texr);
+    textureref_init(&number_last_->d.texr, digitTexture);
     number_last_->n.sx = number_last_->n.sy * number_last_->d.texr.dims.tileRatio;
 }
 void   number_last_setExtraDigit(uint32_t extraDigit) {

@@ -15,7 +15,7 @@
 #define Mesh_verticesSecond (float*)((char*)mesh->_vertices + mesh->_verticesSize)
 
 void     mesh_engine_initBuffers_(Mesh* const mesh, const void* const verticesOpt, const uint16_t* const indicesOpt) {
-    if(mesh->_flags & mesh_flag__bufferInit) {
+    if(mesh->flags & mesh_flag_metal_bufferInit) {
         printwarning("Vertices buffer already init.");
         return;
     }
@@ -26,94 +26,95 @@ void     mesh_engine_initBuffers_(Mesh* const mesh, const void* const verticesOp
         size_t indicesSize = mesh->maxIndexCount * sizeof(uint16_t);
         id<MTLBuffer> mtlIndicesBuffer = [device newBufferWithBytes:indicesOpt
                                                       length:indicesSize options:0];
-        *(const void**)&mesh->_mtlIndicesBufferOpt_cptr = CFBridgingRetain(mtlIndicesBuffer);
+        *(const void**)&mesh->indicesMTLBufferOpt = CFBridgingRetain(mtlIndicesBuffer);
     } else if(indicesOpt || mesh->maxIndexCount) {
         printwarning("Missing indices array or indexCount.");
     }
-    // Utiliser un buffer pour les vertices...
-    if(mesh->_flags & mesh_flag__withVerticesBuffer) {
+    // Utiliser un Metal buffer pour les vertices...
+    if(mesh->flags & mesh_flag_metal_useVerticesMTLBuffer) {
         id<MTLBuffer> mtlVerticesBuffer;
         if(verticesOpt) {
             mtlVerticesBuffer = [device newBufferWithBytes:verticesOpt 
-                                        length:mesh->_verticesSize options:0];
+                                        length:mesh->verticesSize options:0];
         } else {
-            mtlVerticesBuffer = [device newBufferWithLength:mesh->_verticesSize options:0];
+            mtlVerticesBuffer = [device newBufferWithLength:mesh->verticesSize options:0];
         }
-        *(const void**)&mesh->_mtlVerticesBufferOpt_cptr = CFBridgingRetain(mtlVerticesBuffer);
+        *(const void**)&mesh->verticesMTLBufferOpt = CFBridgingRetain(mtlVerticesBuffer);
     }
     // Deuxième vertices buffer ?
-    if(mesh->_flags & mesh_flag__withDoubleVertBuffer) {
+    if(mesh->flags & mesh_flag_metal_useVerticesDoubleMTLBuffer) {
         id<MTLBuffer> mtlVerticesBuffer;
         if(verticesOpt) {
             mtlVerticesBuffer = [device newBufferWithBytes:verticesOpt 
-                                        length:mesh->_verticesSize options:0];
+                                        length:mesh->verticesSize options:0];
         } else {
-            mtlVerticesBuffer = [device newBufferWithLength:mesh->_verticesSize options:0];
+            mtlVerticesBuffer = [device newBufferWithLength:mesh->verticesSize options:0];
         }
-        *(const void**)&mesh->_mtlVerticesBuffer2Opt_cptr = CFBridgingRetain(mtlVerticesBuffer);
+        *(const void**)&mesh->vertices2MTLBufferOpt = CFBridgingRetain(mtlVerticesBuffer);
     }
-    mesh->_flags |= mesh_flag__bufferInit;
+    mesh->flags |= mesh_flag_metal_bufferInit;
 }
 void     mesh_engine_deinit_(Mesh* const mesh) {
-    if(!(mesh->_flags & mesh_flag__bufferInit)) { return; }
-    if(mesh->_mtlVerticesBufferOpt_cptr) {
-        CFRelease(mesh->_mtlVerticesBufferOpt_cptr); 
-        *(const void**)&mesh->_mtlVerticesBufferOpt_cptr = NULL;
+    if(mesh->verticesMTLBufferOpt) {
+        CFRelease(mesh->verticesMTLBufferOpt); 
+        *(const void**)&mesh->verticesMTLBufferOpt = NULL;
     }
-    if(mesh->_mtlVerticesBuffer2Opt_cptr) {
-        CFRelease(mesh->_mtlVerticesBuffer2Opt_cptr); 
-        *(const void**)&mesh->_mtlVerticesBuffer2Opt_cptr = NULL;
+    if(mesh->vertices2MTLBufferOpt) {
+        CFRelease(mesh->vertices2MTLBufferOpt); 
+        *(const void**)&mesh->vertices2MTLBufferOpt = NULL;
     }
-    if(mesh->_mtlIndicesBufferOpt_cptr) {
-        CFRelease(mesh->_mtlIndicesBufferOpt_cptr); 
-        *(const void**)&mesh->_mtlIndicesBufferOpt_cptr = NULL;
+    if(mesh->indicesMTLBufferOpt) {
+        CFRelease(mesh->indicesMTLBufferOpt); 
+        *(const void**)&mesh->indicesMTLBufferOpt = NULL;
     }
+    mesh->flags &= ~mesh_flag_metal_bufferInit;
 }
 void     mesh_render_tryToUpdateVerticesAndIndiceCount(Mesh *const mesh) {
     // Besoin de mise à jour ?
-    if((mesh->_flags & (mesh_flag_mutable|mesh_flag__needUpdate)) != (mesh_flag_mutable|mesh_flag__needUpdate)) return;
+    if((mesh->flags & (mesh_flag_mutable|mesh_flag__needUpdate)) != (mesh_flag_mutable|mesh_flag__needUpdate)) return;
     // Cas pas de buffer
-    if(mesh->_flags & mesh_flag__withDoubleVertices) {
-        if(!mesh->_verticesReadOpt) { printerror("No second vertices."); return; }
-        memcpy(mesh->_verticesReadOpt, mesh->_verticesEdit, mesh->_verticesSize);
+    if(mesh->flags & mesh_flag_metal_mutableDoubleVertices) {
+        if(!mesh->verticesReadOpt) { printerror("No second vertices."); return; }
+        memcpy(mesh->verticesReadOpt, mesh->verticesEdit, mesh->verticesSize);
     }
     // Cas avec buffer
     else {
-        if(!mesh->_mtlVerticesBuffer2Opt_cptr || !mesh->_mtlVerticesBufferOpt_cptr) {
+        if(!mesh->vertices2MTLBufferOpt || !mesh->verticesMTLBufferOpt) {
             printerror("Missing vertices buffer."); return;
         }
         // Copie dans le buffer non actif et swap.
         id<MTLBuffer> mtlVerticesBuffer;
-        if(mesh->_flags & mesh_flag__firstActive) {
-            mtlVerticesBuffer= (__bridge id<MTLBuffer>)mesh->_mtlVerticesBuffer2Opt_cptr;
+        if(mesh->flags & mesh_flag_metal_isFirstVertMTLBufferActive) {
+            mtlVerticesBuffer= (__bridge id<MTLBuffer>)mesh->vertices2MTLBufferOpt;
         } else {
-            mtlVerticesBuffer= (__bridge id<MTLBuffer>)mesh->_mtlVerticesBufferOpt_cptr;
+            mtlVerticesBuffer= (__bridge id<MTLBuffer>)mesh->verticesMTLBufferOpt;
         }
-        memcpy([mtlVerticesBuffer contents], mesh->_verticesEdit, mesh->_verticesSize);
-        mesh->_flags ^= mesh_flag__firstActive;
+        memcpy([mtlVerticesBuffer contents], mesh->verticesEdit, mesh->verticesSize);
+        mesh->flags ^= mesh_flag_metal_isFirstVertMTLBufferActive;
     }
-    if(mesh->_newIndexCountOpt) {
-        uint_initConst(&mesh->actualIndexCount, uminu(mesh->_newIndexCountOpt, mesh->maxIndexCount));
-        mesh->_newIndexCountOpt = 0;
+    if(mesh->newIndexCountOpt) {
+        uint_initConst(&mesh->actualIndexCount, uminu(mesh->newIndexCountOpt, mesh->maxIndexCount));
+        mesh->newIndexCountOpt = 0;
     }
     // Ok, fini d'updater
-    mesh->_flags &= ~mesh_flag__needUpdate; 
+    mesh->flags &= ~mesh_flag__needUpdate; 
 }
 
 MeshToDraw mesh_render_getMeshToDraw(Mesh const*const mesh) {
-    void const* verticesBuffer_cptr;
-    if(mesh->_mtlVerticesBuffer2Opt_cptr && !(mesh->_flags & mesh_flag__firstActive))
-        verticesBuffer_cptr = mesh->_mtlVerticesBuffer2Opt_cptr;
+    void const* verticesMTLBuffer;
+    if(mesh->vertices2MTLBufferOpt && !(mesh->flags & mesh_flag_metal_isFirstVertMTLBufferActive))
+        verticesMTLBuffer = mesh->vertices2MTLBufferOpt;
     else
-        verticesBuffer_cptr = mesh->_mtlVerticesBufferOpt_cptr;
+        verticesMTLBuffer = mesh->verticesMTLBufferOpt;
     return (MeshToDraw) {
         .vertexCount =    mesh->vertexCount,
-        .verticesSize =   mesh->_verticesSize,
+        .verticesSize =   mesh->verticesSize,
         .indexCount =     mesh->actualIndexCount,
-        .primitive_type = mesh->primitive_type,
+//        .primitive_type = mesh->primitive_type,
         .cull_mode =      mesh->cull_mode,
-        .verticesOpt =       mesh->_verticesReadOpt,
-        .metal_verticesBufferOpt_cptr = verticesBuffer_cptr,
-        .metal_indicesBufersOpt_cptr =  mesh->_mtlIndicesBufferOpt_cptr,
+        .metal_verticesOpt =          mesh->verticesReadOpt,
+        .metal_verticesMTLBufferOpt = verticesMTLBuffer,
+        .metal_indicesMTLBufersOpt =  mesh->indicesMTLBufferOpt,
+        .metal_primitiveType = mesh->primitive_type, // (correspondance directe pour Metal)
     };
 }

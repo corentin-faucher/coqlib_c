@@ -22,10 +22,16 @@ Vector2 vector2_normalize(Vector2 v) {
         return rand_vector2_ofNorm(1.f);
     return (Vector2) {{ v.x / n, v.y / n }};
 }
+Vector2 vector2_toNorm(Vector2 v, float newNorm) {
+    float n = hypotf(v.x, v.y);
+    if(n < 0.0001)
+        return rand_vector2_ofNorm(newNorm);
+    return (Vector2) {{ v.x * newNorm / n, v.y * newNorm / n }};
+}
 
 static char     tmp_vector_c_str_[10][30];
 static uint32_t tmp_vector_index_ = 0;
-const char* vector2_toString(Vector2 const v) {
+const char*const vector2_toString(Vector2 const v) {
     char* c_str = tmp_vector_c_str_[tmp_vector_index_];
     tmp_vector_index_ = (tmp_vector_index_ + 1) % 10;
     sprintf(c_str, "[ %5.2f, %5.2f ]", v.x, v.y);

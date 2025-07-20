@@ -13,6 +13,7 @@
 
 // `Core` de FluidPos. 4 floats, i.e. `vecteur` simd de 128 bits.
 typedef union {
+    // Un vecteur simd de 128 bits est "atomic", du moins selon des expériences... ;)
     float __attribute__((vector_size(16))) v;
     struct {
         // Position vers où on tend (dernier set) ou "real" pos.
@@ -66,6 +67,8 @@ void  fl_updateToConstants(volatile FluidPos *fl, float gamma, float k);
 /// i.e. amortissement critique (pas de rebond).
 void  fl_updateToLambda(FluidPos *fl, float lambda);
 
+// MARK: - Setters
+
 /// Setter "smooth" de FluidPos. La position va tendre vers `pos`.
 void  fl_set(FluidPos *fl, float pos);
 /// Setter "hard" de FluidPos. La position est fixée directement à `pos`.
@@ -77,19 +80,20 @@ void  fl_newReferentialAsDelta(FluidPos* fp, float scale, float destScale);
 void  fl_referentialOut(FluidPos *const fp, float const refX, float const refScale);
 void  fl_referentialOutAsDelta(FluidPos *const fp, float const refScale);
 
-// Les convenience du set...
+// Des setters de convenience (cas particuliers de fl_set / fl_fix)
 void  fl_setRelToDef(FluidPos *fl, float shift);
 void  fl_move(FluidPos *fl, float shift);
 void  fl_fadeIn(FluidPos *fl, float delta);
 void  fl_fadeInFromDef(FluidPos *fl, float delta);
 void  fl_fadeOut(FluidPos *fl, float delta);
-// Getters
+
+// MARK: - Getters
 /// Position estimee
 float fl_evalPos(volatile FluidPos const* fp);
 /// Vrai derniere position entree
-float   fl_real(const FluidPos *sp);
+float fl_real(const FluidPos *sp);
 /// Si static -> n'est pas "fluid", reagit comme un float ordinaire.
-bool    fl_isStatic(const FluidPos *sp);
+bool  fl_isStatic(const FluidPos *sp);
 
 // Array de SmoothPos
 void  fl_array_init(FluidPos *fl, const float *src_f_arr, size_t count, float lambda);
@@ -105,6 +109,8 @@ Vector3 fl_array_toRealVec3(const FluidPos *sp);
 /// Array de 4 smpos -> Vector4 (i.e. simd_float4, 4 aligned float)
 Vector4 fl_array_toVec4(const FluidPos *sp);
 
+
+// MARK: - Cas particulier settable avec pente (ou "drift").
 typedef struct _FluidPosWithDrift {
     FluidPos  fp;
     float     drift;

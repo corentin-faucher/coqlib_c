@@ -5,11 +5,10 @@
 //
 //  Created by Corentin Faucher on 2023-10-31.
 //
+#include "system_sound.h"
 
-
-#include "coq_sound.h"
-#include "maths/math_base.h"
-#include "coq_chrono.h"
+#include "../maths/math_base.h"
+#include "../utils/util_chrono.h"
 
 #import <AVFoundation/AVFoundation.h>
 

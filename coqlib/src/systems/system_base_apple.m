@@ -5,16 +5,14 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "util_system.h"
+#include "system_base.h"
+
+#include "system_language.h"
+#include "../utils/util_base.h"
+#include "../utils/util_string.h"
 
 #import <Foundation/Foundation.h>
 #import <CloudKit/CloudKit.h>
-
-#include "util_base.h"
-#include "util_string.h"
-#include "util_language.h"
-#include "coq_event.h"
-
 #if TARGET_OS_OSX == 1
 #import <Carbon/Carbon.h>
 #import <AppKit/AppKit.h>
@@ -78,6 +76,17 @@ void  CoqSystem_init(void) {
     CoqSystem_cloudDrive_init_();
     // Langue
     Language_init_();
+}
+
+static ViewSizeInfo coqsystem_viewsize_ = {};
+void       CoqSystem_setViewSize(ViewSizeInfo const viewSize) {
+    coqsystem_viewsize_ = viewSize;
+}
+ViewSizeInfo CoqSystem_getViewSize(void) {
+    if(coqsystem_viewsize_.framePt.h == 0) {
+        printerror("View size info still not init...");
+    }
+    return coqsystem_viewsize_;
 }
 
 // MARK: - Keyboard Layout
@@ -201,7 +210,7 @@ bool        CoqSystem_theme_appThemeIsDark(void) {
 -(void)iCloudChanged {
     iCloudEnabled = [[NSFileManager defaultManager] ubiquityIdentityToken] != nil;
     CoqEvent_addToRootEvent((CoqEvent) {
-        .type = event_type_systemChanged,
+        .type = eventtype_systemChanged,
         .system_change = { .cloudDriveDidChange = true },
     });
 }
@@ -250,7 +259,7 @@ bool        CoqSystem_theme_appThemeIsDark(void) {
         return;
     updating = newUpdating;
     CoqEvent_addToRootEvent((CoqEvent) {
-        .type = event_type_systemChanged,
+        .type = eventtype_systemChanged,
         .system_change = { .cloudDriveDidChange = true },
     });
 }
@@ -379,7 +388,7 @@ void        CoqSystem_initCloudUserName(const char* container_name_cst) {
                 return;
             }
             appleid_givenName_ = String_createCopy([[[userInfo nameComponents] givenName] UTF8String]);
-            CoqEvent_addToRootEvent((CoqEvent) {.type = event_type_systemChanged, .system_change = { .userNameDidChange = true } });
+            CoqEvent_addToRootEvent((CoqEvent) {.type = eventtype_systemChanged, .system_change = { .userNameDidChange = true } });
         }];
     }];
 }
@@ -387,7 +396,7 @@ void        CoqSystem_requestPermissionAndSetCloudUserName(void) {
     if(appleid_givenName_) {
         printwarning("User name already init.");
         // On revoie tout de meme la réponse pour que ce soit mis a jour...
-        CoqEvent_addToRootEvent((CoqEvent) {.type = event_type_systemChanged, .system_change = { .userNameDidChange = true } });
+        CoqEvent_addToRootEvent((CoqEvent) {.type = eventtype_systemChanged, .system_change = { .userNameDidChange = true } });
         return;
     }
     if([[NSFileManager defaultManager] ubiquityIdentityToken] == nil) {
@@ -402,7 +411,7 @@ void        CoqSystem_requestPermissionAndSetCloudUserName(void) {
     [ckcontainer requestApplicationPermission:CKApplicationPermissionUserDiscoverability
                             completionHandler:^(CKApplicationPermissionStatus permissionStatus, NSError * _Nullable error) {
         if(permissionStatus != CKApplicationPermissionStatusGranted) {
-            printerror("Cannot get permission for %s, permission is %ld, error : %s",
+            printerror("Cannot get permission for %s, permission is %d, error : %s",
                        container_name_,
                        (long)permissionStatus,
                        [[error localizedDescription] UTF8String]);
@@ -433,7 +442,7 @@ void        CoqSystem_requestPermissionAndSetCloudUserName(void) {
                            [[[userInfo nameComponents] familyName] UTF8String]);
                 appleid_givenName_ = String_createCopy([[[userInfo nameComponents] givenName] UTF8String]);
                 printdebug("Sending system_change event pour userNameDidChange...");
-                CoqEvent_addToRootEvent((CoqEvent) {.type = event_type_systemChanged, .system_change = { .userNameDidChange = true } });
+                CoqEvent_addToRootEvent((CoqEvent) {.type = eventtype_systemChanged, .system_change = { .userNameDidChange = true } });
             }];
         }];
     }];

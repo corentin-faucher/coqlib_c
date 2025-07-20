@@ -6,7 +6,7 @@
 //
 #include "graph_texture.h"
 #include "graph_texture_private.h"
-#include "../coq_map.h"
+#include "../utils/util_map.h"
 #include "../utils/util_base.h"
 #include "../utils/util_string.h"
 
@@ -20,7 +20,7 @@ static Texture  Texture_dummy_ = {
         .width = 8, .height = 8,
         .tileRatio = 1,
     },
-    .flags = tex_flag_static_, 
+    .flags = tex_flag__static, 
     .touchTime = 0,
     .string = NULL,
 };
@@ -37,6 +37,10 @@ void  texture_deinit_(void* tex_void) {
         coq_free(tex->string);
         tex->string = NULL;
     }
+//    if(tex->pixelsOpt) {
+//        coq_free(tex->pixelsOpt);
+//        tex->pixelsOpt = NULL;
+//    }
     // Déréferencer...
 //    if(tex->string_refererOpt)
 //        *(tex->string_refererOpt) = (Texture*)NULL;
@@ -49,7 +53,7 @@ static void (* const texture_engine_releasePartly__)(char*) = (void (*)(char*))t
 //static void (* const texture_engine_releaseAll__)(char*) = (void (*)(char*))texture_engine_releaseAll_;
 void  _texture_unsetUnusedPng_(char* tex_char) {
     Texture* tex = (Texture*)tex_char;
-    if(!(tex->flags & tex_flag_tmpDrawn_)) return;
+    if(!(tex->flags & tex_flag__tmpDrawn)) return;
     // Utilisée recemment ?
     if(ChronosRender.render_elapsedMS - tex->touchTime < TEX_UNUSED_DELTATMS_ + 30) return;
     texture_engine_releasePartly_(tex);
@@ -63,7 +67,7 @@ void  texture_initAsPng_(Texture* const tex, const PngInfo* const info) {
         .tileRatio = 1,
     };
 //    tex->ratio = (float)info->n / (float)info->m; 
-    tex->flags = tex_flag_shared|(info->isCoqlib ? tex_flag_png_coqlib : 0)
+    tex->flags = tex_flag_shared|(info->_isCoqlib ? tex_flag__png_coqlib : 0)
                     |(info->nearest ? tex_flag_nearest : 0);
     tex->touchTime = ChronosRender.render_elapsedMS - TEX_UNUSED_DELTATMS_;
     
@@ -82,7 +86,6 @@ void  texture_initEmpty_(Texture* const tex) {
             .width = 2, .height = 2,
             .tileRatio = 1,
         },
-        .flags = 0, 
         .touchTime = ChronosRender.render_elapsedMS,
         // reste à 0.
     };
@@ -99,6 +102,10 @@ static unsigned          pngCount_ = 0;            // Nombre de pngs.
 const PngInfo            coqlib_pngInfos_[] = {
     {"coqlib_bar_in", 1, 1, false, true},
     {"coqlib_digits_black", 12, 2, false, true},
+    {"coqlib_frame_gray_back", 1, 1, false, true},
+    {"coqlib_frame_mocha", 1, 1, false, true},
+    {"coqlib_frame_red", 1, 1, false, true},
+    {"coqlib_frame_white_back", 1, 1, false, true},
     {"coqlib_scroll_bar_back", 1, 1, false, true},
     {"coqlib_scroll_bar_front", 1, 1, false, true},
     {"coqlib_sliding_menu_back", 1, 1, false, true},
@@ -124,7 +131,7 @@ void     Texture_init_(void) {
     }
     textureOfPngName_ =  Map_create(64, sizeof(Texture));
     // Texture par défaut (blanc)
-    Texture_white = Texture_createWithPixels(texture_white_pixels_, 2, 2, true, true);    
+    Texture_white = Texture_createWithPixels(texture_white_pixels_, 2, 2, tex_flag_shared|tex_flag_nearest);    
     _Texture_isInit = true;
     _Texture_isLoaded = true;
 }
@@ -199,7 +206,7 @@ void     Texture_checkToFullyDrawAndUnused(ChronoChecker* cc, int64_t timesUp) {
         Texture* tex = (Texture*)map_iterator_valueRefOpt(textureOfPngName_);
         // (skip si pas utilisée)
         if(ChronosRender.render_elapsedMS - tex->touchTime > TEX_UNUSED_DELTATMS_) continue;
-        if(!(tex->flags & tex_flag_fullyDrawn_)) {
+        if(!(tex->flags & tex_flag__fullyDrawn)) {
             texture_engine_tryToLoadAsPng_(tex, false);
             if(chronochecker_elapsedMS(*cc) > timesUp)
                 return;
@@ -237,11 +244,12 @@ Texture* Texture_sharedImage(uint32_t const pngId) {
     tex->touchTime = ChronosRender.render_elapsedMS;
     // S'il y a pas la mini, créer tout de suite la vrai texture. (besoin des dimensions)
     // (Normalement, s'il n'y a pas de mini c'est que la texture est petite...)
-    if((tex->flags & tex_flags_drawn_) == 0) {
+    if((tex->flags & tex_flags__drawn) == 0) {
         ChronoChecker cc = chronochecker_startNew();
         texture_engine_tryToLoadAsPng_(tex, false);
         if(chronochecker_elapsedMS(cc) > 10 && TEXTURE_CHECK_MINI_NEEDED)
-            printwarning("Png %d, no mini for %s. time %lld.", pngId, tex->string, chronochecker_elapsedMS(cc));
+            printwarning("Png %d, no mini for %s. time %d.", pngId,
+                     tex->string, (int)chronochecker_elapsedMS(cc));
     }
     return tex;
 }
@@ -253,19 +261,23 @@ Texture* Texture_sharedImageByName(const char* pngName) {
         return &Texture_dummy_;
     }
     tex->touchTime = ChronosRender.render_elapsedMS;
-    if((tex->flags & tex_flags_drawn_) == 0) {
+    if((tex->flags & tex_flags__drawn) == 0) {
         texture_engine_tryToLoadAsPng_(tex, false);
     }
     return tex;
 }
 
 
-Texture* Texture_createWithPixels(void const*const pixelsBGRA8Opt, uint32_t const width, uint32_t const height, 
-                                  bool const shared, bool const nearest) 
+Texture* Texture_createWithPixels(void const*const pixelsBGRA8Opt, uint32_t const width, uint32_t const height, uint32_t flags) 
 {
     Texture* tex = coq_callocTyped(Texture);
     texture_initEmpty_(tex);
-    tex->flags = (shared ? tex_flag_shared : 0)|(nearest ? tex_flag_nearest : 0);
+    if(flags & (~tex_flags__initFlags)) {
+        printwarning("Create texture with non valid flags %#06x.", 
+                     flags & (~tex_flags__initFlags));
+        flags &= tex_flags__initFlags;
+    }
+    tex->flags = flags;
     texture_engine_load_(tex, width, height, false, pixelsBGRA8Opt);
     return tex;
 }
@@ -276,10 +288,10 @@ static TextureDims const TextureDims_default_ = {
     .width = 1.f, .height = 1.f,
     .tileRatio = 1.f,
 };
-void  textureref2_init(TextureRef *const texref, Texture *const tex) {
+void  textureref_init(TextureRef *const texref, Texture *const tex) {
     if(texref->tex) {
         printwarning("Release befor init.");
-        textureref2_releaseAndNull(texref);
+        textureref_releaseAndNull(texref);
     }
     *(Texture**)&texref->tex = tex;
     if(tex) {
@@ -289,19 +301,33 @@ void  textureref2_init(TextureRef *const texref, Texture *const tex) {
         *(TextureDims*)&texref->dims = TextureDims_default_;
     }
 }
-void  textureref2_releaseAndNull(TextureRef *const texref) {
+void  textureref_releaseAndNull(TextureRef *const texref) {
     Texture* const tex = texref->tex;
     if(tex == NULL) return; // (déjà release)
     *(Texture**)&texref->tex = NULL;
     *(TextureDims*)&texref->dims = TextureDims_default_;
     if(tex->flags & tex_flag_shared) return;
-    if(tex->flags & tex_flag_static_) { printwarning("Release de static tex ?"); return; }
+    if(tex->flags & tex_flag__static) { printwarning("Release de static tex ?"); return; }
     texture_deinit_(tex);
     coq_free(tex);
 }
 
 TextureDims const texture_dims(Texture const*const tex) {
     return tex->dims;
+}
+
+void  texture_render_touchAndUpdate(Texture*const tex) {
+    tex->touchTime = ChronosRender.render_elapsedMS;
+    if((tex->flags & tex_flag__dbEdited)) {
+        // Swap redable/editable
+        tex->flags ^= tex_flag__dbSecondLive;
+        tex->flags &= ~tex_flag__dbEdited;
+    }
+    if(tex->mtlTex_cptr) {
+        return; // Ok, pas besoin de loader...
+    }
+    // Il y a des texture en demande pas encore "fully drawn"...
+    Texture_needToFullyDraw_ = true;
 }
 
 // Garbage

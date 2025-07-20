@@ -9,10 +9,15 @@
 #ifndef COQ_UTIL_SYSTEM_H
 #define COQ_UTIL_SYSTEM_H
 
-#include <stdbool.h>
+#include "../utils/util_event.h"
 
-/// Init des variables systèmes : Nom de l'OS, nom et version de l'app, keyboard layout, cloud drive, langue. 
-void        CoqSystem_init(void);
+/// Init des variables systèmes : Nom de l'OS, nom et version de l'app, 
+/// keyboard layout, cloud drive, langue.
+void CoqSystem_init(void);
+
+// Dimension présente de la view.
+void         CoqSystem_setViewSize(ViewSizeInfo viewSize);
+ViewSizeInfo CoqSystem_getViewSize(void);
 
 enum {
     coqsystem_os_desktop,
@@ -54,12 +59,10 @@ bool        CoqSystem_cloudDrive_isEnabled(void);
 bool        CoqSystem_cloudDrive_isUpdating(void);
 void        CoqSystem_cloudDrive_stopWatching_(void);
 
-
 //const char* CoqSystem_cloudUserNameOpt(void);
 //void        CoqSystem_initCloudUserName(const char* container_name);
 //void        CoqSystem_requestPermissionAndSetCloudUserName(void);
 
-// TODO : Mettre dans events ?
 /// Pour iOS, par défaut l'apparition du clavier virtuel modifie la margin.bottom 
 /// pour ne pas cacher les élement de l'app.
 extern bool CoqSystem_dontResizeOnVirtualKeyboard; // false

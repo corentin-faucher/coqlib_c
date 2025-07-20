@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2024-04-02.
 //
 
-#import "macos_appdelegate.h"
+#import "coqlib_apple.h"
 
 @interface AppDelegate : AppDelegateBase {
 }

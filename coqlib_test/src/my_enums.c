@@ -19,8 +19,8 @@ static const char* Localizable_stringKeys_[] = {
 const char* loc_stringKey(Localizable loc) {
     return Localizable_stringKeys_[loc];
 }
-NodeStringInit loc_stringGlyphedInit(Localizable loc) {
-    return (NodeStringInit) {
+StringGlyphedInit loc_stringGlyphedInit(Localizable loc) {
+    return (StringGlyphedInit) {
         .c_str = Localizable_stringKeys_[loc],
         .isLocalized = true,
         .x_margin = 0.25,
@@ -35,15 +35,14 @@ const PngInfo MyProject_pngInfos[] = {
     {"digits_green", 12, 2, false},
     {"digits_red", 12, 2, false},
     {"disks", 4, 4, false},
-
-    {"frame_gray_back", 1, 1, false},
-    {"frame_mocha", 1, 1, false},
-    {"frame_red", 1, 1, false},
-    {"frame_white_back", 1, 1, false},
     {"icons", 8, 4, false},
     {"language_flags", 4, 4, false},
     {"some_animals", 4, 7, false},
 
+    {"coqlib_frame_gray_back", 1, 1, false, true},
+    {"coqlib_frame_mocha", 1, 1, false, true},
+    {"coqlib_frame_red", 1, 1, false, true},
+    {"coqlib_frame_white_back", 1, 1, false, true},
     {"coqlib_test_frame", 1, 1, true, true},
 };
 

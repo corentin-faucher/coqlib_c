@@ -1,4 +1,4 @@
 // Exemple de fonction dessinant les `Drawables` dans la structure.
-#include "nodes/node_root.h"
+#include "coqlib_gl.h"
 
-void   Renderer_drawView(Root* root);
+void   Renderer_drawView(void);

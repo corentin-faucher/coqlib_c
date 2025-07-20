@@ -178,9 +178,9 @@ void _slidingmenu_open(Node* nd) {
     // 4. Aligner les éléments et placer au bon endroit.
     float menuWidth = sm->menu->n.w;
     uint32_t alignFlags = node_align_vertically|node_align_fixPos;
-    if(sm->itemRelativeFlag & relative_justifiedLeft)
+    if(sm->itemRelativeFlag & relative_leftAlign)
         alignFlags |= node_align_leftTop;
-    else if(sm->itemRelativeFlag & relative_justifiedRight)
+    else if(sm->itemRelativeFlag & relative_rightAlign)
         alignFlags |= node_align_rightBottom;
     node_tree_alignTheChildren(&sm->menu->n, alignFlags,
                                1.f, sm->spacing);
@@ -204,7 +204,7 @@ void _slidingmenu_open(Node* nd) {
         float offSetRatio = slidingmenu_offsetRatio(sm);
 
         CoqEvent_addToWindowEvent((CoqEventWin) {
-            .type = event_type_win_ios_scrollviewNeeded,
+            .type = eventtype_win_ios_scrollviewNeeded,
             .win_scrollViewInfo = { rect, contentFactor, offSetRatio },
         });
     }
@@ -223,7 +223,7 @@ void slidingmenu_reshape_(Node* n) {
         float contentFactor = slidingmenu_contentFactor(sm);
         float offSetRatio = slidingmenu_offsetRatio(sm);
         CoqEvent_addToWindowEvent((CoqEventWin) {
-            .type = event_type_win_ios_scrollviewNeeded,
+            .type = eventtype_win_ios_scrollviewNeeded,
             .win_scrollViewInfo = { rect, contentFactor, offSetRatio },
         });
     }
@@ -234,7 +234,7 @@ void slidingmenu_close_(Node* nd) {
 #ifdef __APPLE__
 #if TARGET_OS_OSX != 1
     CoqEvent_addToWindowEvent((CoqEventWin) {
-        .type = event_type_win_ios_scrollviewNotNeeded,
+        .type = eventtype_win_ios_scrollviewNotNeeded,
     });
 #endif
 #endif
@@ -358,10 +358,10 @@ void  slidingmenu_trackPadScrollBegan(SlidingMenu* sm) {
     chrono_start(&sm->deltaT);
 }
 void  slidingmenu_trackPadScroll(SlidingMenu* sm, float deltaY) {
-    float menuDeltaY = -0.15f * deltaY;
+    float menuDeltaY = -0.015f * deltaY;
     _slidingmenu_setMenuYpos(sm, fl_real(&sm->menu->y) + menuDeltaY, false, false);
     _slidingmenu_checkItemsVisibility(sm, true);
-    float elapsedSec = chrono_elapsedMS(&sm->deltaT);
+    float const elapsedSec = chrono_elapsedMS(&sm->deltaT);
     if(elapsedSec > 0) {
         sm->vitYm1 = fl_real(&sm->vitY);
         fl_fix(&sm->vitY, menuDeltaY / elapsedSec);

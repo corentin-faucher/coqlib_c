@@ -4,6 +4,9 @@
 //
 //  Created by Corentin Faucher on 2025-01-17.
 //
+static inline Drawable* Drawable_createTestFrame2(Node*const p, Box const hitBox) {
+    return Drawable_createTestFrame(p, hitBox.c_x, hitBox.c_y, 2*hitBox.Dx, 2*hitBox.Dy);
+}
 /// Met à jour le uvRect pour être la tile (i,j) de la texture présente (avec m x n subdivisions).
 static inline void drawable_setTile(Drawable *const d, uint32_t const i, uint32_t const j) {
     d->n.renderIU.uvRect = texturedims_uvRectOfTile(d->texr.dims, i, j);

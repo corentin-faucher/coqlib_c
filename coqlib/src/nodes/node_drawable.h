@@ -105,6 +105,7 @@ Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
                                float x, float y, float twoDx, float twoDy);
 /// Convenience constructor : image de `coqlib_test_frame.png` pour testing.                   
 Drawable* Drawable_createTestFrame(Node* parent, float x, float y, float twoDx, float twoDy);
+static inline Drawable* Drawable_createTestFrame2(Node* p, Box hitBox);
 
 /// Change la texture présente pour la texture d'un autre png.
 /// Il faut probablement ajuster le rectangle UV ou le ratio de l'image ensuite -> `drawable_setTile`,

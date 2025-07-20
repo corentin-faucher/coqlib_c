@@ -14,8 +14,8 @@
 #include "graph_texture_private.h"
 #include "math_base.h"
 #include "../utils/util_base.h"
-#include "../utils/util_file.h"
-#include "coq_map.h"
+#include "../systems/system_file.h"
+#include "utils/util_map.h"
 static uint32_t pixels_transparent_[4] = {
     0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF, 0x00FFFFFF,
 };
@@ -91,13 +91,14 @@ void Texture_metal_setFrameBufferToMTLTexture(uint32_t index, id<MTLTexture> mtl
             .dims = {
                 .m = 1,  .n = 1,
                 .Du = 1, .Dv = 1,
-                .width = (float)[mtlTex width], .height = (float)[mtlTex height],
+                .width = [mtlTex width], .height = [mtlTex height],
                 .tileRatio = (float)[mtlTex width] / (float)[mtlTex height],
             },
-            tex_flag_shared|tex_flag_fullyDrawn_|tex_flag_static_, ChronosRender.render_elapsedMS,
+            tex_flag_shared|tex_flag__fullyDrawn|tex_flag__static, ChronosRender.render_elapsedMS,
         };
     } else {
-        Texture_frameBuffers[index]->dims.sizes = (Vector2){(float)[mtlTex width], (float)[mtlTex height]};
+        Texture_frameBuffers[index]->dims.width  = [mtlTex width];
+        Texture_frameBuffers[index]->dims.height = [mtlTex height];
         Texture_frameBuffers[index]->dims.tileRatio =  (float)[mtlTex width] / (float)[mtlTex height];
         CFRelease(Texture_frameBuffers[index]->mtlTex_cptr);
     }
@@ -110,12 +111,14 @@ id<MTLTexture> Texture_metal_defaultWhiteMTLTexture(void) {
 // MARK: - Metal Engine implemetations
 void  texture_engine_releaseAll_(Texture* tex) {
     if(tex->mtlTex_cptr) {    CFRelease(tex->mtlTex_cptr);    tex->mtlTex_cptr = NULL; }
+    if(tex->mtlTex2_cptr) {   CFRelease(tex->mtlTex2_cptr);   tex->mtlTex2_cptr = NULL; }
     if(tex->mtlTexTmp_cptr) { CFRelease(tex->mtlTexTmp_cptr); tex->mtlTexTmp_cptr = NULL; }
-    tex->flags &= ~ tex_flags_drawn_;
+    tex->flags &= ~ tex_flags__drawn;
 }
 void  texture_engine_releasePartly_(Texture* tex) {
     if(tex->mtlTex_cptr) {    CFRelease(tex->mtlTex_cptr);    tex->mtlTex_cptr = NULL; }
-    tex->flags &= ~ tex_flag_fullyDrawn_;
+    if(tex->mtlTex2_cptr) {   CFRelease(tex->mtlTex2_cptr);   tex->mtlTex2_cptr = NULL; }
+    tex->flags &= ~ tex_flag__fullyDrawn;
 }
 
 // MARK: - Créer une MTLTexture à partir d'un png
@@ -130,15 +133,27 @@ void           texture_engine_load_(Texture*const tex, size_t const width, size_
     MTLTextureDescriptor* descr = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:CoqGraph_metal_pixelFormat
                                                         width:width height:height mipmapped:NO];
     id<MTLTexture> mtlTex = [CoqGraph_metal_device newTextureWithDescriptor:descr];
-    if(pixelsOpt) {
-        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0
-             withBytes:pixelsOpt bytesPerRow:mtlTex.width * 4];
-    }
     *mtlTexRef = CFBridgingRetain(mtlTex);
-    tex->flags |= asMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
+    id<MTLTexture> mtlTex2 = nil;
+    if(!asMini && (tex->flags & tex_flag_doubleBuffer)) {
+        if(tex->mtlTex2_cptr) { printwarning("Texture already set.");
+            CFRelease(tex->mtlTex2_cptr); tex->mtlTex2_cptr = NULL;
+        }
+        mtlTex2 = [CoqGraph_metal_device newTextureWithDescriptor:descr];
+        tex->mtlTex2_cptr = CFBridgingRetain(mtlTex2);
+    }
+    if(pixelsOpt) {
+        [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height)
+            mipmapLevel:0 withBytes:pixelsOpt bytesPerRow:mtlTex.width * 4];
+        if(mtlTex2)
+            [mtlTex2 replaceRegion:MTLRegionMake2D(0, 0, mtlTex2.width, mtlTex2.height) 
+                mipmapLevel:0 withBytes:pixelsOpt bytesPerRow:mtlTex2.width * 4];
+    }
+    
+    tex->flags |= asMini ? tex_flag__tmpDrawn : tex_flag__fullyDrawn;
     // Mise à jour des dimensions
-    tex->dims.width =  (float)width;
-    tex->dims.height = (float)height;
+    tex->dims.width =  width;
+    tex->dims.height = height;
     tex->dims.tileRatio =  (float)width / (float)height * (float)tex->dims.n / (float)tex->dims.m;
 }
 
@@ -157,7 +172,7 @@ id<MTLTexture> MTLTexture_createPngImageOpt_(char const*const pngPathOpt) {
     return mtlTexture;
 }
 void  texture_engine_tryToLoadAsPng_(Texture*const tex, bool const isMini) {
-    char *pngPath = FileManager_getPngPathOpt(tex->string, tex->flags & tex_flag_png_coqlib, isMini);
+    char *pngPath = FileManager_getPngPathOpt(tex->string, tex->flags & tex_flag__png_coqlib, isMini);
     
     // Chargement avec `MTLtextureLoader_`, est équivalent de :
 //    PixelBGRAArray*const pa = Pixels_engine_createOptFromPng(pngPath);
@@ -173,71 +188,153 @@ void  texture_engine_tryToLoadAsPng_(Texture*const tex, bool const isMini) {
     const void** mtlCptrRef = isMini ? &tex->mtlTexTmp_cptr : &tex->mtlTex_cptr;
     if(*mtlCptrRef) { CFRelease(*mtlCptrRef); *mtlCptrRef = NULL; }
     *mtlCptrRef = CFBridgingRetain(mtlTex);
-    tex->flags |= isMini ? tex_flag_tmpDrawn_ : tex_flag_fullyDrawn_;
+    tex->flags |= isMini ? tex_flag__tmpDrawn : tex_flag__fullyDrawn;
     // Mise à jour des dimensions
-    tex->dims.width =  (float)[mtlTex width];
-    tex->dims.height = (float)[mtlTex height];
+    tex->dims.width =  [mtlTex width];
+    tex->dims.height = [mtlTex height];
     tex->dims.tileRatio =  (float)[mtlTex width] / (float)[mtlTex height] * (float)tex->dims.n / (float)tex->dims.m;
 }
 
-void  texture_engine_writeAllPixels(Texture* tex, const void* pixelsBGRA8) {
-    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0
-             withBytes:pixelsBGRA8 bytesPerRow:mtlTex.width * 4];
+// MARK: - Obtenir les pixels d'une texture
+// La texture en "lecture" ou "live" pour lire les pixels officiellement "à jour".
+static inline id<MTLTexture> texture_readableMTLTexture_(Texture const*const tex) {
+    if(!(tex->flags & tex_flag_doubleBuffer))
+        return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    if(!tex->mtlTex2_cptr) { printerror("Missing mtlTex2."); 
+        return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    }
+    if(tex->flags & tex_flag__dbSecondLive)
+        return (__bridge id<MTLTexture>)tex->mtlTex2_cptr;
+    return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
 }
-void  texture_engine_writePixelsToRegion(Texture* tex, const void* pixelsBGRA8, RectangleUint region) {
-    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    [mtlTex replaceRegion:MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h) mipmapLevel:0
-             withBytes:pixelsBGRA8 bytesPerRow:region.w * 4];
+// La texture en "écriture" (pas live) pour éditer les pixels.
+static inline id<MTLTexture> texture_editableMTLTexture_(Texture*const tex) {
+    if(!(tex->flags & tex_flag_doubleBuffer))
+        return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    if(!tex->mtlTex2_cptr) { printerror("Missing mtlTex2."); 
+        return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    }
+    if(tex->flags & tex_flag__dbSecondLive)
+        return (__bridge id<MTLTexture>)tex->mtlTex_cptr;
+    return (__bridge id<MTLTexture>)tex->mtlTex2_cptr;
 }
-void  texture_engine_writeRegionToPixels(const Texture* const tex, void* pixelBGRA8, RectangleUint const region) {
-    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    [mtlTex getBytes:pixelBGRA8 bytesPerRow:region.w * 4 fromRegion:MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h) mipmapLevel:0];
+PixelBGRAArray* PixelBGRAArray_engine_createFromTextureOpt(Texture*const tex) {
+    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return NULL; }
+    id<MTLTexture> mtlTex = texture_readableMTLTexture_(tex);
+    PixelBGRAArray*const pa = PixelBGRAArray_createEmpty(mtlTex.width, mtlTex.height);
+    MTLRegion const region = MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height);
+    [mtlTex getBytes:pa->pixels bytesPerRow:region.size.width * 4 
+          fromRegion:region mipmapLevel:0];
+    return pa;
 }
-void  texture_engine_copyRegionTo(const Texture* const tex, Texture* const texDest,
-                                  RectangleUint const srcRect, UintPair const destOrig)
+PixelBGRAArray* PixelBGRAArray_engine_createFromTextureSubRegionOpt(Texture*const tex, RectangleUint region) {
+    if(!tex->mtlTex_cptr) { printerror("Texture not drawn."); return NULL; }
+    size_t const tex_width = tex->dims.width;
+    size_t const tex_height = tex->dims.height;
+    if(region.o_x >= tex_width || region.o_y >= tex_height) {
+        printerror("Region outside."); 
+        return NULL;
+    }
+    if(!region.w || !region.h) {
+        printwarning("Empty region."); 
+        return NULL;
+    }
+    if(region.o_x + region.w > tex_width || region.o_y + region.h > tex_height) {
+        printwarning("Region overflow.");
+        region.w = uminu(region.w, (uint32_t)tex_width  - region.o_x);
+        region.h = uminu(region.h, (uint32_t)tex_height - region.o_y);
+    }
+    id<MTLTexture> mtlTex = texture_readableMTLTexture_(tex);
+    MTLRegion const regionMtl = MTLRegionMake2D(region.o_x, region.o_y, region.w, region.h);
+    PixelBGRAArray*const pa = PixelBGRAArray_createEmpty(region.w, region.h); 
+    [mtlTex getBytes:pa->pixels bytesPerRow:region.w * 4 
+          fromRegion:regionMtl mipmapLevel:0];
+    return pa;
+}
+
+// MARK: - Edition
+void texture_engine_writePixelsAt(Texture* tex, PixelBGRAArray const* pixels, UintPair const origin) 
 {
-    if(!tex->mtlTex_cptr || !texDest->mtlTex_cptr) { printerror("Texture not drawn."); return; }
-    if((srcRect.o_x + srcRect.w > (uint32_t)tex->dims.width) ||        (srcRect.o_y + srcRect.h > (uint32_t)tex->dims.height) ||
-       (destOrig.uint0 + srcRect.w > (uint32_t)texDest->dims.width) || (destOrig.uint1 + srcRect.h > (uint32_t)texDest->dims.height)) {
+    if(!tex->mtlTex_cptr || !pixels) { printerror("Texture not drawn or no pixels."); return; }
+    if((tex->flags & tex_flag_doubleBuffer) && (tex->flags & tex_flag__dbEdited)) {
+        printwarning("Buffer already edited."); return; 
+    }
+    size_t const tex_width = tex->dims.width;
+    size_t const tex_height = tex->dims.height;
+    if(origin.uint0 >= tex_width || origin.uint1 >= tex_height) {
+        printerror("Region outside."); 
+        return;
+    }
+    size_t dst_width = pixels->width;
+    size_t dst_height = pixels->height;
+    if(origin.uint0 + dst_width > tex_width || origin.uint1 + dst_height > tex_height) 
+    {
+        printwarning("Region overflow.");
+        dst_width =  uminu((uint32_t)dst_width, (uint32_t)tex_width - origin.uint0);
+        dst_height = uminu((uint32_t)dst_height, (uint32_t)tex_height - origin.uint1);
+    }
+    id<MTLTexture> mtlTex = texture_editableMTLTexture_(tex);
+    MTLRegion regionMtl = MTLRegionMake2D(origin.uint0, origin.uint1, dst_width, dst_height);
+    
+    // Dessin !
+    [mtlTex replaceRegion:regionMtl mipmapLevel:0
+                withBytes:pixels->pixels bytesPerRow:pixels->width * 4];
+
+    if(tex->flags & tex_flag_doubleBuffer)
+        tex->flags |= tex_flag__dbEdited;
+}
+/// Copier une région d'une texture vers une autre texture.
+/// Équivalent de `texture_engine_createPixelsSubRegion`, `texture_engine_writePixelsToRegion`.
+void texture_engine_copyRegionTo(const Texture* texSrc, RectangleUint srcRect,
+                                  Texture* texDst, UintPair destOrig) 
+{
+    if(!texSrc->mtlTex_cptr || !texDst->mtlTex_cptr) { printerror("Texture not drawn."); return; }
+    if((srcRect.o_x + srcRect.w > (uint32_t)texSrc->dims.width) ||
+       (srcRect.o_y + srcRect.h > (uint32_t)texSrc->dims.height) ||
+       (destOrig.uint0 + srcRect.w > (uint32_t)texDst->dims.width) ||
+       (destOrig.uint1 + srcRect.h > (uint32_t)texDst->dims.height)) {
         printerror("Overflow"); return;
     }
-    id<MTLTexture> mtlTex = (__bridge id<MTLTexture>)tex->mtlTex_cptr;
-    id<MTLTexture> mtlTexDest = (__bridge id<MTLTexture>)texDest->mtlTex_cptr;
-
+    if((texDst->flags & tex_flag_doubleBuffer) && (texDst->flags & tex_flag__dbEdited)) {
+        printwarning("Already edited."); return; 
+    }
+    id<MTLTexture> mtlTexSrc = texture_readableMTLTexture_(texSrc);
+    id<MTLTexture> mtlTexDst = texture_editableMTLTexture_(texDst);
     MTLRegion regionSrc = MTLRegionMake2D(srcRect.o_x, srcRect.o_y, srcRect.w, srcRect.h);
     MTLRegion regionDst = MTLRegionMake2D(destOrig.uint0, destOrig.uint1, srcRect.w, srcRect.h);
 
-    PixelBGRA* pixels = coq_calloc(srcRect.w * srcRect.h, sizeof(PixelBGRA));
-    [mtlTex getBytes:pixels bytesPerRow:srcRect.w * 4 fromRegion:regionSrc mipmapLevel:0];
-    [mtlTexDest replaceRegion:regionDst mipmapLevel:0 withBytes:pixels bytesPerRow:srcRect.w * 4];
-    coq_free(pixels);
+    // Copie et dessin !
+    with_beg(PixelBGRA, pixels, coq_callocSimpleArray(srcRect.w * srcRect.h, PixelBGRA))
+    [mtlTexSrc getBytes:pixels bytesPerRow:srcRect.w * 4 fromRegion:regionSrc mipmapLevel:0];
+    [mtlTexDst replaceRegion:regionDst mipmapLevel:0 withBytes:pixels bytesPerRow:srcRect.w * 4];
+    with_end(pixels)
+    
+    if(texDst->flags & tex_flag_doubleBuffer)
+        texDst->flags |= tex_flag__dbEdited;
 }
 
-TextureToDraw   texture_engine_touchAndGetToDraw(Texture *const tex) {
-    tex->touchTime = ChronosRender.render_elapsedMS;
-    // Cas "OK"
+// MARK: - Dessin (renderer)
+TextureToDraw   texture_render_getTextureToDraw(Texture*const tex) {
     if(tex->mtlTex_cptr) {
+        if(tex->mtlTex2_cptr && (tex->flags & tex_flag__dbSecondLive))
+            return (TextureToDraw) {
+                .mtlTexture = tex->mtlTex2_cptr,
+                .isNearest = tex->flags & tex_flag_nearest,
+            };
         return (TextureToDraw) {
-            .metal_texture_cptr = tex->mtlTex_cptr,
+            .mtlTexture = tex->mtlTex_cptr,
             .isNearest = tex->flags & tex_flag_nearest,
         };
     }
-    // Il y a des texture en demande pas encore "fully drawn"...
-    Texture_needToFullyDraw_ = true;
     if(tex->mtlTexTmp_cptr) {
         return (TextureToDraw) {
-            .metal_texture_cptr = tex->mtlTexTmp_cptr,
+            .mtlTexture = tex->mtlTexTmp_cptr,
             .isNearest = tex->flags & tex_flag_nearest,
         };
     }
 //    #warning Utile ?
-//    printwarning("Texture %s has not been init.", tex->string);
     return (TextureToDraw) {
-        .metal_texture_cptr = mtltexture_transparent_,
+        .mtlTexture = mtltexture_transparent_,
         .isNearest = true,
     };
 }
@@ -248,6 +345,70 @@ TextureToDraw   texture_engine_touchAndGetToDraw(Texture *const tex) {
 
 
 // Garbage
+//void            texture_engine_writePixelsToRegion(Texture* tex, 
+//                            PixelBGRA const* pixels, RectangleUint region) {
+//    if(!tex->mtlTex_cptr || !pixels) { printerror("Texture not drawn or no pixels."); return; }
+//    if((tex->flags & tex_flag_doubleBuffer) && (tex->flags & tex_flag__dbEdited)) {
+//        printwarning("Buffer already edited."); return; 
+//    }
+//    size_t const tex_width = tex->dims.width;
+//    size_t const tex_height = tex->dims.height;
+//    if(region.o_x >= tex_width || region.o_y >= tex_height) {
+//        printerror("Region outside."); 
+//        return;
+//    }
+//    size_t dst_width = region.w;
+//    size_t dst_height = region.h;
+//    if(region.o_x + dst_width > tex_width || region.o_y + dst_height > tex_height) 
+//    {
+//        printwarning("Region overflow.");
+//        dst_width =  uminu((uint32_t)dst_width, (uint32_t)tex_width - region.o_x);
+//        dst_height = uminu((uint32_t)dst_height, (uint32_t)tex_height - region.o_y);
+//    }
+//    id<MTLTexture> mtlTex = texture_editableMTLTexture_(tex);
+//    MTLRegion regionMtl = MTLRegionMake2D(region.o_x, region.o_y, dst_width, dst_height);
+//    
+//    // Dessin !
+//    [mtlTex replaceRegion:regionMtl mipmapLevel:0
+//                withBytes:pixels bytesPerRow:region.w * 4];
+//
+//    if(tex->flags & tex_flag_doubleBuffer)
+//        tex->flags |= tex_flag__dbEdited;
+//}
+/// Obtenir les pixels pour édition (NULL si non mutable)
+//TextureToEdit texture_retainToEditOpt(Texture* tex) {
+//    if(!tex || !(tex->flags & tex_flag_mutable)) {
+//        return (TextureToEdit) {};
+//    }
+//    if(tex->flags & (tex_flag__dbEditing|tex_flag__dbToUpdate)) {
+//        printwarning("Cannot edit. Already editing or still not updated.");
+//        return (TextureToEdit) {};
+//    }
+//    size_t const pixelCount = tex->dims.width * tex->dims.height;
+//    PixelBGRAArray*const pa = coq_callocArray(PixelBGRAArray, PixelBGRA, pixelCount); 
+//    id<MTLTexture> mtlTex = texture_readableMTLTexture_(tex);
+//    [mtlTex getBytes:pa bytesPerRow:tex->dims.width * 4
+//          fromRegion:MTLRegionMake2D(0, 0, tex->dims.width, tex->dims.height) mipmapLevel:0];
+//    tex->flags |= tex_flag__dbEditing;
+//    return (TextureToEdit) {
+//        .pa = pa,
+//        ._tex = tex,
+//    };
+//}
+///// Fini d'éditer, flager pour que la thread de rendering met à jour la texture.
+//void          texturetoedit_release(TextureToEdit texEdit) {
+//    if(!texEdit._tex || !(texEdit._tex->flags & tex_flag__dbEditing)) {
+//        printerror("Not editing or no texture.");
+//        if(texEdit.pa) { coq_free(texEdit.pa); }
+//        return;
+//    }
+//    id<MTLTexture> mtlTex = texture_editableMTLTexture_(texEdit._tex);
+//    [mtlTex replaceRegion:MTLRegionMake2D(0, 0, mtlTex.width, mtlTex.height) mipmapLevel:0
+//                withBytes:texEdit.pa bytesPerRow:mtlTex.width * 4];
+//    coq_free(texEdit.pa);
+//    texEdit._tex->flags |= tex_flag__dbToUpdate;
+//    texEdit._tex->flags &= ~tex_flag__dbEditing;
+//}
 //static Font*                Font_current_ = nil;
 //static Font*                Font_currentMini_ = nil;
 //static double               Font_currentSize_ = 24;

@@ -23,7 +23,7 @@ typedef enum _Localizable {
     locstring_total_locstring,
 } Localizable;
 const char*       loc_stringKey(Localizable loc);
-NodeStringInit loc_stringGlyphedInit(Localizable loc);
+StringGlyphedInit loc_stringGlyphedInit(Localizable loc);
 
 typedef enum {
     png_bar_gray,
@@ -33,14 +33,14 @@ typedef enum {
     png_digits_green,
     png_digits_red,
     png_disks,
-    png_frame_gray_back,
-    png_frame_mocha,
-    png_frame_red,
-    png_frame_white_back,
     png_icons,
     png_language_flags,
     png_some_animals,
     
+    png_coqlib_frame_gray_back,
+    png_coqlib_frame_mocha,
+    png_coqlib_frame_red,
+    png_coqlib_frame_white_back,
     png_coqlib_test_frame,
     
     png_total_pngs

@@ -5,11 +5,12 @@
 //  Created by Corentin Faucher on 2023-10-25.
 //
 
-#include "util_language.h"
-#include "util_base.h"
-#include "util_file.h"
-#include "../cJSON.h"
-#include "../coq_map.h"
+#include "system_language.h"
+
+#include "system_file.h"
+#include "../utils/cJSON.h"
+#include "../utils/util_base.h"
+#include "../utils/util_map.h"
 
 
 static StringMap *currentStringMap_ = NULL;
@@ -19,7 +20,11 @@ static StringMap *defaultStringMap_ = NULL;
 StringMap* language_createStringMapOpt_(Language const language) {
     const char *iso = language_iso(language);
     const char *path = FileManager_getResourcePathOpt(iso, "json", "localized");
-    const char *content = FILE_stringContentOptAt(path);
+    const char *content = FILE_stringContentOptAt(path, false);
+    if(!content) {
+        printerror("No %s.json localization file.", iso);
+        return NULL;
+    }
     cJSON *jsonFile = cJSON_ParseWithLength(content, FILE_bufferSize());
     FILE_freeBuffer();
     if (!jsonFile) {
@@ -34,7 +39,7 @@ StringMap* language_createStringMapOpt_(Language const language) {
     return map;
 }
 
-void Language_init(void) {
+void     Language_init_(void) {
     if (defaultStringMap_) {
         printwarning("Already init.");
         return;

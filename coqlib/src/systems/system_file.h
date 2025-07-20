@@ -22,14 +22,9 @@
 /// Retourne une référence au buffer (privé de `util_file.c`).
 /// (Retourne NULL si rien à ouvrir.)
 /// Il ne faut pas `free` le buffer retourné. Pour ce faire utiliser `FILE_freeBuffer`.
-const char* FILE_stringContentOptAt(const char* path);
+const char* FILE_stringContentOptAt(const char* path, bool hideError);
 /// Obtenir le contenu d'un fichier binaire.
 const void* FILE_bufferContentOptAt(const char* path);
-/// Obtenir le contenu d'un bmp. On passe les emplacements où stocker width et height.
-/// Les pixels sont stockées dans le buffer dans le format BGRA, i.e. en hexadec 0xAARRGGBB
-///  (compatible avec les textures).
-const void* FILE_bitmapBGRA8ContentOptAt(const char* pathOpt,  uint32_t* widthRef, uint32_t* heightRef, bool flipY);
-
 /// Taille du tempon retourné par `FILE_XXXcontentOpt`.
 size_t      FILE_bufferSize(void);
 /// Libérer le tempon (facultatif sera libéré à la prochaine utilisation sinon).
@@ -44,7 +39,7 @@ void        FILE_writeData(const char* path, const void* buffer, size_t buffer_s
 /// (Il n'y a qu'un seul buffer `_FileManager_tmp_path`.)
 char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
                         const char* fileExtOpt, const char* subDirOpt);
-/// Dossier `local` où l'application peut stocker ses fichiers.
+/// Dossier `local` où l'application peut stocker ses fichiers (sauvegardes).
 /// Retourne le buffer *editable* `_FileManager_tmp_path` de taille `PATH_MAX`.
 char*        FileManager_getApplicationSupportDirectoryPathOpt(void);
 /// Dossier `Cloud` où l'application peut stocker ses fichiers.

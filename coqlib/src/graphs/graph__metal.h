@@ -4,7 +4,6 @@
 //
 //  Created by Corentin Faucher on 2023-10-12.
 //
-
 #ifndef graph_texture_apple_h
 #define graph_texture_apple_h
 
@@ -48,7 +47,7 @@ void commandencoder_setCurrentMesh(id<MTLRenderCommandEncoder> encoder, Mesh * n
 void commandencoder_setCurrentTexture(id<MTLRenderCommandEncoder> encoder, Texture * newTex);
 // Mise à jour des Instance uniforms.
 void commandencoder_setIU(id<MTLRenderCommandEncoder> encoder, InstanceUniforms const* iu);
-void commandencoder_setIUs(id<MTLRenderCommandEncoder> encoder, IUsToDraw iusToDraw);
+void commandencoder_setIUs(id<MTLRenderCommandEncoder> encoder, IUsBuffer const* ius);
 // Dessiner avec mesh, texture, iu settés précédemment.
 void commandencoder_drawWithCurrents(id<MTLRenderCommandEncoder> encoder);
 

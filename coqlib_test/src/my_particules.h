@@ -7,7 +7,7 @@
 #ifndef my_particules_h
 #define my_particules_h
 
-#include "coq_nodes.h"
+#include "nodes/node_base.h"
 
 typedef struct ParticulesPool ParticulesPool;
 ParticulesPool* ParticulesPool_create(uint32_t count, float width, float height,

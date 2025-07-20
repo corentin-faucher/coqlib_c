@@ -5,7 +5,7 @@
 //  Created by Corentin Faucher on 2023-12-08.
 //
 
-#include "util_file.h"
+#include "system_file.h"
 
 #import <Foundation/Foundation.h>
 #include "util_base.h"
@@ -13,8 +13,9 @@
 // Espace où est stocker le dernier path demandé.
 static char  FileManager_tmp_path_[PATH_MAX];
 
-char* FileManager_getResourcePathOpt(const char*const fileNameOpt, const char*const fileExtOpt,
-                                   const char*const subDirOpt) {
+char* FileManager_getResourcePathOpt(const char*const fileNameOpt, 
+            const char*const fileExtOpt, const char*const subDirOpt) 
+{
     memset(FileManager_tmp_path_, 0, PATH_MAX);
     NSString* fileName = fileNameOpt ? [NSString stringWithUTF8String:fileNameOpt] : nil;
     NSString* fileExt = fileExtOpt ? [NSString stringWithUTF8String:fileExtOpt] : nil;

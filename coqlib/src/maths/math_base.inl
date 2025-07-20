@@ -157,6 +157,14 @@ static inline Vector4 vector4_max(Vector4 const v1, Vector4 const v2) {
         v1.w > v2.w ? v1.w : v2.w,
     }};
 }
+static inline Vector4 vector4_min(Vector4 const v1, Vector4 const v2) {
+    return (Vector4) {{ 
+        v1.x < v2.x ? v1.x : v2.x,
+        v1.y < v2.y ? v1.y : v2.y,
+        v1.z < v2.z ? v1.z : v2.z,
+        v1.w < v2.w ? v1.w : v2.w,
+    }};
+}
 static inline Vector4 vector4_cat(Vector3 const v, float const e3) {
     return (Vector4) {{
         v.x, v.y, v.z, e3,

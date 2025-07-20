@@ -15,4 +15,7 @@
 // Avertissement quand on crée un buffer d'instance uniforms avec moins de 2 instances.
 #define IUsBuffer_warningMaxCount true
 
+// Pour finetuner l'alignement/cadrage des polices de caractères.
+#define COQ_TEST_FONT false
+
 #endif

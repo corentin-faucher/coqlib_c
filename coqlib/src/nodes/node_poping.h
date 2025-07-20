@@ -11,7 +11,7 @@
 #include "node_structs.h"
 #include "node_string.h"
 
-#include "../coq_timer.h"
+#include "../utils/util_timer.h"
 #include "../graphs/graph_texture.h"
 
 // MARK: - Poping Base
@@ -59,10 +59,10 @@ void Sparkle_spawnOverAndOpen(Node *nd, float deltaRatio);
 // MARK: - PopMessage, message qui s autodétruit (e.g. error).
 /// Autre exemple d'implémentation de PopingNode...
 void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy,
-                        float timeSec, uint32_t framePngId, NodeStringInit str,
+                        float timeSec, uint32_t framePngId, StringGlyphedInit str,
                         FramedStringParams params);
 void PopMessage_spawnOverAndOpen(Node *n, float widthOpt_rel, float height_rel,
                           float timeSec, uint32_t framePngId,
-                          NodeStringInit str, FramedStringParams params);
+                          StringGlyphedInit str, FramedStringParams params);
 
 #endif /* pop_disk_h */

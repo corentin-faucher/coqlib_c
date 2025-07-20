@@ -16,14 +16,17 @@ typedef struct Texture {
     int64_t          touchTime;
     
     char*            string;  // Copie de la String ou nom du png, pour s'il faut redessiner la texture.
+//    PixelBGRA*       pixelsOpt; // Copie des pixels pour l'édition.
     // Metal/OpenGl
     union {
         struct {
             const void*    mtlTex_cptr;
+            const void*    mtlTex2_cptr;
             const void*    mtlTexTmp_cptr;
         };
         struct {
             uint32_t glTexId;
+            uint32_t glTex2Id;
             uint32_t glTexTmpId;
         };
     };

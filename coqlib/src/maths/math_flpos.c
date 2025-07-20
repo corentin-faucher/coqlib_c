@@ -8,7 +8,7 @@
 #include "math_flpos.h"
 
 #include <string.h>
-#include "../coq_chrono.h"
+#include "../utils/util_chrono.h"
 
 #define _sm_type_static     0x0000
 #define _sm_type_oscAmorti  0x0001

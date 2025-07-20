@@ -11,17 +11,13 @@
 #include "node__flags.h"
 #include "node__types.h"
 #include "../graphs/graph_base.h"
-#include "../coq_timer.h"
+#include "../utils/util_timer.h"
 
 // Pre-déclarations...
 typedef struct coq_Node Node;
-// typedef struct coq_View View;
-// typedef struct coq_Root Root;
-// typedef struct coq_Button Button;
-typedef struct Coq_Drawable Drawable;
 
 // MARK: Données d'un noeud non drawable
-// (Pour les Drawables, voir `InstanceUniform`)
+// (Pour les Drawables, voir `InstanceUniform` dans `graph_base.h`.)
 typedef __attribute__((aligned(16))) struct NoDrawData {
     // Model et render_flags sont commun à tout les noeud (i.e. commun avec InstanceUniforms)
     Matrix4   _render_model;  
@@ -32,15 +28,7 @@ typedef __attribute__((aligned(16))) struct NoDrawData {
     // Data quelconques libres pour noeuds "non-drawables", e.g. les infos des boutons...
     // Prend la place de color et uvRect des InstanceUniforms.
     union {
-        struct {
-            uint32_t uint0, uint1, uint2, uint3,
-                     uint4, uint5, uint6, _uint7;
-            };
-        struct {
-            float    float0, float1, float2, float3,
-                     float4, float5, float6, _float7;
-        };
-        struct { struct coq_Node *node0, *node1; };
+        struct { Data128 data0, data1; };
     };
 } NoDrawData;
 
@@ -51,8 +39,8 @@ typedef __attribute__((aligned(16))) struct coq_Node {
 // (les données render_... sont réservées pour la thread de rendering.)
 // Pour les noeuds `non-drawable`, on peut utiliser les données pour des infos quelconques...
     union {
-        InstanceUniforms renderIU;  // Pour drawables.
-        NoDrawData       nodrawData;// Pour autres.
+        InstanceUniforms renderIU;   // Pour drawables, i.e. avec flag de type `node_type_drawable`.
+        NoDrawData       nodrawData; // Pour autres.
     };
 // Dimensions/positions
 // Note : sizes (w, h) est l'espace occupé dans *son* référentiel (interne).
@@ -106,6 +94,8 @@ typedef __attribute__((aligned(16))) struct coq_Node {
   Node* volatile _bigBro;
   Node* volatile _littleBro;
 } Node;
+
+
 
 // Flag de placement d'un nouveau noeud : enfant/frere, aine/cadet.
 // Defaut 0 -> enfant, cadet.
@@ -161,9 +151,10 @@ static inline Vector2 node_deltas(Node const*const n);
 static inline float   node_deltaX(Node const*const n);
 static inline float   node_deltaY(Node const*const n);
 static inline float   node_deltaZ(Node const*const n);
-static inline Box     node_hitBox(Node const*const n);
-/// Noeud en tant que "boîte" référentiel (non absolue, pour absolue il faut remonter à la root).
-static inline Box     node_asReferential(Node const*const n);
+static inline Box     node_hitbox(Node const*const n);
+/// Noeud en tant que "boîte" référentiel (non absolue, pour absolue il faut remonter à la root),
+/// i.e. simplement position et scaling.
+static inline Box     node_referential(Node const*const n);
 
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du
@@ -173,13 +164,10 @@ Vector2 node_posInParentReferential(Node const* n, Node const* parentOpt);
 /// du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du
 /// noeud.
-Box node_hitBoxInParentReferential(Node const* n, Node const* parentOpt);
-
+Box node_hitboxInParent(Node const* n, Node const* parentOpt);
+/// Noeud en tant que "boîte" référentiel remonté jusqu'au (grand) parent.
+Box node_referentialInParent(Node const* n, Node const* parentOpt);
 // Superflu...
-/// Noeud en tant que "boîte" référentiel remonté jusqu'à la première root parent.
-//Box node_asAbsoluteReferential(Node const* n);
-/// Hitbox absolue (i.e. remonté à la root) d'une box dans le même référentiel que nRef (i.e. dans le ref de nRef->parent.)
-//Box box_toAbsolute(Box box, Node* nRef);
 /// Position absolue (i.e. remonté à la root) d'une position dans le même référentiel que n (i.e. dans le ref de n->parent.)
 //Vector2 vector2_toAbsolute(Vector2 pos, Node* n);
 /// Convertie une position absolue (au niveau de la root) en une position
@@ -204,33 +192,7 @@ void node_moveToParent(Node *n, Node *new_parent, bool asElder);
 void node_moveToBro(Node *n, Node *new_bro, bool asBigBro);
 
 /*-- Setters --*/
-// Flags pour `node_setXYrelatively`.
-// Même chose que les `flags_fluidRelative` dans `node__flags.h` gardés en
-// mémoire pour les Fluid.
-enum {
-  relative_parentRight = flag_fluidRelativeToRight,
-  relative_parentLeft = flag_fluidRelativeToLeft,
-  relative_parentTop = flag_fluidRelativeToTop,
-  relative_parentBottom = flag_fluidRelativeToBottom,
-//  relative_parentCenter = flag_fluidRelativeToCenter,
-  relative_justifiedRight = flag_fluidJustifiedRight,
-  relative_justifiedLeft = flag_fluidJustifiedLeft,
-  relative_justifiedTop = flag_fluidJustifiedTop,
-  relative_justifiedBottom = flag_fluidJustifiedBottom,
-  relatives_top = relative_parentTop | relative_justifiedTop,
-  relatives_bottom = relative_parentBottom | relative_justifiedBottom,
-  relatives_left = relative_parentLeft | relative_justifiedLeft,
-  relatives_right = relative_parentRight | relative_justifiedRight,
-  relatives_topRight = relative_parentRight | relative_parentTop |
-                       relative_justifiedRight | relative_justifiedTop,
-  relatives_topLeft = relative_parentLeft | relative_parentTop |
-                      relative_justifiedLeft | relative_justifiedTop,
-  relatives_bottomRight = relative_parentRight | relative_parentBottom |
-                          relative_justifiedRight | relative_justifiedBottom,
-  relatives_bottomLeft = relative_parentLeft | relative_parentBottom |
-                         relative_justifiedLeft | relative_justifiedBottom,
-};
-/// Permet d'aligner le noeud (à droite/gauche). Voir les `relatives_...`
+/// Permet d'aligner le noeud (à droite/gauche). Voir les `relatives_...` dans `math_base.h`.
 /// ci-haut ou `flags_fluidRelative`... Dans le cas des Fluid,
 /// `node_setXYrelatively` est callé par open et reshape et l'aligement se fait
 /// par rapport à la positien par défaut.

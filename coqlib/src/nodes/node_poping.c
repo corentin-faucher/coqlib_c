@@ -10,7 +10,7 @@
 #include "node_tree.h"
 #include "node_root.h"
 #include "node_drawable_multi.h"
-#include "../coq_sound.h"
+#include "../systems/system_sound.h"
 
 typedef struct PopingNode_ {
     union {
@@ -128,7 +128,7 @@ void popingnoderef_cancel(PopingNode_** const popingref) {
 
 void PopingNode_spawnOver(Node* const nodeOver, PopingNode_** refererOpt, float width_rel, float height_rel,
                                 float timeSec, PopingInfo const popInfo, void (*callBackOpt)(Fluid*,Countdown*)) {
-    Box parent_box = node_hitBoxInParentReferential(nodeOver, NULL);
+    Box parent_box = node_hitboxInParent(nodeOver, NULL);
     float height = height_rel * 2*parent_box.Dy;
     float width =  width_rel  * 2*parent_box.Dy; // (La référence reste la hauteur du parent.)
     float x = parent_box.c_x;
@@ -140,7 +140,7 @@ void PopingNode_spawnOver(Node* const nodeOver, PopingNode_** refererOpt, float 
 void popingnode_last_checkForScreenSpilling(void) {
     guard_let(Fluid*, f, popingnode_last_notSharedOpt_, , )
     Node* const n = &f->n;
-    Box const n_b0 = node_hitBox(n); // (box dans parent)
+    Box const n_b0 = node_hitbox(n); // (box dans parent)
     Box n_b = n_b0;
     // Trouver la root.
     Root* root = NULL;
@@ -149,7 +149,7 @@ void popingnode_last_checkForScreenSpilling(void) {
         // Déjà au niveau de la root ? Hitbox ok -> sort.
         if(root) break;
         // Sortir la hitbox du parent et aller au parent suivant...
-        n_b = box_referentialOut(n_b, node_asReferential(p)); 
+        n_b = box_referentialOut(n_b, node_referential(p)); 
     }
     if(!root) { printerror("No root."); return; }
     float dx = 0;
@@ -181,7 +181,7 @@ void popdisk_updateCallback_(Fluid* f, Countdown* cd) {
     float deltaT = (float)cd->ringTimeMS * 0.001f;
     Drawable* const fan = node_asDrawableOpt(f->n._firstChild);
     if(!fan) { printerror("No drawable in popdisk."); return; }
-    if(elapsedSec < deltaT + 0.10f) {
+    if(elapsedSec < deltaT + 0.10f && mesh_isReadyToEdit(fan->_mesh)) {
         float ratio = fminf(elapsedSec / deltaT, 1.f);
         mesh_fan_update(fan->_mesh, ratio);
         return;
@@ -192,7 +192,7 @@ void   PopDisk_spawnOverAndOpen(Node *const nodeOverOpt, PopingNode_ **const ref
                    float x, float y, float twoDyRel) {
     // Ajuster la positon relativement au noeud de reférence.
     if(nodeOverOpt) {
-        Box parent_box = node_hitBoxInParentReferential(nodeOverOpt, NULL);
+        Box parent_box = node_hitboxInParent(nodeOverOpt, NULL);
         twoDyRel = twoDyRel * 2*parent_box.Dy;  // (La référence reste la hauteur du parent.)
         x += parent_box.c_x;
         y += parent_box.c_y;
@@ -224,7 +224,7 @@ typedef struct DrawableMultiSparkles_ {
     Vector2             p1s[SPARKLES_N_];
 } DrawableMultiSparkles_;
 // Override...
-void drawablemultiSparkle_updateModels_(Node* const n) {
+void drawablemultiSparkle_updateIUs_(Node* const n) {
     DrawableMultiSparkles_* dmsp = (DrawableMultiSparkles_*)n;
     float const show = drawable_updateShow(&dmsp->d);
     if(!show) return;
@@ -232,7 +232,7 @@ void drawablemultiSparkle_updateModels_(Node* const n) {
     float deltaT = (float)(ChronoApp_elapsedMS() - dmsp->t0)*0.001f;
     float alpha = float_smoothOut(deltaT, 5.f);
     Vector2 const scl = {{ dmsp->n.sx * show, dmsp->n.sy * show }};
-    IUsToEdit iusEdit = iusbuffer_rendering_retainIUsToEdit(dmsp->dm.iusBuffer);
+    withIUsToEdit_beg(iusEdit, &dmsp->dm.iusBuffer)
     const Vector2  *p0 = dmsp->p0s, *p1 = dmsp->p1s;
     for(; iusEdit.iu < iusEdit.end; iusEdit.iu++, p0++, p1++) {
         iusEdit.iu->show = show;
@@ -249,28 +249,29 @@ void drawablemultiSparkle_updateModels_(Node* const n) {
             pm->v3.w,
         }};
     }
-    iustoedit_release(iusEdit);
+    withIUsToEdit_end(iusEdit)
 }
 DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const height, Texture* tex) {
     DrawableMultiSparkles_* dmsp = coq_callocTyped(DrawableMultiSparkles_);
     node_init(&dmsp->n, parent, 0, 0, height, height, 0, 0);
     drawable_init(&dmsp->d, tex, Mesh_drawable_sprite, 0, height);
     drawablemulti_init(&dmsp->dm, SPARKLES_N_, NULL);
-    dmsp->n.renderer_updateInstanceUniforms = drawablemultiSparkle_updateModels_;
+    dmsp->n.renderer_updateInstanceUniforms = drawablemultiSparkle_updateIUs_;
     dmsp->t0 = ChronoApp_elapsedMS();
     
     // Init des per instance uniforms
     Vector2* p0 = dmsp->p0s;
     Vector2* p1 = dmsp->p1s;
     TextureDims const td = dmsp->d.texr.dims;
-    IUsToEdit iusEdit = iusbuffer_retainIUsToInit(dmsp->dm.iusBuffer);
+    withIUsToEdit_beg(iusEdit, &dmsp->dm.iusBuffer)
     for(; iusEdit.iu < iusEdit.end; iusEdit.iu++, p0++, p1++) {
         iusEdit.iu->color = Drawable_renderIU_defaultColor;
         iusEdit.iu->uvRect = texturedims_uvRectOfTile(td, rand(), 0);
         *p0 = (Vector2) {{ rand_floatAt(0, 0.25f*height), rand_floatAt(0, 0.25f*height) }};
         *p1 = (Vector2) {{ rand_floatAt(0, 3.00f*height), rand_floatAt(0, 3.00f*height) }};
     }
-    iustoedit_release(iusEdit);
+    iusEdit.init = true;
+    withIUsToEdit_end(iusEdit)
     return dmsp;
 }
 
@@ -299,7 +300,7 @@ void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture* texOpt
 }
 // Convenience constructor.
 void Sparkle_spawnOverAndOpen(Node* nd, float deltaRatio) {
-    Box box = node_hitBoxInParentReferential(nd, NULL);
+    Box box = node_hitboxInParent(nd, NULL);
     float delta = deltaRatio * box.Dy;
     Sparkle_spawnAtAndOpen(box.c_x, box.c_y, delta, NULL);
 }
@@ -308,7 +309,7 @@ void Sparkle_spawnOverAndOpen(Node* nd, float deltaRatio) {
 /*-- PopMessage : Message temporaire. ----------------------------------*/
 void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float twoDy,
                         float timeSec, uint32_t framePngId,
-                        NodeStringInit str, FramedStringParams params)
+                        StringGlyphedInit str, FramedStringParams params)
 {
     PopingNode_spawn(NULL, xabs, yabs, twoDxOpt, twoDy, timeSec, popinginfo_default, NULL);
     Fluid* const f = popingnode_last_notSharedOpt_;
@@ -321,7 +322,7 @@ void PopMessage_spawnAtAndOpen(float xabs, float yabs, float twoDxOpt, float two
 
 void PopMessage_spawnOverAndOpen(Node* n, float widthOpt_rel, float height_rel,
                             float timeSec, uint32_t framePngId,
-                            NodeStringInit str, FramedStringParams params)
+                            StringGlyphedInit str, FramedStringParams params)
 {
     PopingNode_spawnOver(n, NULL, widthOpt_rel, height_rel, timeSec, popinginfo_default, NULL);
     Fluid* const f = popingnode_last_notSharedOpt_;

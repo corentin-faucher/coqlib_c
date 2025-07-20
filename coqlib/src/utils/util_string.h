@@ -4,7 +4,6 @@
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
-
 #ifndef COQ_UTIL_STRING_H
 #define COQ_UTIL_STRING_H
 
@@ -45,28 +44,3 @@ size_t stringUTF8_lenght(const char* c_str);
 bool   stringUTF8_isSingleEmoji(const char* c_str);
 
 #endif /* string_util_h */
-
-// Garbage
-/// Structure temporaire pous passer une string devant être dessinée.
-/// (Ici, les string sont des pointeurs unowned/shared, i.e. ne seront pas deallocated.)
-//typedef struct {
-//    const char* c_str;
-//    /// Nom d'une police de caractères custom à utiliser (sinon prend la font current).
-//    const char* fontNameOpt;
-//    /// On peut laisser à (0, 0, 0), i.e. noir par défaut et ne tient pas compte d'alpha.
-//    Vector4     color;
-//    uint32_t    string_flags; // (Voir ci-dessus)
-//    /// Espacement supplémentaire sur les côtés (en % de la hauteur). Typiquement 0.5 est bien.
-//    float       x_margin;
-//} StringDrawable;
-// Flag pour l'init de la texture (flag commun avec Texture)
-//enum {
-//    // Cherche la version localisée dans les .strings des differentes langues.
-//    string_flag_localized    = 0x0001,
-//    // Si `shared` la texture retourné sera toujours la même pour une même string.
-//    string_flag_shared       = 0x0002,
-//    // On a le droit d'éditer la texture-string.
-//    string_flag_mutable      = 0x0004,
-//    // Style pixélisé.
-//    string_flag_nearest      = 0x0008,
-//};

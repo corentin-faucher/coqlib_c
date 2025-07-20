@@ -6,11 +6,8 @@
 //
 
 #import "metal_renderer.h"
-#import "apple_view_metal.h"
 
-#include "utils/util_base.h"
-#include "graph__metal.h"
-#include "util_apple.h"
+#import "coqlib_apple.h"
 
 #include "my_enums.h"
 
@@ -168,18 +165,16 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     // Prepare pour dessiner
     commandencoder_initForDrawing(commandEncoder);
     // Drawing
-    // (Préparation des fragment uniform de la passe finale.)
-    fu = (FinalFragmentUniforms){ 0 };
-    fu.extra0 = fl_evalPos(&root->ambiantLight);
-    fu.extra1 = timeAngle;
     Node* sq = &root->n;
     do {
         sq->renderer_updateInstanceUniforms(sq);
-        if(!(sq->renderIU.flags & renderflag_toDraw)) continue;
+        if(!(sq->renderIU.flags & renderflag_toDraw)) {
+            continue;
+        }
         if_let(DrawableMulti const*, dm, node_asDrawableMultiOpt(sq))
             commandencoder_setCurrentMesh(commandEncoder, dm->d._mesh);
             commandencoder_setCurrentTexture(commandEncoder, dm->d.texr.tex);
-            commandencoder_setIUs(commandEncoder, iusbuffer_rendering_getToDraw(dm->iusBuffer));
+            commandencoder_setIUs(commandEncoder, &dm->iusBuffer);
             commandencoder_drawWithCurrents(commandEncoder);
             continue;
         if_let_end
@@ -191,7 +186,6 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
             continue;
         if_let_end
     } while(nodeptr_renderer_goToNextToDisplay(&sq));
-    
     // Fin du dessinage.
     [commandEncoder endEncoding];
 }
@@ -203,8 +197,8 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     [commandEncoder setFragmentSamplerState:CoqGraph_metal_samplerNearest atIndex:0];
     MeshToDraw render_quad = mesh_render_getMeshToDraw(Mesh_rendering_quad);
     [commandEncoder setCullMode:(MTLCullMode)render_quad.cull_mode];
-    [commandEncoder setVertexBuffer:(__bridge id<MTLBuffer>)render_quad.metal_verticesBufferOpt_cptr offset:0 atIndex:0];
-    [commandEncoder drawPrimitives:(MTLPrimitiveType)render_quad.primitive_type vertexStart:0 
+    [commandEncoder setVertexBuffer:(__bridge id<MTLBuffer>)render_quad.metal_verticesMTLBufferOpt offset:0 atIndex:0];
+    [commandEncoder drawPrimitives:(MTLPrimitiveType)render_quad.metal_primitiveType vertexStart:0 
                        vertexCount:render_quad.vertexCount];
     [commandEncoder endEncoding];
 }
@@ -218,8 +212,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
         printerror("MTKView is not a custom MetalView.");
         return;
     }
-    CoqMetalView* metalView = (CoqMetalView*)view;
-    Root *const  root = metalView->rootOpt;
+    Root *const  root = CoqEvent_root;
     if(root == NULL) {
         printerror("Root not init.");
         return;
@@ -243,13 +236,7 @@ id<MTLRenderPipelineState> RenderPipelineState_createSecond_(void) {
     id<MTLCommandBuffer> cb = [queue commandBuffer];
     if(cb == nil) { printerror("no command buffer."); return; }
     
-    // 1. Temps de frame.
-    float deltaTMS = fminf(60.f, fmaxf(3.f, (float)chrono_elapsedMS(&chronoDeltaT)));
-    chrono_start(&chronoDeltaT);
-    fl_set(&smDeltaT, deltaTMS);
-    deltaTMS = fl_evalPos(&smDeltaT);
-    int64_t deltaTMSint = rand_float_toInt(deltaTMS);
-    ChronoRender_update(deltaTMSint);
+    ChronoRender_update();
     
     [self firstRenderPass:cb withRoot:root];
     [self secondRenderPass:cb toView:view];

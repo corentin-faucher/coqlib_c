@@ -8,6 +8,8 @@
 
 #include "node_tree.h"
 #include "../utils/util_base.h"
+#include "../systems/system_base.h"
+
 static float const camera_default_eye_[3] =    { 0, 0, 5 };
 static float const camera_default_up_[3] =     { 0, 1, 0 };
 static float const camera_default_center_[3] = { 0, 0, 0 };
@@ -36,7 +38,8 @@ void  root_deinit_(Node* n) {
     timer_cancel(&((Root*)n)->_timer);
 }
 
-void  root_and_super_init(Root* const root, Root* const parentRootOpt,
+void root_setDimsWithViewSize_(Root* rt, ViewSizeInfo viewSize);
+void root_and_super_init(Root* const root, Root* const parentRootOpt,
                           Node* const parentOpt) {
     Node* parent;
     if(parentRootOpt && parentOpt)
@@ -51,17 +54,15 @@ void  root_and_super_init(Root* const root, Root* const parentRootOpt,
     root->rootParentOpt = parentRootOpt;
     root->n.deinitOpt = root_deinit_;
     // Cadre de la view...
-    root->viewSizePt = (Vector2){{ 800, 600 }};
-    root->margins = (Margins){ 5, 5, 5, 5 };
-    fl_init(&root->fullSizeWidth, 2.2f, 20.f, false);
-    fl_init(&root->fullSizeHeight, 2.2f, 20.f, false);
-    fl_init(&root->yShift, 0.f, 20.f, false);
+    ViewSizeInfo const viewSize = CoqSystem_getViewSize();
+    root_setDimsWithViewSize_(root, viewSize);
     // Caméra
     fl_array_init(root->camera_up,     camera_default_up_, 3, 5.f);
     fl_array_init(root->camera_eye,    camera_default_eye_, 3, 5.f);
     fl_array_init(root->camera_center, camera_default_center_, 3, 5.f);
     // Couleur de fond/lumière ambiante.
-    fl_array_init(root->back_RGBA, color4_gray_40.f_arr, 4, 5.f);
+    Vector4 gray = color4_gray_40;
+    fl_array_init(root->back_RGBA, gray.f_arr, 4, 5.f);
     fl_init(&root->ambiantLight, 0, 5, false);
     // Override de l'update du model.
     root->n.renderer_updateInstanceUniforms = root_renderer_defaultUpdateIU_;
@@ -72,11 +73,8 @@ void   root_deleteOldActiveView_callback_(void* rootIn) {
     if(!r->toDeleteViewNodeOpt) return;
     noderef_destroyAndNull(&r->toDeleteViewNodeOpt);
 }
-void   root_callback_terminate_(void* rtIn) {
-    Root* rt = (Root*)rtIn;
-//    if(rt->willTerminateOpt)
-//        rt->willTerminateOpt(rt);
-    rt->shouldTerminate = true;
+void   root_callback_terminate_(void* unused) {
+    CoqEvent_addToWindowEvent((CoqEventWin) { .type = eventtype_win_terminate });
 }
 void  root_changeViewActiveTo(Root* const rt, View* const newViewOpt) {
     // Pas le droit de quitter si iOS
@@ -134,7 +132,6 @@ typedef struct {
     float ratioB;
     float ratioLR;
 } FullSizeAndRatios_;
-
 FullSizeAndRatios_ FullSizeAndRatios_fromMarginsAndSize_(Margins margins, Vector2 viewSizePt) {
     FullSizeAndRatios_ fsr;
     fsr.realRatio = viewSizePt.w / viewSizePt.h;
@@ -152,30 +149,15 @@ FullSizeAndRatios_ FullSizeAndRatios_fromMarginsAndSize_(Margins margins, Vector
     }
     return fsr;
 }
-
-void root_justSetFrameSize_(Root* r, Vector2 frameSizePt) {
-    r->viewSizePt = frameSizePt;
-    FullSizeAndRatios_ fsr = FullSizeAndRatios_fromMarginsAndSize_(r->margins, frameSizePt);
-    fl_set(&r->fullSizeWidth, fsr.fullSize.w);
-    fl_set(&r->fullSizeHeight, fsr.fullSize.h);
-//    fl_array_set(r->fullSizeArr, fsr.fullSize.f_arr, 2);
-//    r->fullSize = fsr.fullSize;
-}
-
-void root_viewResized(Root *rt, ResizeInfo info)
-{
-    if(info.justMoving)
-        goto root_resize_end;
-    if(info.framePt.size.w < 2 || info.framePt.size.h < 2 ||
-       info.sizesPix.w < 2 || info.sizesPix.h < 2) {
+void root_setDimsWithViewSize_(Root*const rt, ViewSizeInfo viewSize) {
+    if(viewSize.framePt.w < 2 || viewSize.framePt.h < 2) {
         printerror("Bad resize dims.");
-        goto root_resize_end;
+        viewSize.framePt = (Vector2) {{ 800, 500 }};
     }
-    // 0. Marges et taille en pts.
-    rt->margins = info.margins;
-
-    FullSizeAndRatios_ fsr = FullSizeAndRatios_fromMarginsAndSize_(info.margins, info.framePt.size);
-
+    rt->margins = viewSize.margins;
+    rt->viewSizePt = viewSize.framePt;
+    FullSizeAndRatios_ fsr = FullSizeAndRatios_fromMarginsAndSize_(
+                                 viewSize.margins, viewSize.framePt);
     // 2. Usable Frame
     if (fsr.realRatio > 1) { // Landscape
         rt->n.w = (1.f - fsr.ratioLR) * fsr.fullSize.w;
@@ -185,11 +167,8 @@ void root_viewResized(Root *rt, ResizeInfo info)
         rt->n.w = 2.f;
         rt->n.h = (1.f - fsr.ratioT - fsr.ratioB) * fsr.fullSize.h;
     }
-    // 3. Shift en y dû aux marge (pour le lookAt)
-    rt->viewSizePt = info.framePt.size;
     float yShift = (fsr.ratioT - fsr.ratioB) * fsr.fullSize.h / 2.f;
-//    fl_array_set(rt->fullSizeArr, fsr.fullSize.f_arr, 2);
-    if(info.dontFix) {
+    if(viewSize.dontFix) {
         fl_set(&rt->fullSizeWidth, fsr.fullSize.w);
         fl_set(&rt->fullSizeHeight, fsr.fullSize.h);
         fl_set(&rt->yShift, yShift);
@@ -198,23 +177,22 @@ void root_viewResized(Root *rt, ResizeInfo info)
         fl_fix(&rt->fullSizeHeight, fsr.fullSize.h);
         fl_fix(&rt->yShift, yShift);
     }
-//    fl_set(&rt->yShift, (fsr.ratioT - fsr.ratioB) * fsr.fullSize.h / 2.f);
-//    rt->fullSize = fsr.fullSize;
+}
+void root_justSetFrameSize_(Root* r, Vector2 frameSizePt) {
+    r->viewSizePt = frameSizePt;
+    FullSizeAndRatios_ fsr = FullSizeAndRatios_fromMarginsAndSize_(r->margins, frameSizePt);
+    fl_set(&r->fullSizeWidth, fsr.fullSize.w);
+    fl_set(&r->fullSizeHeight, fsr.fullSize.h);
+}
 
-//    rt->_yShift = (fsr.ratioT - fsr.ratioB) * fsr.fullSize.h / 2.f;
-
-
-    // 4. Changement de taille des fonts ?
-//    double fontSize = Texture_currentFontSize();
-//    double targetFontSize = fmaxf(16.f, fminf(144.f,
-//                    0.06f*fminf(info.sizesPix.x, info.sizesPix.y)));
-//    if(targetFontSize > fontSize * 1.2f || targetFontSize < 0.8f*fontSize) {
-//        Texture_setCurrentFontSize(targetFontSize);
-//    }
-    // 5. Reshape de la structure
-    node_tree_reshape(&rt->n);
-    // 6. Action supplementaire au resize ?
-root_resize_end:
+void root_viewResized(Root *rt, ViewSizeInfo info)
+{
+    if(!info.justMoving) {
+        root_setDimsWithViewSize_(rt, info);
+        // Reshape de la structure
+        node_tree_reshape(&rt->n);
+    }
+    // Action supplementaire au resize ?
     if(rt->resizeOpt) rt->resizeOpt(rt, info);
 }
 
@@ -242,13 +220,13 @@ Rectangle root_windowRectangleFromBox(Root const*const rt, Box const box, bool c
 /// retourne l'espace occupé en pts dans la view de l'OS.
 /// invertedY == true pour iOS (y vont vers les bas).
 Rectangle node_windowRectangle(Node const*const n, bool const invertedY) {
-    Box n_b = node_hitBox(n);
+    Box n_b = node_hitbox(n);
     Root const* root = NULL;
     for(Node const* p = n->_parent; p; p = p->_parent) {
         root = node_asRootOpt(p);
         if(root) break;
         // Sort du referentiel du parent présent avant de passer au prochain.
-        n_b = box_referentialOut(n_b, node_asReferential(p));
+        n_b = box_referentialOut(n_b, node_referential(p));
     }
     if(!root) { printerror("No root."); return (Rectangle) {{ 0, 0, 10, 10 }}; }
     
