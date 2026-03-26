@@ -7,13 +7,13 @@
 #ifndef COQ_EVENT_H
 #define COQ_EVENT_H
 
-
-#include "util_char_and_keycode.h"
-#include "util_string.h"
+#include "util_keycode.h"
+#include "util_chars.h"
 #include "../maths/math_base.h"
 
 typedef struct coq_Root Root;
 typedef struct coq_Node Node;
+typedef struct coq_View View;
 typedef struct SlidingMenu SlidingMenu;
 
 enum EventFlag {
@@ -35,8 +35,8 @@ enum EventFlag {
     
     // Event de la root vers la window.
     eventtype_win_mac_resize =             0x00010000,
-    eventtype_win_ios_keyboardNeeded =     0x00020000,
-    eventtype_win_ios_keyboardNotNeeded =  0x00040000,
+//    eventtype_win_ios_keyboardNeeded =     0x00020000, // Obsolete ?
+//    eventtype_win_ios_keyboardNotNeeded =  0x00040000, 
     eventtype_win_ios_scrollviewNeeded =   0x00080000,
     eventtype_win_ios_scrollviewNotNeeded =0x00100000,
     /// (`private`, désactivation temporaire de la scrollview lorsqu'un noeud est grabbé)
@@ -74,13 +74,15 @@ typedef struct {
 /// Mouse/touch event de l'OS : hovering, down, up, drag.
 typedef struct {
     Vector2       pos;       // Position en coord. (x,y) dans la view (pas en pixels).
-    uint32_t      touchId;   // 0: click gauche / touche ordinaire, 1: click droit.
+    uint32_t      touchId;   // 0: click gauche (touche ordinaire), 1: click droit. (éventuellement touch id pour tablette)
     bool          yInverted; // Axe des y inversé, i.e. vers le bas au lieu de vers le haut. e.g. iOS, glfw.
 } TouchInfo;
 // Touch event convertie de l'espace de la OS view vers l'espace de la structure Root.
 // Genre de [0, 800] x [0, 500] -> [-1.6, 1.6] x [-1, 1]...
 typedef struct {
     Node*const     n;      // Noeud touché (self)
+    View*const     v;      // View ou la "touch" a lieu.
+    Root*const     root;   // Racine de l'event
     Vector2 const  posAbs; // Position absolue, i.e. au niveau de root.
     uint32_t const touchId; // Id de la touch, e.g. 0 clique gauche.
     Vector2 const  _posRelOpt; // Position dans le referential de n. Définie si posRelDefined.
@@ -113,14 +115,13 @@ typedef struct GamePadInput {
 
 /// Structure pour un event de resize de la window.
 typedef struct {
-    /// Marge "inactive" en pts.
+    /// Marge "inactive" en pts dans la fenêtre.
     Margins   margins;
-    /// Position de la fenêtre dans l'écran (par rapport au coin supérieur gauche).
-    Vector2   originPt;
-    /// Taille en pts, i.e. typiquement 2x les pixels (les coordonnées des `touch` events sont en pts).
-    Vector2   framePt;
+    /// Position de la fenêtre dans l'écran (par rapport au coin supérieur gauche)
+    /// et taille en pts, i.e. typiquement 2x les pixels (les coordonnées des `touch` events sont en pts).
+    Rectangle framePt;
     /// Taille en pixels.
-    Vector2   framePx;
+    Vector2   frameSizePx;
     bool      fullScreen;
     bool      justMoving;
     bool      dontFix;
@@ -174,7 +175,7 @@ typedef struct CoqEventWin {
     uint32_t type;
     union {
         // Mac, demande de resize de la window, e.g. passer en fullscreen.
-        ViewSizeInfo            resize_info;
+        ViewSizeInfo          resize_info;
         // iOS, besoin d'une dummy scroll-view
         RequireScrollViewInfo win_scrollViewInfo;
         // iOS, install/uninstall de Fonts
@@ -186,15 +187,17 @@ typedef struct CoqEventWin {
 } CoqEventWin;
 
 extern bool CoqEvent_ignoreRepeatKeyDown; // true
+extern uint32_t CoqEvent_currentMod;
 
-
-
-/// Evenement de OS -> app, e.g. clic de la souris.
-void   CoqEvent_addToRootEvent(CoqEvent event);
-/// A mettre dans l'update de la boucle principale. (avec `Timer_check()` et autres dans la thread `event`.)
-// MARK: La root principale de l'app à laquelle sont appliquée les events. 
-extern Root* CoqEvent_root;
-void   CoqEvent_processAllQueuedRootEvents(void);
+// MARK: La root principale de l'app à laquelle sont appliquée les events.
+/// La root de l'app vers qui sont destinés les events. 
+extern Root*volatile CoqEvent_rootOpt;
+/// A mettre dans la boucle principale de la thread `event`.
+void    CoqEvent_processAllQueuedRootEvents(void);
+int64_t CoqEvent_timeSinceLastEventMS(void);
+/// Enregistrement d'un event de l'OS, e.g. clic de la souris
+/// (pas nécessairement dans la thread `event`).
+void    CoqEvent_addToRootEvent(CoqEvent event);
 
 /// Evenement de app -> OS, e.g. l'app veut passer en mode plein ecran.
 void        CoqEvent_addToWindowEvent(CoqEventWin event);

@@ -59,17 +59,22 @@ fragment float4 fragment_function(RasterizerData rd [[ stage_in ]],
 }
 
 
+struct VertexSecond {
+    packed_float2 position;
+    packed_float2 uv;
+};
+
 struct SecondRasterizerData {
     float4 pos [[position]];
     float2 uv;
 };
 
-vertex SecondRasterizerData second_vertex_function(const device VertexIn *vertices [[buffer(0)]],
+vertex SecondRasterizerData second_vertex_function(const device VertexSecond *vertices [[buffer(0)]],
                                                  unsigned int vid [[vertex_id]]
 ) {
-    VertexIn in = vertices[vid];
+    VertexSecond in = vertices[vid];
     SecondRasterizerData rd;
-    rd.pos = float4(in.position.xyz, 1.0);
+    rd.pos = float4(in.position.xy, 0.0, 1.0);
     rd.uv =  in.uv;
     
     return rd;

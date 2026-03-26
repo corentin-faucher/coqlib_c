@@ -14,6 +14,10 @@
 #include <stdint.h> // uint32_t, int64_t, ...
 #include <stdbool.h>
 
+// Macro pour les variable inutile.
+// TODO: ajouter d'autre OS ?
+#define UNUSED(nameOpt) __attribute__((unused)) unused_ ## nameOpt ## _
+
 //#if __APPLE__
 //// Pour les `TARGET_OS_OSX`, etc.
 //#include <TargetConditionals.h>
@@ -24,18 +28,18 @@
 //#define COQ_ALLOC
 #endif
 
-// MARK: - Logs pratiques : printdebug, printwarning, printerror, ...
+// MARK: - Logging pratiques : printdebug, printwarning, printerror, ...
 #define COQ__FILENAME__                                                        \
   (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 // Les logs affichés qu'en mode "debug"
 #ifdef DEBUG
 /// printdebug : Information quelconque en mode debug.
 #define printdebug(format, ...)                                                \
-  printf("🐛 Debug: " format " -> %s line %d\n", ##__VA_ARGS__,                \
+  printf("🐛 Debug: " format " → %s line %d\n", ##__VA_ARGS__,                \
          COQ__FILENAME__, __LINE__)
 /// printok : Succès quelconque en mode debug.
 #define printok(format, ...)                                                \
-  printf("✅ Ok: " format " -> %s line %d\n", ##__VA_ARGS__, COQ__FILENAME__, __LINE__)
+  printf("✅ Ok: " format " → %s line %d\n", ##__VA_ARGS__, COQ__FILENAME__, __LINE__)
 /// printhere : Affiche simplement la fonction et le fichier actuel pour suivre le déroulement (debug)
 #define printhere() print_here_(COQ__FILENAME__, __LINE__);
 #else
@@ -46,15 +50,15 @@
 
 /// printwarning : Problème potentiel...
 #define printwarning(format, ...)                                              \
-  printf("⚠️ Warn.: " format " -> %s line %d", ##__VA_ARGS__, COQ__FILENAME__, __LINE__), \
-  print_trace_(4)
+  printf("⚠️ Warn.: " format " → %s line %d", ##__VA_ARGS__, COQ__FILENAME__, __LINE__), \
+  print_trace_(4, false)
 /// printerror : Il y a un problème...
 #define printerror(format, ...)                                                \
-  printf("❌ Error: " format " -> %s line %d", ##__VA_ARGS__, COQ__FILENAME__, __LINE__), \
-  print_trace_(4)
+  printf("❌ Error: " format " → %s line %d", ##__VA_ARGS__, COQ__FILENAME__, __LINE__), \
+  print_trace_(4, false)
 
 
-// MARK: - Alloc -----------
+// MARK: - Allocs
 /// Pour avoir la taile d'une struct de type array, i.e. `struct { int const count; int arr[1] };`
 #define coq_arrayTypeSize(arrayType, elementType, elementCount) \
     sizeof(arrayType) + (elementCount-1)*sizeof(elementType)
@@ -93,24 +97,38 @@
     new; \
     })
 
-// Test de unwrap dans le style de swift: if let a = aOpt {...}... Sans doute superflu...
+// MARK: - Init de pointeur void. Non, ne semble pas faire la différence entre void* et void**...
+//static inline void voidconstptr_initConst(void const*const*const ptr, void const*const initValue) {
+//    *(void const**)ptr = initValue;
+//}
+//static inline void voidptr_initConst(void*const*const ptr, void*const initValue) {
+//    *(void**)ptr = initValue;
+//}
+
+// MARK: - Unwrapping d'optionels...
+// Unwrap d'optionelle dans le style de swift : if let a = aOpt {...}...
 #define if_let(type, var, init_val) { type const var = init_val; if(var) {
+#define if_let_else } else {
 #define if_let_end }}
 // Alloc temporaire `safe`.
 #define with_beg(type, var_ptr, alloc_fct) { type *const var_ptr = alloc_fct; if(var_ptr) {
 #define with_end(var_ptr) coq_free((void*)var_ptr); } else { printerror("Cannot alloc. %s", #var_ptr); } }
 // Guard statement dans le style de swift.
-#define guard_let(type, var, varOpt, else_statement, return_value) type const var = varOpt; \
+#define guard_let(type, var, varOpt, else_statement, return_value) \
+    type const var = varOpt; \
     if(!var) { else_statement; return return_value; }
+#define guard_let_loop(type, var, varOpt, else_statement) \
+    type const var = varOpt; \
+    if(!var) { else_statement; continue; }
 
 
 // "Private"... Version malloc de debugging / experimentation...
-void  print_trace_(unsigned depth);
+void  print_trace_(unsigned depth, bool skip_first);
 void  print_here_(const char *filename, unsigned line);
 void *coq_malloc_(size_t __size, const char *filename, uint32_t line);
 void *coq_calloc_(size_t __count, size_t __size, const char *filename,
                   uint32_t line);
-void coq_free_(void *ptr, const char *filename, uint32_t line);
+void  coq_free_(void *ptr, const char *filename, uint32_t line);
 void *coq_realloc_(void *__ptr, size_t __size, const char *filename,
                    uint32_t line);
 

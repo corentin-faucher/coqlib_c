@@ -10,7 +10,6 @@
 
 #include "node_poping.h"
 #include "node_string.h"
-#include "../utils/util_string.h"
 #include "../utils/util_event.h"
 
 // MARK: - Base de Bouton
@@ -42,7 +41,7 @@ Button* Button_create(Node* refOpt, void (*touch)(NodeTouch),
 void    button_init(Button* b, void (*touch)(NodeTouch));
 
 /// Reprendre le dernier bouton créé.
-Button* const Button_getLastOpt(void);
+Button* Button_getLastOpt(void);
 
 /// Downcasting
 static inline Button* node_asActiveButtonOpt(Node *const n) {
@@ -58,7 +57,8 @@ static inline Button* node_asButtonOpt(Node *const nOpt) {
 //void    button_last_setDataUint0(uint32_t data_uint0);
 
 // MARK: - Switch ON/OFF
-/// Bouton ON/OFF. La valeur ON/OFF est le premier bit de `uint_arr[11]`.
+/// Bouton en tant que switch ON/OFF. 
+/// L'état ON/OFF est stocké dans `nodrawData.data1.u3` (ne pas utiliser).
 Button* Button_createSwitch(Node* refOpt, void (*action)(NodeTouch), bool isOn,
                             float x, float y, float height, float lambda, flag_t flags);
 void    button_switch_set(Button* b, bool isOn);
@@ -66,7 +66,8 @@ bool    button_switch_value(Button* b);
 Button* Button_createDummySwitch(Node* refOpt, void (*touchOpt)(NodeTouch), uint32_t data,
                                  float x, float y, float height, float lambda, flag_t flags);
 // MARK: - Slider ---
-/// Bouton de "fine-tuning". la valeur du slider est dans `float_arr[11]` et varie de
+/// Bouton de "fine-tuning". la valeur du slider 
+/// est dans `b->n.nodrawData.data1.v.w` et varie de
 /// 0 (gauche) à 1 (droite).
 Button* Button_createSlider(Node* refOpt, void (*action)(NodeTouch),
                             float value, float x, float y, float width, float height,

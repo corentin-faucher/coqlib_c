@@ -17,15 +17,15 @@
 /// La sruct est simplement {int16_t time}.
 /// Optenir un ChronoTiny que l'on "start" a zero.
 static inline int16_t chronotiny_startedChrono(void) {
-    return (int16_t)ChronosRender.render_elapsedMS;
+    return (int16_t)RendererTimeCapture.render_elapsedMS;
 }
 /// Optenir un ChronoTiny que l'on "start" a elapsedMS.
 static inline int16_t chronotiny_setToElapsedMS(int16_t elapsedMS) {
-    return (int16_t)ChronosRender.render_elapsedMS - elapsedMS;
+    return (int16_t)RendererTimeCapture.render_elapsedMS - elapsedMS;
 }
 // Temps écoulé... oui, c'est la meme chose que setToElapsedMS ;)
 static inline int16_t chronotiny_elapsedMS(int16_t t) {
-    return (int16_t)ChronosRender.render_elapsedMS - t;
+    return (int16_t)RendererTimeCapture.render_elapsedMS - t;
 }
 
 // MARK: - SmoothFlag
@@ -188,8 +188,7 @@ void  smoothflag_setDeltaT(SmoothFlag *st, int16_t deltaT) {
 }
 
 
-
-
+// MARK: -- Variables/fonctions "de classe"
 static Drawable* drawable_last_ = NULL;
 /// Mise à jour ordinaire de la matrice modèle pour un drawable.
 void drawable_renderer_updateIU_(Node* const n) {
@@ -211,30 +210,76 @@ void drawable_renderer_updateIU_(Node* const n) {
     m->v2.v = pm->v2.v * scl.z * show;
     m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y + pm->v2.v * pos.z;
 }
-void (*Drawable_renderer_defaultUpdateInstanceUniforms)(Node*) = drawable_renderer_updateIU_;
-Vector4 Drawable_renderIU_defaultColor = {{ 1, 1, 1, 1 }};
+/// Mesh partagée par la plupart des Drawable Node...
+/// Customizable, a priori centrée en (0,0) de dimensions (1, 1), i.e. [-0.5, 0.5] x [-0.5, 0.5].
+static Mesh* Drawable_spriteMesh_ = NULL;
+void  (*Drawable_renderer_defaultUpdateInstanceUniforms_)(Node*) = drawable_renderer_updateIU_;
+Vector4 Drawable_renderIU_defaultColor_ = {{ 1, 1, 1, 1 }};
+void   Drawable_init_(MeshInit spriteMeshInitOpt, 
+            void (*renderer_updateInstanceUniformsOpt)(Node*),
+            Vector4 renderIUdefaultColor)
+{
+    if(Drawable_spriteMesh_) {
+        printerror("Drawable defaults already init."); 
+        return;
+    }
+    if(!spriteMeshInitOpt.vertexCount) {
+        static const Vertex sprite_vertices[4] = {
+            {{-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1}},
+            {{-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1}},
+            {{ 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1}},
+            {{ 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1}},
+        };
+        spriteMeshInitOpt = (MeshInit) {
+            .verticesOpt = sprite_vertices,
+            .vertexCount = 4,
+            .primitiveType = meshprimitive_triangleStrip,
+            .cullMode = mesh_cullMode_none,
+        };
+    }
+    spriteMeshInitOpt.flags |= mesh_flag_shared;
+    Drawable_spriteMesh_ = Mesh_create(spriteMeshInitOpt);
+    if(renderer_updateInstanceUniformsOpt) {
+        Drawable_renderer_defaultUpdateInstanceUniforms_ 
+            = renderer_updateInstanceUniformsOpt;
+    }
+    if(renderIUdefaultColor.r || renderIUdefaultColor.g || renderIUdefaultColor.b || renderIUdefaultColor.a)
+        Drawable_renderIU_defaultColor_ = renderIUdefaultColor;
+}
+Mesh* Drawable_getSpriteMesh(void) {
+    if(!Drawable_spriteMesh_) { printerror("Drawable mesh not init."); }
+    return Drawable_spriteMesh_;
+}
+
 
 // MARK: -- Init/constructors ---------------------------------------
-void      drawable_deinit_(Node* nd){
+void      drawable_render_deinit_(Node* nd){
     Drawable* d = (Drawable*)nd;
-    meshref_releaseAndNull(&d->_mesh);
-    textureref_releaseAndNull(&d->texr);
+    meshref_render_releaseAndNull(&d->_mesh);
+    textureref_render_releaseAndNull(&d->_tex);
 }
-void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh,
+void      drawable_init(Drawable* const d, Texture* tex, Mesh* meshOpt,
                         float const twoDxOpt, float const twoDy) {
-    if(tex == NULL) { printerror("No texture."); tex = Texture_white; }
-    if(mesh == NULL) { printwarning("No mesh."); mesh = Mesh_drawable_sprite; }
+    if(tex == NULL) { 
+        printerror("No texture, setting to Texture_white.");
+        tex = Texture_white; 
+    }
+    if(meshOpt == NULL) {
+        if(!Drawable_spriteMesh_) printerror("Drawable_spriteMesh not set. Missing call to Node_init ?");
+        meshOpt = Drawable_spriteMesh_; 
+    }
     // Init
+    textureref_init(&d->_tex, tex);
+    texturedims_initConst(&d->texDims, texture_dims(tex));
+    meshref_init(&d->_mesh, meshOpt);
     d->trShow = SmoothFlag_new();
     d->trExtra = SmoothFlag_new();
-    textureref_init(&d->texr, tex);
-    d->_mesh = mesh;
     d->n._type |= node_type_drawable;
     // Override de l'update de la matrice model.
-    d->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms;
-    d->n.deinitOpt = drawable_deinit_;
-    d->n.renderIU.color =  Drawable_renderIU_defaultColor;
-    d->n.renderIU.uvRect.size = d->texr.dims.DuDv;
+    d->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms_;
+    d->n.deinitOpt = drawable_render_deinit_;
+    d->n.renderIU.color =  Drawable_renderIU_defaultColor_;
+    d->n.renderIU.uvRect.size = d->texDims.DuDv;
     drawable_last_ = d;
     // Set des dimensions...
     d->n.w = 1; d->n.h = 1;
@@ -242,28 +287,28 @@ void      drawable_init(Drawable* const d, Texture* tex, Mesh* mesh,
     if(twoDxOpt)
         d->n.sx = twoDxOpt;
     else {
-        d->n.sx = twoDy * d->texr.dims.tileRatio;
+        d->n.sx = twoDy * texturedims_tileRatio(d->texDims);
    }
 }
 Drawable* Drawable_createImage(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDy, flag_t flags) {
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImage(pngId), Mesh_drawable_sprite, 0, twoDy);
+    drawable_init(d, Texture_getPng(pngId), NULL, 0, twoDy);
     return d;
 }
 Drawable* Drawable_createImageWithWidth(Node* const refOpt, uint32_t pngId,
                                float x, float y, float twoDx, float twoDy, flag_t flags) {
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImage(pngId), Mesh_drawable_sprite, twoDx, twoDy);
+    drawable_init(d, Texture_getPng(pngId), NULL, twoDx, twoDy);
     return d;
 }
 Drawable* Drawable_createImageWithName(Node* const refOpt, const char* pngName,
                           float x, float y, float twoDy, flag_t flags) {
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImageByName(pngName), Mesh_drawable_sprite, 0, twoDy);
+    drawable_init(d, Texture_getPngByName(pngName), NULL, 0, twoDy);
     return d;
 }
 void      drawable_open_imagelanguage_(Node* nd) {
@@ -274,7 +319,7 @@ Drawable* Drawable_createImageLanguage(Node* refOpt, uint32_t pngId,
                                        float x, float y, float twoDy, flag_t flags) {
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
-    drawable_init(d, Texture_sharedImage(pngId), Mesh_drawable_sprite, 0, twoDy);
+    drawable_init(d, Texture_getPng(pngId), NULL, 0, twoDy);
     d->n.openOpt = drawable_open_imagelanguage_;
     return d;
 }
@@ -282,14 +327,14 @@ Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
                                float x, float y, float twoDx, float twoDy) {
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, 0, 0);
-    drawable_init(d, Texture_white, Mesh_drawable_sprite, twoDx, twoDy);
+    drawable_init(d, Texture_white, NULL, twoDx, twoDy);
     d->n.renderIU.color = color;
     return d;
 }
 Drawable* Drawable_createTestFrame(Node* parent, float x, float y, float twoDx, float twoDy) {
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, parent, x, y, 1, 1, 0, 0);
-    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), Mesh_drawable_sprite, twoDx, twoDy);
+    drawable_init(d, Texture_getPngByName("coqlib_test_frame"), NULL, twoDx, twoDy);
     return d;
 }
 void      drawable_open_testframe_getSizesOfParent_(Node* nd) {
@@ -304,7 +349,7 @@ void      node_tryToAddTestFrame(Node* ref) {
     if(!ref) { printerror("No parent."); return; }
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, ref, 0, 0, 1, 1, flag_notToAlign, 0);
-    drawable_init(d, Texture_sharedImageByName("coqlib_test_frame"), Mesh_drawable_sprite, 1, 1);
+    drawable_init(d, Texture_getPngByName("coqlib_test_frame"), NULL, 1, 1);
     d->n.openOpt = drawable_open_testframe_getSizesOfParent_;
     if(ref->reshapeOpt) {
         ref->flags |= flag_parentOfReshapable;
@@ -318,9 +363,9 @@ void      node_last_tryToAddTestFrame(void) {
 }
 
 // MARK: - Methods ----------------------------
-void      drawable_changeMeshTo(Drawable*const d, Mesh*const newMesh) {
-    meshref_releaseAndNull(&d->_mesh);
-    d->_mesh = newMesh;
+void      drawable_render_changeMeshTo(Drawable*const d, Mesh*const newMesh) {
+    meshref_render_releaseAndNull(&d->_mesh);
+    meshref_init(&d->_mesh, newMesh);
 }
 float     drawable_updateShow(Drawable *const d) {
     float const show = (d->n.flags & flag_show) ? smoothflag_setOn(&d->trShow) : smoothflag_setOff(&d->trShow);
@@ -333,15 +378,18 @@ float     drawable_updateShow(Drawable *const d) {
     return show;
 }
 
-void      drawable_changeTexToPngId(Drawable* d, uint32_t const newPngId) {
-    textureref_releaseAndNull(&d->texr);
-    textureref_init(&d->texr, Texture_sharedImage(newPngId));
-    d->n.renderIU.uvRect.size = d->texr.dims.DuDv; 
+void      drawable_changeSharedTexTo(Drawable*const d, Texture*const newTex) {
+    if(!texture_isShared(d->_tex) || !newTex) {
+        printerror("Not a shared texture or no new tex.");
+        return;
+    }
+    *(Texture**)&d->_tex = newTex;
+    texturedims_initConst(&d->texDims, texture_dims(newTex));
+    d->n.renderIU.uvRect.size = d->texDims.DuDv; 
     float const twoDy = d->n.sy * d->n.h;
     d->n.w = 1; d->n.h = 1;
     d->n.sy = twoDy;
-    d->n.sx = twoDy * d->texr.dims.tileRatio;
-
+    d->n.sx = twoDy * texturedims_tileRatio(d->texDims);
 }
 void      drawableref_destroyAndNull(Drawable** const drawableOptRef) {
     Drawable* const toDelete = *drawableOptRef;
@@ -357,7 +405,8 @@ void      drawableref_destroyAndNull(Drawable** const drawableOptRef) {
 // MARK: -- Setters -----------------------------------------------
 void      drawable_checkRatioWithUVrectAndTexture(Drawable *const d, float const newTwoDyOpt) {
     if(newTwoDyOpt) d->n.sy = newTwoDyOpt;
-    d->n.sx = d->n.sy * (float)d->texr.dims.width / (float)d->texr.dims.height * d->n.renderIU.uvRect.w / d->n.renderIU.uvRect.h;
+    d->n.sx = d->n.sy * (float)d->texDims.width / (float)d->texDims.height *
+              d->n.renderIU.uvRect.w / d->n.renderIU.uvRect.h;
 }
 void      drawable_last_setTile(uint32_t const i, uint32_t const j) {
     if(drawable_last_ == NULL) {
@@ -456,7 +505,7 @@ void      drawable_last_setColor(Vector4 color) {
 //                             flag_t flags, uint8_t node_place) {
 //    if(mesh_sprite.vertex_count == 0)
 //        printerror("Missing Mesh_init().");
-//    Drawable* d = Drawable_create(refOpt, Texture_sharedImage(pngId), Mesh_createFan(),
+//    Drawable* d = Drawable_create(refOpt, Texture_getPng(pngId), Mesh_createFan(),
 //                                  flags, node_place);
 //    d->n.x = x;        d->n.y = y;
 //    d->n.w = 1.f;      d->n.h = 1.f;

@@ -1,7 +1,9 @@
 //
 //  coq_system.h
 //  Acces à divers info du système, 
-//  i.e. Keyboard layout, theme, cloud drive, 
+//  i.e. Keyboard layout, theme, cloud drive...
+//  Pour les `system_...` les fichiers sources sont dupliqués car ils dépendent de l'OS.
+//  Il ne faut inclure que les bons .c / .m.
 //
 //  Created by Corentin Faucher on 2023-10-25.
 //
@@ -13,11 +15,12 @@
 
 /// Init des variables systèmes : Nom de l'OS, nom et version de l'app, 
 /// keyboard layout, cloud drive, langue.
-void CoqSystem_init(void);
+void CoqSystem_init(ViewSizeInfo viewSize);
 
-// Dimension présente de la view.
-void         CoqSystem_setViewSize(ViewSizeInfo viewSize);
+/// Taille de la view/window de l'app dans l'OS.
+void         CoqSystem_setViewSize_(ViewSizeInfo viewSize);
 ViewSizeInfo CoqSystem_getViewSize(void);
+bool         CoqSystem_viewIsLandScape(void);
 
 enum {
     coqsystem_os_desktop,
@@ -44,15 +47,21 @@ enum {
 };
 unsigned    CoqSystem_keyboardType(void);
 
+enum {
+    fontengine_apple, // NSFont / UIFont
+    fontengine_dwrite, // Microsoft
+    fontengine_freetype,
+};
+unsigned    CoqSystem_fontEngine(void);
+
 const char* CoqSystem_appVersionOpt(void);
 const char* CoqSystem_appBuildOpt(void);
 const char* CoqSystem_appDisplayNameOpt(void);
 
-void        CoqSystem_theme_OsThemeUpdate(void);
-bool        CoqSystem_theme_OsThemeIsDark(void);
-void        CoqSystem_theme_setAppTheme(bool isDark);
-void        CoqSystem_theme_setAppThemeToOsTheme(void);
-bool        CoqSystem_theme_appThemeIsDark(void);
+void        CoqSystem_OS_appearanceUpdate(void);
+bool        CoqSystem_OS_appearanceIsDark(void);
+void        CoqSystem_OS_appearanceSet(bool isDark);
+void        CoqSystem_OS_appearanceSetToOS(void);
 
 void        CoqSystem_cloudDrive_startWatching_(const char* subFolderOpt, const char* extensionOpt);
 bool        CoqSystem_cloudDrive_isEnabled(void);

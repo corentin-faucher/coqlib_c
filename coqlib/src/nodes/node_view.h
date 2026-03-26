@@ -21,16 +21,18 @@ typedef struct coq_View {
   Vector2 lastTouchedPos;
   /// Le bouton présentement grabbé.
   Button *buttonSelectedOpt;
+  /// Ref à la root
+  Root*const root;
   
-  // Méthodes pour répondre à des évènements.
-  /*-- Enter responder --*/
-  void (*enterOpt)(View *);
-  /*-- Escape --*/
-  void (*escapeOpt)(View *);
-  /*-- Key Responder --*/
-  void (*keyDownOpt)(View *, KeyboardInput);
-  void (*keyUpOpt)(View *, KeyboardInput);
-  void (*modifiersChangedToOpt)(View *, uint32_t);
+    // Méthodes overridable pour répondre aux évènements.
+    /*-- Enter responder --*/
+    void (*enterOpt)(View *);
+    /*-- Escape --*/
+    void (*escapeOpt)(View *);
+    /*-- Key Responder --*/
+    void (*keyDownOpt)(View *, KeyboardInput);
+    void (*keyUpOpt)(View *, KeyboardInput);
+    void (*modifiersChangedToOpt)(View *, uint32_t);
     /*-- Mouse/touch --*/
     void (*touchHovering)(NodeTouch nt); 
     void (*touchDown)(NodeTouch nt);
@@ -54,7 +56,7 @@ static inline View* node_asViewOpt(Node* nOpt) {
     return (nOpt && (nOpt->_type & node_type_view)) ? (View*)nOpt : NULL;
 }
 
-// Méthodes `privées` pour override...
+// MARK: Méthodes `privées`, mais disponible pour override...
 void view_open_(Node* n);
 void view_reshape_(Node* n);
 /// AlignElement : par défault, caller lors de `open` et `reshape`.

@@ -18,13 +18,12 @@ typedef struct StringMap StringMap;
 /// Une hash map avec des strings en key.
 /// Les valeurs sont des donnees (char valueData[...]) de taille size_value.
 /// size_value est la taille par defaut. On peut toujours specifier la taille de valueData avec map_putWithSize.
-StringMap* Map_create(uint32_t count, size_t size_value);
-
+StringMap* Map_create(uint32_t count, size_t valueSize);
 void       map_destroyAndNull(StringMap** mapOptRef, void (*value_deinitOpt)(void*));
 
 /// Pour l'affichage/debuging, il faut passer une fonction qui print
 /// un char value[] (un char*). (Si printValueOpt == NULL, c'est juste printf.)
-void  map_print(StringMap const* map, void (*printValueOpt)(const char*));
+void  map_print(StringMap const* map, void (*printValueOpt)(const void*));
 
 /// Store une copie des données pointées par valueDataOpt.
 /// (Ici on specifie la taille des donnees stockes.)
@@ -57,7 +56,7 @@ bool        map_iterator_next(StringMap* map);
 const char* map_iterator_valueRefOpt(StringMap* map);
 
 /// Applique la fonction block à tout les élément de la map.
-void map_applyToAll(StringMap* map, void (*block)(char* valueData));
+void map_applyToAll(StringMap* map, void (*block)(void* valueData));
 
 
 

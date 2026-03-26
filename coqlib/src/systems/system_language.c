@@ -11,21 +11,21 @@
 #include "../utils/util_map.h"
 
 const Language  Language_defaultLanguage = language_english;
-static Language        language_system_ =     language_english;
-static Language        language_current_ =    language_english;
-const char*    language_iso_strings_[language_total_language] = {
+static Language Language_system_ =         language_english;
+static Language Language_current_ =        language_english;
+const char*     Language_iso_strings_[language_total_language] = {
     "fr", "en", "ja", "de",
     "zh-Hans", "it", "es", "ar",
     "el", "ru", "sv", "zh-Hant",
     "pt", "ko", "vi",
 };
-const char*    language_code_strings_[language_total_language] = {
+const char*     Language_code_strings_[language_total_language] = {
     "fr", "en", "ja", "de",
     "zh", "it", "es", "ar",
     "el", "ru", "sv", "zh",
     "pt", "ko", "vi",
 };
-const char*    language_name_strings_[language_total_language] = {
+const char*     Language_name_strings_[language_total_language] = {
     "french", "english", "japanese", "german",
     "chinese simpl.", "italian", "spanish", "arabic",
     "greek", "russian", "swedish", "chinese trad.",
@@ -37,20 +37,20 @@ void     Language_checkSystemLanguage(void) {
     if(strcmp(langCode, "zh") == 0) {  // Cas du chinois
         const char* scriptCode = CoqLocale_getScriptCode();
         if(strcmp(scriptCode, "Hant") == 0) {
-            language_system_ = language_chineseTraditional;
+            Language_system_ = language_chineseTraditional;
         } else {
-            language_system_ = language_chineseSimplified;
+            Language_system_ = language_chineseSimplified;
         }
     } else {
-        language_system_ = Language_languageWithIso(langCode);
+        Language_system_ = Language_languageWithIso(langCode);
     }
 }
 Language Language_systemLanguage(void) {
-    return language_system_;
+    return Language_system_;
 }
 Language Language_languageWithIso(const char* const iso) {
     for(Language language = 0; language < language_total_language; language++) {
-        if(strcmp(language_iso_strings_[language], iso) == 0) {
+        if(strcmp(Language_iso_strings_[language], iso) == 0) {
             return language;
         }
     }
@@ -59,7 +59,7 @@ Language Language_languageWithIso(const char* const iso) {
 }
 Language Language_languageWithCode(const char* const code) {
     for(Language language = 0; language < language_total_language; language++) {
-        if(strcmp(language_code_strings_[language], code) == 0) {
+        if(strcmp(Language_code_strings_[language], code) == 0) {
             return language;
         }
     }
@@ -71,42 +71,42 @@ void     Language_setCurrent(Language newCurrentLanguage) {
         // language_undefined_language -> Get default.
         newCurrentLanguage = Language_systemLanguage();
     }
-    if(newCurrentLanguage == language_current_)
+    if(newCurrentLanguage == Language_current_)
         return;
     if(Language_system_tryToSetTo_(newCurrentLanguage))
-        language_current_ = newCurrentLanguage;
+        Language_current_ = newCurrentLanguage;
 }
 Language Language_current(void) {
-    return language_current_;
+    return Language_current_;
 }
 bool     Language_currentIs(Language const other) {
-    return other == language_current_;
+    return other == Language_current_;
 }
 /// De droite a gauche. Vrai pour l'arabe.
 bool     Language_currentIsRightToLeft(void) {
-    return language_current_ == language_arabic;
+    return Language_current_ == language_arabic;
 }
 /// Utilise un maru `◯` au lieu du check `✓` pour une bonne réponse (japonaise et corréen).
 bool     Language_currentUseMaruCheck(void) {
-    return (language_current_ == language_japanese) || (language_current_ == language_korean);
+    return (Language_current_ == language_japanese) || (Language_current_ == language_korean);
 }
 /// Direction d'ecriture. Arabe -1, autre +1.
 float    Language_currentDirectionFactor(void) {
-    return (language_current_ == language_arabic) ? -1.f : 1.f;
+    return (Language_current_ == language_arabic) ? -1.f : 1.f;
 }
 const char* Language_currentIso(void) {
-    return language_iso_strings_[language_current_];
+    return Language_iso_strings_[Language_current_];
 }
 const char* Language_currentCode(void) {
-    return language_code_strings_[language_current_];
+    return Language_code_strings_[Language_current_];
 }
 /// Le code iso, e.g. english -> en.
 const char*    language_iso(Language language) {
-    return language_iso_strings_[language];
+    return Language_iso_strings_[language];
 }
 /// Le nom de la langue en anglais, e.g. language_english -> english.
 const char*    language_name(Language language) {
-    return language_name_strings_[language];
+    return Language_name_strings_[language];
 }
 
 // MARK: - Font possibles par langues - 

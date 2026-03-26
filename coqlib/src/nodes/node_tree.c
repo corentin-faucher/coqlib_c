@@ -269,6 +269,8 @@ NodeTouch node_tree_searchActiveButtonWithPosOpt(NodeTouch const nt, Node const*
     if_let(Button*, button, node_asActiveButtonOpt(nt.n))
     return (NodeTouch) {
         .n = nt.n,
+        .v = nt.v,
+        .root = nt.root,
         .posAbs = nt.posAbs,
         .touchId = nt.touchId,
         ._posRelOpt = vector2_referentialIn(posInPar, node_referential(nt.n)),
@@ -283,6 +285,8 @@ check_node:
         if(node_asActiveButtonOpt(sq)) {
             return (NodeTouch) {
                 .n = sq,
+                .v = nt.v,
+                .root = nt.root,
                 .posAbs = nt.posAbs,
                 .touchId = nt.touchId,
                 ._posRelOpt = vector2_referentialIn(posInPar, node_referential(sq)),
@@ -308,16 +312,17 @@ check_littleBro:
     posInPar = vector2_referentialOut(posInPar, node_referential(sq));
     goto check_littleBro;
 }
-Node* node_tree_searchFirstOfTypeWithDataOpt(Node* const n, uint32_t const type, uint32_t const data0) 
+Node* node_tree_searchFirstOfTypeWithDataOpt(Node* const start, uint32_t const type, uint32_t const data0) 
 {
     if(!type || (type & node_type_drawable)) {
         printerror("Bad type for search with data."); return NULL;
     }
-    if((n->_type & type) && (n->nodrawData.data0.u0 == data0)) return n;
-    Node* sq = n->_firstChild;
+    Node* sq = start;
+    if((sq->_type & type) && (sq->nodrawData.data0.u0 == data0)) return sq;
+    sq = sq->_firstChild;
     if(!sq) return NULL;
 check:
-    if((sq->_type & type) && (n->nodrawData.data0.u0 == data0)) return sq;
+    if((sq->_type & type) && (sq->nodrawData.data0.u0 == data0)) return sq;
     if(sq->_firstChild) {
         sq = sq->_firstChild;
         goto check;
@@ -328,7 +333,7 @@ check_littleBro:
         goto check;
     }
     sq = sq->_parent;
-    if(sq == n) return NULL;
+    if(sq == start) return NULL;
     if(sq == NULL) { printerror("Root not found."); return NULL; }
     goto check_littleBro;
 }
@@ -418,8 +423,10 @@ int  node_tree_alignTheChildren(Node *const nd, node_align_option const alignOpt
         if(horizontal) nd->h = h;
         else nd->w = w;
     }
-    if(nd->flags & flag_giveSizeToBigbroFrame) if(updatePrimarySize || updateSecondarySize) {
-        node_tryUpdatingAsFrameOfBro(nd->_bigBro, nd);
+    if((nd->flags & flag_giveSizeToBigbroFrame) && (updatePrimarySize || updateSecondarySize)) {
+        if_let(Frame*, f, node_asFrame(nd->_bigBro))
+        frame_tryToUpdateToLittleBro(f);
+        if_let_end
     }
     // 4. Aligner les éléments
     sq = nd;
@@ -431,17 +438,18 @@ int  node_tree_alignTheChildren(Node *const nd, node_align_option const alignOpt
                                  ((alignOpt & node_align_leftTop) ? relatives_top : 0);
         do {
             x += spacingRef * node_deltaX(sq) + extraHalfSpace;
+            sq->x = x;
             Fluid* fluid = node_asFluidOpt(sq);
             if(fluid) {
                 if(!dontSetPrimaryDefPos) fluid->x.def = x;
-                if(fix) fluid_fixX(fluid, x); else fluid_setX(fluid, x);
-            } else {
-                sq->x = x;
+                if(fix) fl_fix(&fluid->x, x); else fl_set(&fluid->x, x);
             }
-            if(setSecondaryToDefPos && fluid)
+            if(setSecondaryToDefPos && fluid) {
                 fl_setRelToDef(&fluid->y, 0);
-            else
+                sq->y = fluid->y.def;
+            } else {
                 node_setYrelatively(sq, relativeFlag, fix);
+            }
             x += spacingRef * node_deltaX(sq) + extraHalfSpace;
         } while(nodeptr_goRightWithout(&sq, flag_hidden|flag_notToAlign));
         return n;
@@ -452,18 +460,18 @@ int  node_tree_alignTheChildren(Node *const nd, node_align_option const alignOpt
                                  ((alignOpt & node_align_leftTop) ? relatives_left : 0);
     do {
         y -= spacingRef * node_deltaY(sq) + extraHalfSpace;
+        sq->y = y;
         Fluid* fluid = node_asFluidOpt(sq);
         if(fluid) {
             if(!dontSetPrimaryDefPos) fluid->y.def = y;
-            if(fix) fluid_fixY(fluid, y);
-            else    fluid_setY(fluid, y);
-        } else {
-            sq->y = y;
+            if(fix) fl_fix(&fluid->y, y); else fl_set(&fluid->y, y);
         }
-        if(setSecondaryToDefPos && fluid)
+        if(setSecondaryToDefPos && fluid) {
             fl_setRelToDef(&fluid->x, 0);
-        else
+            sq->x = fluid->x.def;
+        } else {
             node_setXrelatively(sq, relativeFlag, fix);
+        }
         y -= spacingRef * node_deltaY(sq) + extraHalfSpace;
     } while(nodeptr_goRightWithout(&sq, flag_hidden|flag_notToAlign));
     return n;

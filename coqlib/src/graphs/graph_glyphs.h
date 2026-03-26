@@ -15,6 +15,7 @@
 /// Les infos pour placer les caractères les un après les autres (pour former une string).
 /// Pour le décalage en x `relGlyphX`, c'est le déplacement à faire pour positionner le glyph en x,
 /// e.g. pour le 'j' qu'il faut décaler vers la gauche, on pourrait avoir `relGlyphX = -0.2`.
+/// Les dimensions relatives (e.g. relGlyphWidth) sont relative à la `solidHeight`.
 typedef struct GlyphInfo {
     Rectangle uvRect;        // Coordonées uv dans la texture GlyphMap (vois plus bas pour GlyphMap).
     // **Les dimension sont relative à la hauteur de ref `solidHeight` de la font.**
@@ -22,11 +23,11 @@ typedef struct GlyphInfo {
     float     relGlyphY;     // Décalage en y pour centrer.
     float     relGlyphWidth; // Largeur du glyph (avec fioritures).
     float     relGlyphHeight;
-    // Ratio w/h de la "solid box", i.e. vrai espace occupé en x. 
-    // (Typiquement relSolidWidth < relGlyphWidth pour une glyph qui déborde, 
-    // e.g. des lettres attachées.)
+    // Largeur occupé du glyph (sans fioritures, i.e. `hitbox`. 
+    // On a relSolidWidth <= relGlyphWidth.) 
     float     relSolidWidth; 
-    // float  relSolidHeight == 1, par définition.
+    // Noter que relSolidHeight == 1, par définition... 
+    // (Les grandeurs sont basé sur la hitbox vertical)
 } GlyphInfo;
 
 /// CharacterGlyphed : un caractère avec ses dimensions -> Élément de StringGlyphed.
@@ -57,9 +58,8 @@ typedef struct GlyphMapInit {
     size_t      customChars_count; // Nombre de chars customizés.
 } GlyphMapInit;
 
-/// Une texture qui stocke les glyphs d'une police de caractères.
 GlyphMap*       GlyphMap_create(GlyphMapInit info);
-void            glyphmapref_releaseAndNull(GlyphMap *const* fgmOptRef);
+void            glyphmapref_render_releaseAndNull(GlyphMap *const* fgmOptRef);
 
 GlyphInfo       glyphmap_glyphInfoOfChar(GlyphMap *gm, Character c);
 CoqFont const*  glyphmap_font(GlyphMap const* gm);
@@ -106,24 +106,31 @@ typedef struct StringGlyphedInit {
     /// Pour strings éditables, le nombre maximal de chars.
     size_t        maxCountOpt;
 } StringGlyphedInit;
-
+// Init
 StringGlyphed* StringGlyphed_create(StringGlyphedInit init);
 StringGlyphed* StringGlyphed_createCopy(StringGlyphed const* src);
-// (pas de stringglyphed_denit, on peut dealloc directement)
-void           stringglyphed_setChars(StringGlyphed* sg, const CharacterArray *ca);
-/// Les infos pour dessiner une string
+// Getter
+size_t         stringglyphed_charCount(StringGlyphed const* sg);
+size_t         stringglyphed_maxCount(StringGlyphed const* sg);
+// Reconstruit une string utf8 dans un buffer (Accès à une string à la fois).
+char const*    stringglyphed_getString(StringGlyphed const* sg);
+// Edit
+void           stringglyphed_setChars(StringGlyphed* sg, CharacterArray const* ca);
+void           stringglyphed_removeLast(StringGlyphed* sg);
+void           stringglyphed_addCharacter(StringGlyphed* sg, Character newChar);
+// Dessin
 typedef struct StringGlyphedToDraw {
-    CharacterGlyphed const*      c; // Itérateur de char glypled.
-    CharacterGlyphed const*const beg;
-    CharacterGlyphed const*const end;
+    CharacterGlyphed const*      c;   // Itérateur de char glypled.
+    CharacterGlyphed const*const beg; // (Init comme `c`)
+    CharacterGlyphed const*const end; // Fin de l'array
     // Position de la fin de la string. (négatif si arabe/rightToLeft)
     // Puisque `xBegRel == 0` par définition, abs(xEndRel) est la largeur de la string et 0.5*xEndRel le centre.
     float const xEndRel; 
     float const x_margin;
 } StringGlyphedToDraw;
 StringGlyphedToDraw stringglyphed_getToDraw(StringGlyphed const* sg);
-Texture* stringglyphed_glyphMapTexture(StringGlyphed* sg);
-size_t stringglyphed_maxCount(StringGlyphed const* sg);
+Texture*            stringglyphed_glyphMapTexture(StringGlyphed* sg);
+
 
 // MARK: - StringGlyphArr, String scindé en plusieurs lignes.
 typedef struct StringGlyphArr {

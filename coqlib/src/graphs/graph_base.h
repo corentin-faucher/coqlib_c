@@ -45,26 +45,28 @@ enum {
 };
 
 // MARK: - Structure des pixels 24 ou 32 bits.
-// Blue -> bits moins signif., Red -> bits plus signif.
-// i.e. 0xAARRGGBB. -> uint8 b, g, r, a;
-typedef struct PixelBGR {
-    uint8_t b, g, r;
-} PixelBGR;
-typedef union PixelBGRA {
+// On utilisera le format RGBA, 
+// Red -> bits moins signif., Blue -> bits plus signif.
+// en hexa (unsigned de 32 bits) : 0xAABBGGRR,
+// équivalent de `uint8 r, g, b, a;`
+typedef struct PixelRGB {
+    uint8_t r, g, b;
+} PixelRGB;
+typedef union PixelRGBA {
     uint32_t data;
     struct {
         union {
-            PixelBGR bgr;
-            struct { uint8_t b, g, r; };
+            PixelRGB rgb;
+            struct { uint8_t r, g, b; };
         };
         uint8_t a;
     };
-} PixelBGRA;
+} PixelRGBA;
 /// Convertion d'un float en gris (et alpha = f)
-static inline PixelBGRA float_toPixelBGRA(float const f);
+static inline PixelRGBA float_toPixelRGBA(float const f);
 /// Conversion de Vector4 vers un pixel en BGRA uint8,
 /// e.g. (1, 0.25, 0, 0.5) -> 0x7F003FFF
-static inline PixelBGRA vector4_color_toPixelBGRA(Vector4 const v);
+static inline PixelRGBA vector4_color_toPixelRGBA(Vector4 const v);
 /// Transforme la couleur vers le gris de niveau `level`.
 /// alpha : ratio de `grisification`.
 /// e.g. si level = 0.5, alpha = 0 -> pas de changement.
@@ -72,21 +74,32 @@ static inline PixelBGRA vector4_color_toPixelBGRA(Vector4 const v);
 static inline Vector4   vector4_color_toGray(Vector4 const v, float const level, float const alpha);
 
 /// MARK: - Array 2D de pixels (pour mettre dans une texture)
-typedef struct PixelBGRAArray {
+typedef struct PixelArray {
     size_t const width, height; // Dimensions du "bitmap"
     double deltaX, deltaY; // Décalage du centre de l'image.
     double solidWidth, solidHeight; // Espace "occupé" (typiquement plus petit que width/height)
-    PixelBGRA pixels[1];
-} PixelBGRAArray;
+    PixelRGBA pixels[1];
+} PixelArray;
 
-PixelBGRAArray* PixelBGRAArray_createEmpty(size_t width, size_t height);
-PixelBGRAArray* PixelBGRAArray_createSubRegion(PixelBGRAArray const* src, RectangleUint region);
-PixelBGRAArray* PixelBGRAArray_createFromBitmapFile(const char* path, bool flipY);
-PixelBGRAArray* PixelBGRAArray_engine_createFromPngFileOpt(const char* pngPath, bool showError);
 
-void pixelbgraarray_copyAt(PixelBGRAArray const* src, PixelBGRAArray* dst, UintPair dstOrigin);
-void pixelbgraarray_copyRegionAt(PixelBGRAArray const* src, RectangleUint srcRegion,
-                                 PixelBGRAArray* dst, UintPair dstOrigin);
+PixelArray* PixelArray_createEmpty(size_t width, size_t height);
+PixelArray* PixelArray_createSubRegion(PixelArray const* src, RectangleUint region);
+PixelArray* PixelArray_createFromBitmapFileOpt(const char* path, bool flipY);
+/// Chargement de pixels depuis une image png. Implémentation dépend de l'OS.
+PixelArray* PixelArray_createFromPngFileOpt(const char* pngPathOpt, bool showError);
+PixelArray* PixelArray_createFromSvgFileOpt(const char* svgPath,
+                                 size_t height, bool showError);
+
+/// Référence d'une région de pixels dans un PixelArray;
+typedef struct PixelsRegion {
+    PixelArray const* paRef;
+    RectangleUint     region;
+    // marge ?
+} PixelsRegion;
+
+void pixelarray_copyAt(PixelArray const* src, PixelArray* dst, UintPair dstOrigin);
+void pixelarray_copyRegionAt(PixelArray const* src, RectangleUint srcRegion,
+                                 PixelArray* dst, UintPair dstOrigin);
 
 // MARK: - Dessin de png
 #define TEXTURE_PNG_NAME_SIZE 32
@@ -94,42 +107,19 @@ void pixelbgraarray_copyRegionAt(PixelBGRAArray const* src, RectangleUint srcReg
 typedef struct PngInfo {
     char     name[TEXTURE_PNG_NAME_SIZE];
     uint32_t m, n;    // Subdivisions (nombre de tiles) en x/y.
-    bool     nearest; // Pixélisé ou interp. linéaire.
-    
-    /// "privé", image par défaut de coqlib, voir liste `coqlib_pngInfos_` dans `graph_texture.c`.
-    bool     _isCoqlib; 
-} PngInfo;
-
-/// Obtenir le chemin d'un png (le nom du fichier est sans l'extension ".png").
-/// Les pngs devraient être dans le dossier resources à `pngs` et `pngs/minis`.
-/// Inclure aussi si besoin les pngs de coqlib dans `pngs_coqlib` et `pngs_coqlib/minis`.
-char*  FileManager_getPngPathOpt(const char* pngName, bool isCoqlib, bool isMini);
-
-
-// MARK: - Effet spécial pour la second pass du fragment shader. -----------
-// e.g. Ondulation...
-// TODO: Enlever... cas particulier à faire pour un projet spécifique.
-typedef struct AfterEffect {
-    Vector2  pos;
     uint32_t flags;
-    float    time;
-    float    extra0;  // Paramètres de l'effet, e.g. amplitude, vitesse, delta, phase, ...
-    float    extra1;
-    float    extra2;
-    float    extra3;
-} AfterEffect;
-
+} PngInfo;
 
 // MARK: - Liste de couleurs (en pixels et vector4)
 // Quelques couleurs pratiques pour testing.
-// Pour la struct Pixel, les couleurs sont dans l'ordre BGRA.
-//  └-> *Attention : alpha -> plus significatifs, blue -> moins significatifs.*
-#define pixelbgra_black  (PixelBGRA) { 0xFF000000 }
-#define pixelbgra_white  (PixelBGRA) { 0xFFFFFFFF }
-#define pixelbgra_red    (PixelBGRA) { 0xFFFF0000 }
-#define pixelbgra_green  (PixelBGRA) { 0xFF00FF00 }
-#define pixelbgra_blue   (PixelBGRA) { 0xFF0000FF }
-#define pixelbgra_yellow (PixelBGRA) { 0xFFFFFF00 }
+// Pour la struct Pixel, les couleurs sont dans l'ordre RGBA.
+//  └-> *Attention : alpha -> plus significatifs, red -> moins significatifs.*
+#define pixelbgra_black  (PixelRGBA) { 0xFF000000 }
+#define pixelbgra_white  (PixelRGBA) { 0xFFFFFFFF }
+#define pixelbgra_red    (PixelRGBA) { 0xFF0000FF }
+#define pixelbgra_green  (PixelRGBA) { 0xFF00FF00 }
+#define pixelbgra_blue   (PixelRGBA) { 0xFFFF0000 }
+#define pixelbgra_yellow (PixelRGBA) { 0xFF00FFFF }
 
 // Sous forme 4 floats, on utilise l'ordre RGBA...
 #define color4_black (Vector4) {{0, 0, 0, 1 }}
@@ -170,60 +160,11 @@ typedef struct AfterEffect {
 #define color4_blue_pale (Vector4) {{ 0.8, 0.9, 1, 1 }}
 #define color4_blue_azure (Vector4) {{ 0.00, 0.50, 1, 1 }}
 #define color4_blue_strong (Vector4) {{ 0, 0, 1, 1 }}
+#define color4_blue_deepSea (Vector4) {{ 0.07, 0.20, 0.34 }}
 #define color4_purple (Vector4) {{ 0.8, 0, 0.8, 1 }}
 #define color4_purble_china_pink (Vector4) {{ 0.87, 0.44, 0.63, 1 }}
 #define color4_purble_electric_indigo (Vector4) {{ 0.44, 0.00, 1, 1 }}
 #define color4_purble_blue_violet (Vector4) {{ 0.54, 0.17, 0.89, 1 }}
-
-// Liste des couleurs
-/*
-enum {
-    colorenum_black,
-    colorenum_black_back,
-    colorenum_white,
-    colorenum_white_beige,
-    colorenum_gray_25,
-    colorenum_gray_40,
-    colorenum_gray_50,
-    colorenum_gray_60,
-    colorenum_gray_80,
-    colorenum_red,
-    colorenum_red_vermilion,
-    colorenum_red_coquelicot,
-    colorenum_red_orange2,
-    colorenum_red_coral,
-    colorenum_red_dark,
-    colorenum_orange,
-    colorenum_orange_amber,
-    colorenum_orange_bronze,
-    colorenum_orange_saffron,
-    colorenum_orange_saffron2,
-    colorenum_yellow_cadmium,
-    colorenum_yellow_amber,
-    colorenum_yellow_citrine,
-    colorenum_yellow_lemon,
-    colorenum_green_electric,
-    colorenum_green_electric2,
-    colorenum_green_fluo,
-    colorenum_green_ao,
-    colorenum_green_spring,
-    colorenum_green_avocado,
-    colorenum_green_dark_cyan,
-    colorenum_aqua,
-    colorenum_blue,
-    colorenum_blue_sky,
-    colorenum_blue_sky2,
-    colorenum_blue_pale,
-    colorenum_blue_azure,
-    colorenum_blue_strong,
-    colorenum_purple,
-    colorenum_purble_china_pink,
-    colorenum_purble_electric_indigo,
-    colorenum_purble_blue_violet,
-};
-
-extern const Vector4 color4_ofEnum[];
-*/
 
 #include "graph_base.inl"
 

@@ -9,11 +9,8 @@
 
 #include "../utils/util_base.h"
 
-Texture* Number_defaultTex = NULL;
 
-// MARK: - Number 2 -----------------------------
-static Number* number_last_ = NULL;
-void      number_open_(Node* n) {
+void number_open_(Node* n) {
     Number* nb = (Number*)n;
     number_setTo(nb, nb->value);
 }
@@ -43,20 +40,41 @@ void number_renderer_updateIUs_(Node* const n) {
     }
     withIUsToEdit_end(iusEdit)
 }
-void (*Number_renderer_defaultUpdateIUs)(Node*) = number_renderer_updateIUs_;
+
+static Texture* Number_defaultTex_ = NULL;
+static Number* number_last_ = NULL;
+static void (*Number_renderer_defaultUpdateIUs_)(Node*) = number_renderer_updateIUs_;
+
+void  Number_init(Texture*const digitsTextureOpt, 
+            void (*renderer_updateInstanceUniformsOpt)(Node*)) 
+{
+    if(digitsTextureOpt)
+        Number_defaultTex_ = digitsTextureOpt;
+    else {
+        Number_defaultTex_ = Texture_getPngByName("coqlib_digits_black");
+        if(!Number_defaultTex_)
+            printerror("No texture for Number digits.");
+    }
+    Number_renderer_defaultUpdateIUs_ = renderer_updateInstanceUniformsOpt;
+}
+
 void number_and_super_init_(Number* const nb, Node* refOpt, int32_t value,
                       float x, float y, float height,
                       flag_t flags, uint8_t node_place) 
 {
-    if(Number_defaultTex == NULL)
-        Number_defaultTex = Texture_sharedImageByName("coqlib_digits_black");
+    if(Number_defaultTex_ == NULL) {
+        printwarning("Missing call to `Number_init` ?");
+        Number_defaultTex_ = Texture_getPngByName("coqlib_digits_black");
+        if(!Number_defaultTex_)
+            printerror("No texture for Number digits.");
+    }
     node_init(&nb->n, refOpt, x, y, 1, 1, flags, node_place);
-    drawable_init(&nb->d, Number_defaultTex, Mesh_drawable_sprite, 0, height);
+    drawable_init(&nb->d, Number_defaultTex_, NULL, 0, height);
     drawablemulti_init(&nb->dm, NUMBER_MAX_DIGITS_, &nb->n.renderIU);
     // Init as Number...
     nb->n._type |= node_type_number;
     nb->n.openOpt = number_open_;
-    nb->n.renderer_updateInstanceUniforms = Number_renderer_defaultUpdateIUs;
+    nb->n.renderer_updateInstanceUniforms = Number_renderer_defaultUpdateIUs_;
     nb->value = value;
     nb->separator = digit_dot;
     nb->digit_x_margin =     -0.25;
@@ -118,9 +136,9 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
         .uvx_end = &nb->_U0V0Xs[NUMBER_MAX_DIGITS_],
         .posX = 0,
         .digitCount = 0,
-        .tex_m = nb->d.texr.dims.m,
-        .Du = nb->d.texr.dims.Du,
-        .Dv = nb->d.texr.dims.Dv,
+        .tex_m = nb->d.texDims.m,
+        .Du = nb->d.texDims.Du,
+        .Dv = nb->d.texDims.Dv,
     };
     // 1. Signe "+/-"
     if(isNegative) {
@@ -160,9 +178,14 @@ void    number_setTo(Number* const nb, int32_t const newValue) {
 
 void     number_last_setDigitTexture(Texture* const digitTexture) {
     if(!number_last_) { printerror("No last number."); return; }
-    textureref_releaseAndNull(&number_last_->d.texr);
-    textureref_init(&number_last_->d.texr, digitTexture);
-    number_last_->n.sx = number_last_->n.sy * number_last_->d.texr.dims.tileRatio;
+    if(!texture_isShared(number_last_->d._tex) || !digitTexture) {
+        printerror("Not a shared texture or no new tex.");
+        return;
+    }
+    drawable_changeSharedTexTo(&number_last_->d, digitTexture);
+    number_last_->n.renderIU.uvRect.size = number_last_->d.texDims.DuDv;
+    number_last_->n.sx = number_last_->n.sy *
+        texturedims_tileRatio(number_last_->d.texDims);
 }
 void   number_last_setExtraDigit(uint32_t extraDigit) {
     if(!number_last_) { printerror("No last number."); return; }

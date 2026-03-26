@@ -9,8 +9,8 @@
 #include <stddef.h>
 #include "system_file.h"
 #include "system_language.h"
+#include "../external/cJSON.h"
 #include "../utils/util_base.h"
-#include "../utils/cJSON.h"
 
 //static unsigned    coqsystem_keyboardtype_ = keyboardtype_ansi;
 static unsigned    coqsystem_os_type_ = coqsystem_os_desktop;
@@ -18,10 +18,13 @@ static char const* coqsystem_os_version_ = NULL;
 static char const* coqsystem_app_version_ = NULL;
 static char const* coqsystem_app_build_ = NULL;
 static char const* coqsystem_app_display_name_ = NULL;
+static ViewSizeInfo coqsystem_viewsize_ = {};
 
-
-void        CoqSystem_init(void) {
+void        CoqSystem_init(ViewSizeInfo const viewSize) {
     if(coqsystem_app_build_ != NULL) { printerror("Already init."); return; }
+    
+    coqsystem_viewsize_ = viewSize;
+    
     #ifdef __APPLE__
     coqsystem_os_version_ = "macOS ?";
     #elif __linux__
@@ -30,32 +33,22 @@ void        CoqSystem_init(void) {
     coqsystem_os_version_ = "some OS...";
     #endif
     // Essayer de Charger les infos depuis app_info.json.
-    const char *path = FileManager_getResourcePathOpt("app_info", "json", NULL);
-    const char *content = FILE_stringContentOptAt(path, true);
-    if(!content) {
-        printwarning("In res folder, add app_info.json with the fields app_version and app_build.");
-        goto set_default;
-    }
-    cJSON *app_info = cJSON_ParseWithLength(content, FILE_bufferSize());
-    FILE_freeBuffer();
-    if (!app_info) {
-        printerror("Cannot load app_info.json.");
-        goto set_default;
-    }
+    char*const path = FileManager_getResourcePath();
+    String_pathAdd(path, "app_info", "json", NULL);
+    withcJSONAt(app_info, path)
     if_let(cJSON*, app_version, cJSON_GetObjectItem(app_info, "app_version"))
         coqsystem_app_version_ = String_createCopy(cJSON_GetStringValue(app_version));
     if_let_end
     if_let(cJSON*, app_build, cJSON_GetObjectItem(app_info, "app_build"))
         coqsystem_app_build_ = String_createCopy(cJSON_GetStringValue(app_build));
     if_let_end
-    cJSON_Delete(app_info);
+    withcJSONAtEnd(app_info, true)
     
-set_default:
     if(!coqsystem_app_build_)   coqsystem_app_build_ = "0";
     if(!coqsystem_app_version_) coqsystem_app_version_ = "0.0";
     
     // Theme
-    CoqSystem_theme_OsThemeUpdate();
+    CoqSystem_OS_appearanceUpdate();
     // iCloud
 //    CoqSystem_cloudDrive_init_();
     // Langue
@@ -63,8 +56,7 @@ set_default:
     coqsystem_app_display_name_ = String_createLocalized("app_name");
 }
 
-static ViewSizeInfo coqsystem_viewsize_ = {};
-void       CoqSystem_setViewSize(ViewSizeInfo const viewSize) {
+void       CoqSystem_setViewSize_(ViewSizeInfo const viewSize) {
     coqsystem_viewsize_ = viewSize;
 }
 ViewSizeInfo CoqSystem_getViewSize(void) {
@@ -73,7 +65,9 @@ ViewSizeInfo CoqSystem_getViewSize(void) {
     }
     return coqsystem_viewsize_;
 }
-
+bool CoqSystem_viewIsLandScape(void) {
+    return coqsystem_viewsize_.frameSizePx.w > coqsystem_viewsize_.frameSizePx.h;
+}
 
 unsigned    CoqSystem_OS_type(void) {
     return coqsystem_os_type_;
@@ -99,6 +93,10 @@ unsigned    CoqSystem_keyboardType(void) {
     return keyboardtype_ansi;
 }
 
+unsigned    CoqSystem_fontEngine(void) {
+    return fontengine_freetype;
+}
+
 const char* CoqSystem_appVersionOpt(void) {
     return coqsystem_app_version_;
 }
@@ -109,24 +107,21 @@ const char* CoqSystem_appDisplayNameOpt(void) {
     return coqsystem_app_display_name_;
 }
 
-void        CoqSystem_theme_OsThemeUpdate(void) {
+void        CoqSystem_OS_appearanceUpdate(void) {
     // pass
 }
 static bool theme_isDark_ = false;
-bool        CoqSystem_theme_OsThemeIsDark(void) {
+bool        CoqSystem_OS_appearanceIsDark(void) {
     return theme_isDark_;
 }
-void        CoqSystem_theme_setAppTheme(bool isDark) {
+void        CoqSystem_OS_appearanceSet(bool isDark) {
     theme_isDark_ = isDark;
 }
-void        CoqSystem_theme_setAppThemeToOsTheme(void) {
+void        CoqSystem_OS_appearanceSetToOS(void) {
     // pass
 }
-bool        CoqSystem_theme_appThemeIsDark(void) {
-    return theme_isDark_;
-}
 
-void        CoqSystem_cloudDrive_startWatching_(const char* subFolderOpt, const char* extensionOpt) {
+void        CoqSystem_cloudDrive_startWatching_(const char* UNUSED(subFolderOpt), const char* UNUSED(extensionOpt)) {
     // pass
 }
 bool        CoqSystem_cloudDrive_isEnabled(void) {

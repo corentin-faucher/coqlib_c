@@ -8,7 +8,7 @@
 #include "system_language.h"
 
 #include "system_file.h"
-#include "../utils/cJSON.h"
+#include "../external/cJSON.h"
 #include "../utils/util_base.h"
 #include "../utils/util_map.h"
 
@@ -19,23 +19,15 @@ static StringMap *defaultStringMap_ = NULL;
 
 StringMap* language_createStringMapOpt_(Language const language) {
     const char *iso = language_iso(language);
-    const char *path = FileManager_getResourcePathOpt(iso, "json", "localized");
-    const char *content = FILE_stringContentOptAt(path, false);
-    if(!content) {
-        printerror("No %s.json localization file.", iso);
-        return NULL;
-    }
-    cJSON *jsonFile = cJSON_ParseWithLength(content, FILE_bufferSize());
-    FILE_freeBuffer();
-    if (!jsonFile) {
-        printwarning("No json for language %s.", Language_currentIso());
-        return NULL;
-    }
-    StringMap* map = Map_create(100, 100);
+    char* const path = FileManager_getResourcePath();
+    String_pathAdd(path, iso, "json", "localized");
+    StringMap* map = NULL;
+    withcJSONAt(jsonFile, path)
+    map = Map_create(100, 100);
     for (cJSON *item = jsonFile->child; item != NULL; item = item->next) {
         map_putAsString(map, item->string, item->valuestring);
     }
-    cJSON_Delete(jsonFile);
+    withcJSONAtEnd(jsonFile, true)
     return map;
 }
 
@@ -81,7 +73,6 @@ bool     Language_system_tryToSetTo_(Language const newLanguage) {
 
 /*-- Pour la localisation des strings. ----------------*/
 /// Localization d'une string dans la langue courante.
-/// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
 const char *String_createLocalized(const char *stringKey) {
     if (!currentStringMap_) {
     printerror("Language map not init.");

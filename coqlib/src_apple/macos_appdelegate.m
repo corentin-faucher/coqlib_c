@@ -7,7 +7,6 @@
 #import "macos_appdelegate.h"
 
 #include "systems/system_sound.h"
-#include "systems/system_base.h"
 
 @implementation AppDelegateBase
 

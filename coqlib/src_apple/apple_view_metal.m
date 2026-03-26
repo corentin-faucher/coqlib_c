@@ -10,6 +10,7 @@
 #include "systems/system_locale.h"
 #include "systems/system_language.h"
 #include "utils/util_base.h"
+#include "utils/util_chrono.h"
 #include "utils/util_event.h"
 #include "utils/util_timer.h"
 #include "util_apple.h"
@@ -21,14 +22,13 @@
 //@interface CoqMetalView()
 //@end
 #else
-#import "ios_dummyTextField.h"
+//#import "ios_dummyTextField.h"
 #import "ios_dummy_scrollview.h"
 #import <CoreText/CoreText.h>
-#import <MessageUI/MessageUI.h>
 
 @interface CoqMetalView ()
 
-@property (strong, nonatomic) DummyTextField *   dummyTextField;
+//@property (strong, nonatomic) DummyTextField *   dummyTextField;
 //@property (strong, nonatomic) DummySpace *         dummySpace;
 @property (strong, nonatomic) DummyScrollView *  dummyScrollView;
 @property CGFloat keyboard_height;
@@ -36,7 +36,38 @@
 @end
 #endif
 
+CoqMetalView* mtkView_asCoqMetalViewOpt(MTKView*const view) {
+    if(!view) {
+        printerror("No view.");
+        return NULL;
+    }
+    if(![view isKindOfClass:[CoqMetalView class]]) {
+        printerror("MTKView is not a custom MetalView.");
+        return NULL;
+    }
+    return (CoqMetalView*)view;
+}
+
+#if TARGET_OS_OSX != 1
+CoqMetalView* uiview_asCoqMetalViewOpt(UIView*const view) {
+    if(!view) {
+        printerror("No view.");
+        return NULL;
+    }
+    if(![view isKindOfClass:[CoqMetalView class]]) {
+        printerror("UIView is not a custom MetalView. Not set in Main.storyboard?");
+        return NULL;
+    }
+    return (CoqMetalView*)view;
+}
+#endif
+
 @implementation CoqMetalView
+
+-(void)setRenderer:(id<MTKViewDelegate>)renderer {
+    _renderer = renderer;
+    [self setDelegate:renderer];
+}
 
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device {
     self = [super initWithFrame:frameRect device:device];
@@ -76,19 +107,16 @@
                                                           object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
             NSWindow* window = [self window];
             bool isFullScreen = [window styleMask] & NSWindowStyleMaskFullScreen;
-            CGFloat headerHeight = isFullScreen ?
-            22 : window.frame.size.height - window.contentLayoutRect.size.height;
             // Ok, le self.frame est déjà à jour quand on call drawableSizeWillChange du renderer...
-            CoqEvent_addToRootEvent((CoqEvent){
-                eventtype_resize, .resize_info = {
-                    .margins = { headerHeight, 0, 0, 0 },
-                    .originPt = CGPoint_toVector2(window.frame.origin),
-                    .framePt = CGSize_toVector2(window.frame.size),
-                    .framePx = CGSize_toVector2([self drawableSize]),
+            [self addEvent:(CoqEvent){
+                .type = eventtype_resize, .resize_info = {
+                    .margins = [self getMargins],
+                    .framePt = CGRect_toRectangle(window.frame),
+                    .frameSizePx = CGSize_toVector2([self drawableSize]),
                     .fullScreen = isFullScreen, 
-                    .justMoving = true,
+                    .justMoving = true, 
                     .dontFix = false,
-                }});
+            }}];
         }];
         // Notification Layout, theme, language
         [[NSDistributedNotificationCenter defaultCenter]
@@ -100,7 +128,7 @@
         [[NSDistributedNotificationCenter defaultCenter]
          addObserverForName:@"AppleInterfaceThemeChangedNotification"
          object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
-            CoqSystem_theme_OsThemeUpdate();
+            CoqSystem_OS_appearanceUpdate();
             CoqEvent_addToRootEvent((CoqEvent) { eventtype_systemChanged, .system_change = { .themeDidChange = true }});
         }];
         [[NSDistributedNotificationCenter defaultCenter]
@@ -119,86 +147,111 @@
                 GCExtendedGamepad* gamePad = [controller extendedGamepad];
                 if(!gamePad) { printwarning("No gamepad in controller."); return; }
                 [[gamePad dpad] setValueChangedHandler:^(GCControllerDirectionPad * _Nonnull dpad, float xValue, float yValue) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_dpad, .vector = { xValue, yValue }};
-                    CoqEvent_addToRootEvent((CoqEvent) { eventtype_gamePad_value, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = eventtype_gamePad_value, 
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad leftThumbstick] setValueChangedHandler:^(GCControllerDirectionPad * _Nonnull dpad, float xValue, float yValue) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_JoystickLeft, .buttonValue = gamePad.leftThumbstickButton.value, .vector = { xValue, yValue }};
-                    CoqEvent_addToRootEvent((CoqEvent) { eventtype_gamePad_value, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = eventtype_gamePad_value, 
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad rightThumbstick] setValueChangedHandler:^(GCControllerDirectionPad * _Nonnull dpad, float xValue, float yValue) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_JoystickRight, .buttonValue = gamePad.rightThumbstickButton.value, .vector = { xValue, yValue }};
-                    CoqEvent_addToRootEvent((CoqEvent) { eventtype_gamePad_value, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = eventtype_gamePad_value, 
+                        .gamepadInput = input}
+                    ];
                 }];
                 [[gamePad buttonA] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_A, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad buttonB] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_B, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad buttonX] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_X, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad buttonY] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_Y, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad rightTrigger] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_ZR, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad rightShoulder] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_R, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad leftTrigger] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_ZL, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad leftShoulder] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_L, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad buttonMenu] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_Plus, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
                 [[gamePad buttonOptions] setPressedChangedHandler:^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                    [self setPaused:NO]; if(self.isPaused) return;
                     GamePadInput input = { gamepad_Minus, value };
-                    CoqEvent_addToRootEvent((CoqEvent) { pressed ? eventtype_gamePad_down : eventtype_gamePad_up, .gamepadInput = input });
+                    [self addEvent:(CoqEvent) { 
+                        .type = pressed ? eventtype_gamePad_down : eventtype_gamePad_up,
+                        .gamepadInput = input 
+                    }];
                 }];
             }];
         }
     }
 #else
-    bool ios13available = false;
-    if(@available(iOS 13.4, *)) {
-        ios13available = true;
-    }
-    if(!ios13available || self.iosForceVirtualKeyboard) {
-        self.dummyTextField = [[DummyTextField alloc]
-                               initWithFrame:CGRectMake(0, 60, 120, 30)
-                               andMetalView:self];
-        [self addSubview:self.dummyTextField];
-        
+//    bool ios13available = false;
+//    if(@available(iOS 13.4, *)) {
+//        ios13available = true;
+//    }
+//    if(!ios13available || self.iosForceVirtualKeyboard) {
+//        self.dummyTextField = [[DummyTextField alloc]
+//                               initWithFrame:CGRectMake(0, 60, 120, 30)
+//                               andMetalView:self];
+//        [self addSubview:self.dummyTextField];
 //        printdebug("Adding dummy text field %s.", [[self.dummyTextField description] UTF8String]);
-    }
+//    }
     // Notifications
     {
         NSNotificationCenter* dc = [NSNotificationCenter defaultCenter];
@@ -267,10 +320,7 @@
                     break;
                 }
                 if(isFullScreen) [self.window toggleFullScreen:nil];
-                CGRect frame = {
-                    .origin = vector2_toCGPoint(event.resize_info.originPt),
-                    .size = vector2_toCGSize(event.resize_info.framePt)
-                };
+                CGRect frame = rectangle_toCGRect(event.resize_info.framePt);
                 [self.window setFrame:frame display:YES];
                 break;
             }
@@ -283,8 +333,8 @@
                 [mailService performWithItems:@[[NSString stringWithUTF8String:event.email_info.body]]];
                 break;
             }
-            case eventtype_win_ios_keyboardNeeded:
-            case eventtype_win_ios_keyboardNotNeeded:
+//            case eventtype_win_ios_keyboardNeeded:
+//            case eventtype_win_ios_keyboardNotNeeded:
             case eventtype_win_ios_scrollviewNotNeeded:
             case eventtype_win_ios_scrollviewNeeded:
             case eventtype_win_ios_scrollviewDisable_:
@@ -309,14 +359,14 @@
                 [viewController presentViewController:mail animated:YES completion:nil];
                 break;
             }
-            case eventtype_win_ios_keyboardNeeded: {
-                [self activateDummyTextField];
-                break;
-            }
-            case eventtype_win_ios_keyboardNotNeeded: {
-                [self deactivateDummyTextField];
-                break;
-            }
+//            case eventtype_win_ios_keyboardNeeded: {
+//                [self activateDummyTextField];
+//                break;
+//            }
+//            case eventtype_win_ios_keyboardNotNeeded: {
+//                [self deactivateDummyTextField];
+//                break;
+//            }
             case eventtype_win_ios_scrollviewNeeded: {
                 CGRect rect = rectangle_toCGRect(event.win_scrollViewInfo.rect);
                 CGFloat factor = (CGFloat)event.win_scrollViewInfo.contentFactor;
@@ -395,41 +445,33 @@
     }
 }
 
--(void)startCheckUpDispatchQueue {
+/// Les events/timers à vérifier durant une `tick`.
+-(BOOL)processTick {
+    // 0. Checks...
+    if(CoqEvent_timeSinceLastEventMS() > 8000)
+        [self setPaused:YES];
+    if(self.isPaused) { return false; }
+    if([self shouldTerminate] || [self willTerminate]) { return false; }
+    guard_let(Root*, root, CoqEvent_rootOpt, , false)
+    // 1. Setter le temps de la tick.
+    EventTimeCapture_update();
+    ChronoChecker cc = chronochecker_startNew();
+    // 2. Traiter tous les events (keydown, touchDown, ...)
+    CoqEvent_processAllQueuedRootEvents();
+//    chronochecker_tocWithComment(cc, "Events processed");
+    // 3. Traiter les callback de timers, i.e. physique de collisions.
+    Timer_check();
+//    chronochecker_tocWithComment(cc, "Timers processed");
+    // 5. Sleep s'il reste du temps.
+    chronochecker_sleepRemaining(cc, EventTimeCapture.deltaTMS, false);
+    
+    return true;
+}
+-(void)startProcessTicksDispatchQueue {
     if(checkup_queue == NULL)
         checkup_queue = dispatch_queue_create("coqviewcheckup.queue", NULL);
     dispatch_async(checkup_queue, ^{
-        ChronoChecker cc;
-        while(true) {
-            // Checks
-            if(self.isPaused) { break; }
-            if([self shouldTerminate] || [self willTerminate]) { break; }
-            // Set le temps de la tic.
-            ChronoEvent_update();
-            cc = chronochecker_startNew();
-            
-            // Updates prioritaires
-            // 1. Les events en premiers.
-            CoqEvent_processAllQueuedRootEvents();
-            // 2. Ensuite les callback des timers.
-            Timer_check();
-            // 3. Finalement, faire le ménage...
-            NodeGarbage_burn();
-
-            // Check optionnels : charger les textures...
-            if(chronochecker_elapsedMS(cc) > ChronosEvent.deltaTMS) {
-                if(chronochecker_elapsedMS(cc) > 200)
-                    printwarning("Overwork? %lld ms.", chronochecker_elapsedMS(cc)); 
-                continue;
-            }
-            Texture_checkToFullyDrawAndUnused(&cc, ChronosEvent.deltaTMS - 5);
-            
-            // Sleep s'il reste du temps.
-            int64_t sleepDeltaT = ChronosEvent.deltaTMS - chronochecker_elapsedMS(cc);
-            if(sleepDeltaT < 1) sleepDeltaT = 1;
-            struct timespec time = {0, sleepDeltaT*ONE_MILLION};
-            nanosleep(&time, NULL);
-        }
+        while([self processTick]);
         // Terminate ?
         if([self shouldTerminate] && ![self willTerminate]) {
 #if TARGET_OS_OSX == 1
@@ -443,31 +485,12 @@
     });
 }
 
-/// Pour si on ne veut pas de thread `coqviewcheckup.queue`.
--(BOOL)_checkUp {
-    if(self.isPaused) { return false; }
-    guard_let(Root*, root, CoqEvent_root, , false)
-    if([self shouldTerminate] || [self willTerminate]) { return false; }
-    ChronoChecker cc = chronochecker_startNew();
-    // Set le temps de la tic.
-    ChronoEvent_update();
-    // Updates prioritaires
-    CoqEvent_processAllQueuedRootEvents();
-    Timer_check();
-    NodeGarbage_burn();
-    
-    // Check optionnels
-    if(chronochecker_elapsedMS(cc) > ChronosEvent.deltaTMS) {
-        printwarning("Overwork?"); return true;
-    }
-    Texture_checkToFullyDrawAndUnused(&cc, ChronosEvent.deltaTMS - 5);
-    
-    // Sleep s'il reste du temps.
-    int64_t sleepDeltaT = ChronosEvent.deltaTMS - chronochecker_elapsedMS(cc);
-    if(sleepDeltaT < 1) sleepDeltaT = 1;
-    struct timespec time = {0, sleepDeltaT*ONE_MILLION};
-    nanosleep(&time, NULL);
-    return true;
+-(void)startDrawMissingPngsDispatchQueue {
+    if(drawPng_queue == NULL)
+        drawPng_queue = dispatch_queue_create("coqviewdrawpng.queue", NULL);
+    dispatch_async(drawPng_queue, ^{
+        Texture_drawMissingPngs();
+    });
 }
 
 /// "Pause" en plus fort. Seuls les event comme "applicationDidBecomeActive" ou "didEnterFullScreenNotification"
@@ -479,7 +502,6 @@
 -(void)setPaused:(BOOL)paused {
     // Ne peut sortir de pause si l'activité est suspendu...
     if(self.isSuspended && !paused) return;
-    ChronoRender_setPaused(paused);  // (empeche d'entrer en veille)
     if(paused == self.isPaused) return;
     // Ok, changement...
     ChronoApp_setPaused(paused);
@@ -491,45 +513,68 @@
         return;
     }
     // Unpause
-    if_let(Root*, root, CoqEvent_root)
+    if_let(Root*, root, CoqEvent_rootOpt)
     if(root->resumeAfterMSOpt) root->resumeAfterMSOpt(root, ChronoApp_lastSleepTimeMS());
     if_let_end
-    [self startCheckUpDispatchQueue];
+    [self startProcessTicksDispatchQueue];
     win_event_timer = [NSTimer scheduledTimerWithTimeInterval:0.03 repeats:true block:^(NSTimer * _Nonnull timer) {
         [self checkWindowEvents];
     }];
 }
+-(void)addEvent:(CoqEvent)coqEvent {
+    // Laisser faire si l'app est suspendu.
+    if([self isSuspended]) return;
+    
+    // Ajouter (avant de sortir de pause...)
+    CoqEvent_addToRootEvent(coqEvent);
+    
+    // Réveiller l'app si en pause.
+    [self setPaused:NO];
+}
+
+-(void)checksAfterRendererDraw {
+    // Dans la thread de rendering...
+    // S'il faut dessiner, partir une thread pour dessiner les pngs.
+    if(Texture_needToDrawPngs()) {
+        [self startDrawMissingPngsDispatchQueue];
+    }
+    // De temps en temps vider les poubelles et libérer les pngs inutilisés.
+    if(RendererTimeCapture.tick % 2) return;
+    Node_render_burnDownGarbage();
+    if(RendererTimeCapture.tick % 100) return;
+    Texture_render_releaseUnusedPngs();
+}
 
 // MARK: - Resizing view...
-
 -(void)safeAreaInsetsDidChange {
     [self updateRootFrame: self.drawableSize dontFix:YES];
 }
+
 - (Margins)getMargins {
+#if TARGET_OS_OSX == 1
     NSWindow*const window = [self window];
     bool const isFullScreen = [window styleMask] & NSWindowStyleMaskFullScreen;
     CGFloat const headerHeight = isFullScreen ?
         22 : window.frame.size.height - window.contentLayoutRect.size.height;
     return (Margins) { headerHeight, 0, 0, 0 };
+#else
+    return UIEdgeInsets_toMargins([self safeAreaInsets]);
+#endif
 }
+
+
 - (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix {
-//    if(!root) { return; }
-    [self setPaused:NO];
 #if TARGET_OS_OSX == 1
-    NSWindow* window = [self window];
-    bool isFullScreen = [window styleMask] & NSWindowStyleMaskFullScreen;
     // Ok, le self.frame est déjà à jour quand on call drawableSizeWillChange du renderer...
-    CoqEvent_addToRootEvent((CoqEvent){
-        eventtype_resize, .resize_info = {
+    CoqEvent const coqevent = {
+        .type = eventtype_resize, .resize_info = {
             .margins = [self getMargins],
-            .originPt = CGPoint_toVector2(window.frame.origin),
-            .framePt = CGSize_toVector2(window.frame.size),
-            .framePx = CGSize_toVector2(sizePx), 
-            .fullScreen = isFullScreen, 
+            .framePt = CGRect_toRectangle(self.window.frame),
+            .frameSizePx = CGSize_toVector2(sizePx), 
+            .fullScreen = [self.window styleMask] & NSWindowStyleMaskFullScreen, 
             .justMoving = false, 
             .dontFix = dontFix,
-    }});
-    window = nil;
+    }};
 #else
     // Marges a priori.
     Margins margins = UIEdgeInsets_toMargins([self safeAreaInsets]);
@@ -537,22 +582,22 @@
     if(!CoqSystem_dontResizeOnVirtualKeyboard && (self.keyboard_height > margins.bottom)) {
         margins.bottom = self.keyboard_height;
     }
-    CoqEvent_addToRootEvent((CoqEvent){
+    CoqEvent const coqevent = {
         eventtype_resize, .resize_info = {
             .margins = margins, 
-            .originPt = CGPoint_toVector2(window.frame.origin),
-            .framePt = CGSize_toVector2(self.frame.size),
-            .framePx = CGSize_toVector2(sizePx),
+            .framePt = CGRect_toRectangle(self.frame),
+            .frameSizePx = CGSize_toVector2(sizePx),
             .fullScreen = true, 
             .justMoving = false, 
             .dontFix = dontFix,
-    }});
+    }};
 #endif
+    [self addEvent:coqevent];
 }
 
 #if TARGET_OS_OSX != 1
 -(void)traitCollectionDidChange:(UITraitCollection *)previousTraitCollection {
-    CoqSystem_theme_OsThemeUpdate();
+    CoqSystem_OS_appearanceUpdate();
 }
 #endif
 
@@ -577,89 +622,73 @@
     [super updateTrackingAreas];
 }
 -(void)mouseMoved:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_hovering,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
         },
-    });
+    }];
 }
 
 -(void)rightMouseDown:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_down,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
             .touchId = 1,
         },
-    });
+    }];
 }
 -(void)rightMouseDragged:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_drag,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
             .touchId = 1,
         },
-    });
+    }];
 }
 -(void)rightMouseUp:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_up,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
             .touchId = 1,
         },
-    });
+    }];
 }
 -(void)mouseDown:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_down,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
         },
-    });
+    }];
 }
 -(void)mouseDragged:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_drag,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
         },
-    });
+    }];
 }
 -(void)mouseUp:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
-    NSPoint viewPosNSP = event.locationInWindow;
-    CoqEvent_addToRootEvent((CoqEvent){
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_up,
         .touch_info = {
-            .pos = { viewPosNSP.x, viewPosNSP.y },
+            .pos = { event.locationInWindow.x, 
+                     event.locationInWindow.y },
         },
-    });
+    }];
 }
 -(void)scrollWheel:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
     // (slidingmenu a sa propre "inertie", si != 0 -> on a un "NSEventPhase" que l'on ignore)
     if(event.momentumPhase != 0)
         return;
@@ -714,7 +743,7 @@
             break;
     }
     if(coq_event.type)
-        CoqEvent_addToRootEvent(coq_event);
+        [self addEvent:coq_event];
 }
 
 #else
@@ -723,51 +752,43 @@
 // **-- Touches (similaire a mouse)----------------------------------------
 
 -(void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if(root == NULL || touches.count == 0) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
+    if(touches.count == 0) return;
     UITouch* touch = [touches anyObject];
     CGPoint location = [touch locationInView:self];
-    Vector2 viewPos = { location.x, location.y };
-    
-    CoqEvent coq_event = {
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_down,
-        .touch_pos = root_absposFromViewPos(root, viewPos, true),
-    };
-    CoqEvent_addToRootEvent(coq_event);
+        .touch_info = {
+            .pos = { location.x, 
+                     location.y },
+            .yInverted = true,
+        },
+    }];
 }
 -(void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if(root == NULL || touches.count == 0) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
+    if(touches.count == 0) return;
     UITouch* touch = [touches anyObject];
     CGPoint location = [touch locationInView:self];
-    Vector2 viewPos = { location.x, location.y };
-    
-    CoqEvent coq_event = {
+    [self addEvent:(CoqEvent){
         .type = eventtype_touch_drag,
-        .touch_pos = root_absposFromViewPos(root, viewPos, true),
-    };
-    CoqEvent_addToRootEvent(coq_event);
+        .touch_info = {
+            .pos = { location.x, 
+                     location.y },
+            .yInverted = true,
+        },
+    }];
     
 }
 -(void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if(root == NULL || touches.count == 0) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
+    if(touches.count == 0) return;
     if(self.dummyScrollView != nil)
         [self.dummyScrollView setScrollEnabled:YES];
-    CoqEvent coq_event = { .type = eventtype_touch_up };
-    CoqEvent_addToRootEvent(coq_event);
+    [self addEvent:(CoqEvent){.type = eventtype_touch_up}];
 }
 -(void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
-    if(root == NULL || touches.count == 0) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
+    if(touches.count == 0) return;
     if(self.dummyScrollView != nil)
         [self.dummyScrollView setScrollEnabled:YES];
-    CoqEvent coq_event = { .type = eventtype_touch_up };
-    CoqEvent_addToRootEvent(coq_event);
+    [self addEvent:(CoqEvent){.type = eventtype_touch_up}];
 }
 
 #endif
@@ -776,125 +797,117 @@
 // **-- Keyboard input ---------------------------------------------
 #if TARGET_OS_OSX == 1
 -(void)keyDown:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
     if(event.isARepeat && CoqEvent_ignoreRepeatKeyDown) return;
     uint32_t mods = (uint32_t)event.modifierFlags;
     uint16_t keycode = event.keyCode;
     uint16_t mkc = MKC_of_keycode[keycode];
-    const char* c_str = [event.characters UTF8String];
+//    const char* c_str = [event.characters UTF8String];
     CoqEvent coqEvent = { 
         .type = eventtype_key_down,
         .key = {mods, keycode, mkc, false },
     };
-    if(c_str) strncpy(coqEvent.key.typed.c_str, c_str, CHARACTER_MAX_SIZE);
-    CoqEvent_addToRootEvent(coqEvent);
+//    if(c_str) strncpy(coqEvent.key.typed.c_str, c_str, CHARACTER_MAX_SIZE);
+    [self addEvent:coqEvent];
 }
 -(void)keyUp:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
     if(event.isARepeat && CoqEvent_ignoreRepeatKeyDown) return;
     uint32_t mods = (uint32_t)event.modifierFlags;
     uint16_t keycode = event.keyCode;
     uint16_t mkc = MKC_of_keycode[keycode];
-    const char* c_str = [event.characters UTF8String];
+//    const char* c_str = [event.characters UTF8String];
     CoqEvent coqEvent = { 
         .type = eventtype_key_up,
         .key = {mods, keycode, mkc, false },
     };
-    if(c_str) strncpy(coqEvent.key.typed.c_str, c_str, CHARACTER_MAX_SIZE);
-    
-    CoqEvent_addToRootEvent(coqEvent);
+//    if(c_str) strncpy(coqEvent.key.typed.c_str, c_str, CHARACTER_MAX_SIZE);
+    [self addEvent:coqEvent];
 }
 -(void)flagsChanged:(NSEvent *)event {
-    [self setPaused:NO];
-    if(self.isPaused) return;
     CoqEvent coqEvent = {
         .type = eventtype_key_mod,
         .key = { .modifiers = (uint32_t)event.modifierFlags },
     };
-    CoqEvent_addToRootEvent(coqEvent);
+    [self addEvent:coqEvent];
 }
 #else
 // MARK: - iOS Keyboard events
 -(void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     [super pressesBegan:presses withEvent:event];
-    if(root == NULL) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
     if(@available(iOS 13.4, *)) {for(UIPress* press in presses) {
-        UIKey *key = press.key;
-        uint32_t mods = (uint32_t)key.modifierFlags;
-        uint16_t keycode = key.keyCode;
-        uint16_t mkc = MKC_of_keycode[keycode];
-        const char* c_str = [key.characters UTF8String];
-        
-        uint32_t event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
+        UIKey*const key = press.key;
+        uint16_t const keycode = key.keyCode;
+        uint32_t const event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
                                 eventtype_key_mod : eventtype_key_down;
-        CoqEvent coqevent = {
+        CoqEvent const coqevent = {
             .type = event_type,
-            .key = { mods, keycode, mkc, false, }
+            .key = {
+                .modifiers = (uint32_t)key.modifierFlags,
+                .keycode = keycode,
+                .mkc = MKC_of_keycode[keycode],
+            },
         };
-        if(c_str)
-            strncpy(coqevent.key.typed.c_str, c_str, CHARACTER_MAX_SIZE);
-        CoqEvent_addToRootEvent(coqevent);
+//        const char*const c_str = [key.characters UTF8String];
+//        if(c_str) strncpy(coqevent.key.typed.c_str, c_str, CHARACTER_MAX_SIZE);
+        [self addEvent:coqevent];
     }}
 }
 -(void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     [super pressesEnded:presses withEvent:event];
-    if(root == NULL) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
     if(@available(iOS 13.4, *)) {for(UIPress* press in presses) {
         UIKey *key = press.key;
-        uint32_t mods = (uint32_t)key.modifierFlags & (~modifier_capslock);
-        uint16_t keycode = key.keyCode;
+        uint32_t const mods = (uint32_t)key.modifierFlags & (~modifier_capslock);
+        uint16_t const keycode = key.keyCode;
         if(keycode == keycode_capsLock) continue;
-        uint32_t event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
+        uint32_t const event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
                                 eventtype_key_mod : eventtype_key_up;
         CoqEvent coqevent = {
             .type = event_type,
-            .key = { mods, keycode, MKC_of_keycode[keycode], false, }
+            .key = {
+                .modifiers = mods,
+                .keycode = keycode,
+                .mkc = MKC_of_keycode[keycode],
+            },
         };
-        CoqEvent_addToRootEvent(coqevent);
+        [self addEvent:coqevent];
     }}
 }
 -(void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
     [super pressesCancelled:presses withEvent:event];
-    if(root == NULL) return;
-    [self setPaused:NO];
-    if(self.isPaused) return;
     if(@available(iOS 13.4, *)) {for(UIPress* press in presses) {
 //#warning A tester.
-        UIKey *key = press.key;
-        uint32_t mods = (uint32_t)key.modifierFlags & (~modifier_capslock);
-        uint16_t keycode = key.keyCode;
+        UIKey *const key = press.key;
+        uint32_t const mods = (uint32_t)key.modifierFlags & (~modifier_capslock);
+        uint16_t const keycode = key.keyCode;
         if(keycode == keycode_capsLock) continue;
-        uint32_t event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
+        uint32_t const event_type = (keycode >= 0xE0 && keycode <= 0xE7) ?
                                 eventtype_key_mod : eventtype_key_up;
         CoqEvent coqevent = {
             .type = event_type,
-            .key = { mods, keycode, MKC_of_keycode[keycode], false, }
+            .key = {
+                .modifiers = mods,
+                .keycode = keycode,
+                .mkc = MKC_of_keycode[keycode],
+            },
         };
-        CoqEvent_addToRootEvent(coqevent);
+        [self addEvent:coqevent];
     }}
 }
 
 // Dummy text field pour keyboard event avec iOS < 13.5...
--(void)activateDummyTextField {
-    if(self.dummyTextField == nil) return;
-    if([self.dummyTextField isFirstResponder]) return;
-    
-    [self.dummyTextField becomeFirstResponder];
-}
--(void)deactivateDummyTextField {
-    if(self.dummyTextField == nil) return;
-    if(![self.dummyTextField isFirstResponder]) return;
-    
-    // Il faut `unlock` avant de resigner.
-    [self.dummyTextField setLocked:NO];
-    [self.dummyTextField resignFirstResponder];
-}
+//-(void)activateDummyTextField {
+//    if(self.dummyTextField == nil) return;
+//    if([self.dummyTextField isFirstResponder]) return;
+//    
+//    [self.dummyTextField becomeFirstResponder];
+//}
+//-(void)deactivateDummyTextField {
+//    if(self.dummyTextField == nil) return;
+//    if(![self.dummyTextField isFirstResponder]) return;
+//    
+//    // Il faut `unlock` avant de resigner.
+//    [self.dummyTextField setLocked:NO];
+//    [self.dummyTextField resignFirstResponder];
+//}
 
 #endif
 

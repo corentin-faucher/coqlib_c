@@ -12,10 +12,13 @@
 #include "node_view.h"
 #include "../utils/util_event.h"
 
+#define Root_test_zoomOutFactor 1.0f
+
 // Racine, noeud de base de l'app.
 // Une root gère le framing de ses descendants.
-// w/h (de Node) sont le "cadre utilisable", e.g. 3.5x2, (de (-1.75,-1) à
-// (1.75,1)). frameWidth/frameHeihgt est le cadre complet (avec marges),
+// w/h (de Node) sont le "cadre utilisable", 
+// e.g. 3.5x2, (de (-1.75,-1) à (1.75,1)). 
+// frameWidth/frameHeihgt est le cadre complet (avec marges),
 // e.g. 3.7 x 2.2. viewWidthPx/viewHeihgtPx est la version en pixel (de la view
 // de l'OS) des frameWidth/frameHeihgt, e.g. 1080 x 640.
 typedef struct coq_Root {

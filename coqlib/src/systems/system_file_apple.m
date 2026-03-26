@@ -13,32 +13,22 @@
 // Espace où est stocker le dernier path demandé.
 static char  FileManager_tmp_path_[PATH_MAX];
 
-char* FileManager_getResourcePathOpt(const char*const fileNameOpt, 
-            const char*const fileExtOpt, const char*const subDirOpt) 
+char* FileManager_getResourcePath(void) 
 {
     memset(FileManager_tmp_path_, 0, PATH_MAX);
-    NSString* fileName = fileNameOpt ? [NSString stringWithUTF8String:fileNameOpt] : nil;
-    NSString* fileExt = fileExtOpt ? [NSString stringWithUTF8String:fileExtOpt] : nil;
-    NSString* subDir = subDirOpt ? [NSString stringWithUTF8String:subDirOpt] : nil;
-    NSURL* url = [NSBundle.mainBundle URLForResource:fileName
-                                       withExtension:fileExt
-                                        subdirectory:subDir];
-    if(url == nil) { return NULL; }
-    // Il faut copier car url et son path seront detruit...
-    const char* path = [[url path] UTF8String];
-    strcpy(FileManager_tmp_path_, path);
+    strcpy(FileManager_tmp_path_, [[NSBundle.mainBundle resourcePath] UTF8String]);
     return FileManager_tmp_path_;
 }
-char* FileManager_getApplicationSupportDirectoryPathOpt(void) {
+char* FileManager_getApplicationSupportDirectoryPath(void) 
+{
     memset(FileManager_tmp_path_, 0, PATH_MAX);
     NSError* error = nil;
     NSURL* appSupDir = [[NSFileManager defaultManager] URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:YES error:&error];
     if(error != nil) {
         printerror("Cannot get application support directory.");
-        return NULL;
+        return FileManager_tmp_path_;
     }
-    const char* path = [[appSupDir path] UTF8String];
-    strcpy(FileManager_tmp_path_, path);
+    strcpy(FileManager_tmp_path_, [[appSupDir path] UTF8String]);
     return FileManager_tmp_path_;
 }
 

@@ -41,10 +41,15 @@ typedef struct Number {
     bool     initAsBlank;
     uint32_t _digitCount;
     Vector3  _U0V0Xs[NUMBER_MAX_DIGITS_];
-} Number;
+} Number; 
 
-extern Texture*    Number_defaultTex;
-extern void      (*Number_renderer_defaultUpdateIUs)(Node*); 
+// MARK: Init des variables et fonctions "de classe" customizables.
+/// Initialisation des variables et fonctions "de classe" : 
+/// - La texture à utiliser pour les chiffres,
+/// - La fonction utilisée pour mettre à jour les matrices modèles avant l'affichage.
+void  Number_init(Texture* digitsTextureOpt, 
+            void (*renderer_updateInstanceUniformsOpt)(Node*)
+);
 
 /// Init node as number (avec supers: Node, Drawable, DrawableMulti)
 void number_and_super_init_(Number* const nb, Node* refOpt, int32_t value,

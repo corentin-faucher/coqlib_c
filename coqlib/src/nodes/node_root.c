@@ -24,8 +24,8 @@ void root_renderer_defaultUpdateIU_(Node* const n) {
     center.y += yShift;
     Vector3 up =     fl_array_toVec3(rt->camera_up);
     // Projection ordinaire (pyramide de perspective...)
-    float deltaX = 0.5*fl_evalPos(&rt->fullSizeWidth);
-    float deltaY = 0.5*fl_evalPos(&rt->fullSizeHeight);
+    float deltaX = Root_test_zoomOutFactor*0.5*fl_evalPos(&rt->fullSizeWidth);
+    float deltaY = Root_test_zoomOutFactor*0.5*fl_evalPos(&rt->fullSizeHeight);
 
     // Si on veut garder projection et view séparés...
 //    matrix4_initAsPerspectiveDeltas(&rt->projectionOpt, 0.1, 50, middleZ, deltaX, deltaY);
@@ -73,7 +73,7 @@ void   root_deleteOldActiveView_callback_(void* rootIn) {
     if(!r->toDeleteViewNodeOpt) return;
     noderef_destroyAndNull(&r->toDeleteViewNodeOpt);
 }
-void   root_callback_terminate_(void* unused) {
+void   root_callback_terminate_(void* UNUSED()) {
     CoqEvent_addToWindowEvent((CoqEventWin) { .type = eventtype_win_terminate });
 }
 void  root_changeViewActiveTo(Root* const rt, View* const newViewOpt) {
@@ -152,12 +152,12 @@ FullSizeAndRatios_ FullSizeAndRatios_fromMarginsAndSize_(Margins margins, Vector
 void root_setDimsWithViewSize_(Root*const rt, ViewSizeInfo viewSize) {
     if(viewSize.framePt.w < 2 || viewSize.framePt.h < 2) {
         printerror("Bad resize dims.");
-        viewSize.framePt = (Vector2) {{ 800, 500 }};
+        viewSize.framePt.size = (Vector2) {{ 800, 500 }};
     }
     rt->margins = viewSize.margins;
-    rt->viewSizePt = viewSize.framePt;
+    rt->viewSizePt = viewSize.framePt.size;
     FullSizeAndRatios_ fsr = FullSizeAndRatios_fromMarginsAndSize_(
-                                 viewSize.margins, viewSize.framePt);
+                                 viewSize.margins, viewSize.framePt.size);
     // 2. Usable Frame
     if (fsr.realRatio > 1) { // Landscape
         rt->n.w = (1.f - fsr.ratioLR) * fsr.fullSize.w;

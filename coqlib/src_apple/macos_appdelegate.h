@@ -12,7 +12,6 @@
 @public
     NSWindow*     window;
     CoqMetalView* view;
-    id<MTKViewDelegate> renderer;
 }
 
 @end

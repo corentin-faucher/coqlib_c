@@ -31,7 +31,7 @@ DrawableChar* DrawableChar_create(Node* refOpt, Character c,
     // Super init
     node_init(&dc->n, refOpt, x, y, 1, 1, flags, 0);
     GlyphMap*const gm = GlyphMap_default();
-    drawable_init(&dc->d, glyphmap_texture(gm), Mesh_drawable_sprite, 0, twoDy);
+    drawable_init(&dc->d, glyphmap_texture(gm), NULL, 0, twoDy);
     // └>Set w = 1, h = 1, sy = twoDy.
     dc->n.sx = twoDy;
     dc->n.renderer_updateInstanceUniforms = drawablechar_renderer_updateIU_;
@@ -57,14 +57,11 @@ void            drawablechar_updateToChar(DrawableChar*const dc, Character const
     dc->n.renderIU.uvRect = dc->glyph.uvRect;
     dc->n.w = dc->glyph.relSolidWidth;
 }
-void           drawablechar_updateAsPngTile(DrawableChar*const dc, uint32_t pngId, uint32_t tileId) {
-    
-}
 
 // MARK: - NodeString
 void nodestring_open_(Node* n) {
     NodeString* ns = (NodeString*)n;
-    float_initConst(&ns->openTimeSec, (float)ChronosEvent.render_elapsedMS * SEC_PER_MS);
+    float_initConst(&ns->openTimeSec, (float)EventTimeCapture.render_elapsedMS * SEC_PER_MS);
 }
 void nodestring_deinit_(Node* n) {
     NodeString* ns = (NodeString*)n;
@@ -82,8 +79,9 @@ void nodestring_renderer_updateIUs_(Node* const n) {
     float const show = drawable_updateShow(&ns->d);
     if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
+    
+    // x de départ pour affichage "centré".
     // (A priori, sx == sy (hauteur ref), sauf si compression en x.)
-    // Affichage "centré" (String va de 0 à x = xEndRel)
     float const x0 = n->x - 0.5*sg.xEndRel * n->sx;
     withIUsToEdit_beg(ius, &ns->dm.iusBuffer) 
     for(; (ius.iu < ius.end) && (sg.c < sg.end); ius.iu++, sg.c++) {
@@ -105,6 +103,7 @@ void nodestring_renderer_updateIUs_(Node* const n) {
     }
     withIUsToEdit_end(ius)
 }
+// Exemple d'effet sur le texte : lettres qui bougent.
 void nodestring_renderer_updateIUsMoving(Node* const n) {
     NodeString* ns = (NodeString*)n;
     if(!ns->sg) { printerror("No string glyphed."); return; }
@@ -114,8 +113,8 @@ void nodestring_renderer_updateIUsMoving(Node* const n) {
     const Matrix4* const pm = node_parentModel(n);
     
     float const deltaT = -ns->n.nodrawData.data0.v.x;
-    float const elapsedSecAngle = ChronoRender_elapsedAngleSec();
-    float const elapsed = ChronoRender_elapsedSec() - ns->openTimeSec + deltaT;
+    float const elapsedSecAngle = RendererTimeCapture_elapsedAngleSec();
+    float const elapsed = RendererTimeCapture.render_elapsedMS * SEC_PER_MS - ns->openTimeSec + deltaT;
     float const x0 = n->x - 0.5*sg.xEndRel * n->sx;
     withIUsToEdit_beg(iusEdit, &ns->dm.iusBuffer) 
     float index = 0;
@@ -144,7 +143,7 @@ void nodestring_renderer_updateIUsMoving(Node* const n) {
     }
     withIUsToEdit_end(iusEdit)
 }
-void nodestring_checkDimensions_(NodeString* const ns) {
+void nodestring_checkDimensions(NodeString* const ns) {
     StringGlyphedToDraw const sg = stringglyphed_getToDraw(ns->sg);
     // Largeur / DeltaX
     float const strWidth = fabsf(sg.xEndRel);
@@ -163,16 +162,18 @@ void nodestring_checkDimensions_(NodeString* const ns) {
         ns->n.w = strWidth + twoMargX;
     }
     // Ajustement de taille d'un frame
-    Node* const bigBro = ns->n._bigBro;
-    if(bigBro && (ns->n.flags & flag_giveSizeToBigbroFrame))
-        node_tryUpdatingAsFrameOfBro(bigBro, &ns->n);
+    if(ns->n.flags & flag_giveSizeToBigbroFrame) {
+        if_let(Frame*, bigBroFrame, node_asFrame(ns->n._bigBro))
+        frame_tryToUpdateToLittleBro(bigBroFrame);
+        if_let_end
+    }
 }
 
 void nodestring_updateString(NodeString *const ns, const char *const newString) {
     with_beg(CharacterArray const, ca, CharacterArray_createFromString(newString))
     stringglyphed_setChars(ns->sg, ca);
     with_end(ca)
-    nodestring_checkDimensions_(ns);
+    nodestring_checkDimensions(ns);
 }
 
 void nodestring_and_super_init_(NodeString* ns, Node* refOpt,
@@ -185,7 +186,7 @@ void nodestring_and_super_init_(NodeString* ns, Node* refOpt,
     StringGlyphed *const sg = *sgRefGiven;
     *sgRefGiven = NULL;
     if(sg == NULL) { printerror("No StringGlyphed."); return; }
-    drawable_init(&ns->d, stringglyphed_glyphMapTexture(sg), Mesh_drawable_sprite, 0, twoDy);
+    drawable_init(&ns->d, stringglyphed_glyphMapTexture(sg), NULL, 0, twoDy);
     // └>Set w = 1, h = 1, sy = twoDy.
     InstanceUniforms iu = InstanceUniforms_default;
     drawablemulti_init(&ns->dm, umaxu((uint32_t)stringglyphed_maxCount(sg), 2), &iu);
@@ -198,7 +199,7 @@ void nodestring_and_super_init_(NodeString* ns, Node* refOpt,
     smoothflag_setDeltaT(&ns->d.trShow, 200);
     float_initConst(&ns->twoDxOpt, twoDxOpt);
 
-    nodestring_checkDimensions_(ns);
+    nodestring_checkDimensions(ns);
 }
 
 NodeString* NodeString_create(Node* ref, StringGlyphedInit const data,
@@ -268,11 +269,11 @@ Drawable*  Drawable_test_createString(Node *const refOpt, const char *const c_st
     Drawable *d = coq_callocTyped(Drawable);
     node_init(&d->n, refOpt, x, y, 1, 1, flags, 0);
     CoqFontDims const fd = coqfont_dims(cf);
-    PixelBGRAArray *pa = Pixels_engine_test_createArrayFromString_(c_str, cf);
+    PixelArray *pa = PixelsArray_engine_test_createFromString_(c_str, cf);
     Texture* tex =  Texture_createWithPixels(pa->pixels,
             (uint32_t)pa->width, (uint32_t)pa->height, 
             fd.nearest ? tex_flag_nearest : 0);
-    drawable_init(d, tex, Mesh_drawable_sprite, 0, twoDy);
+    drawable_init(d, tex, NULL, 0, twoDy);
     float const relGlyphHeight = fd.fullHeight / fd.solidHeight;
     d->n.sy = twoDy * relGlyphHeight;
     d->n.h  = 1.f / relGlyphHeight;  // -> 2Dy = sy * h...

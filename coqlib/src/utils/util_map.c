@@ -12,6 +12,8 @@
 
 #define _MAP_MAX_NAME_COMPARE 64
 #define _MAP_MAX_NAME_HASH    80
+#define MAP_MAX_STRING_VALUE_SIZE 256
+
 
 uint32_t _hash(const char *name) {
     uint32_t hash = 0;
@@ -24,8 +26,8 @@ uint32_t _hash(const char *name) {
     }
     return hash;
 }
-void print_string_(const char* str) {
-    printf("%s", str);
+void print_string_(const void* str_void) {
+    printf("%s", (const char*)str_void);
 }
 
 typedef struct HashSlot HashSlot;
@@ -34,31 +36,25 @@ typedef struct HashSlot HashSlot;
 typedef struct HashSlot {
     HashSlot* next;
     char      key[_MAP_MAX_NAME_COMPARE];
-//    size_t    size_value;   // Ajouter ?
     char      valueData[1]; // Taille variable... DataArray avec la value de taille size_value.
 } HashSlot;
-HashSlot* HashSlot_create_(const char* key, const char* valueDataOpt, size_t size_value) {
-    size_t size_slot = sizeof(HashSlot) - 1 + size_value;
-    HashSlot* hs = coq_calloc(1, size_slot);
-    strncpy(hs->key, key, _MAP_MAX_NAME_COMPARE);
-    // (s'assurer d'avoir une string fini pour l'affichage)
-    hs->key[_MAP_MAX_NAME_COMPARE-1] = '\0';
-    if(valueDataOpt)
-        memcpy(hs->valueData, valueDataOpt, size_value);
-    else
-        memset(hs->valueData, 0, size_value);
-    return hs;
-}
-void      hashslot_init_(HashSlot*const slot, char const*const key, char const*const valueDataOpt, size_t const value_size)
+void      hashslot_init_(HashSlot*const slot, char const*const key, char const*const valueDataOpt, size_t const valueSize)
 {
     strncpy(slot->key, key, _MAP_MAX_NAME_COMPARE);
     // (s'assurer d'avoir une string fini pour l'affichage)
     slot->key[_MAP_MAX_NAME_COMPARE-1] = '\0';
     if(valueDataOpt)
-        memcpy(slot->valueData, valueDataOpt, value_size);
+        memcpy(slot->valueData, valueDataOpt, valueSize);
     else
-        memset(slot->valueData, 0, value_size);
+        memset(slot->valueData, 0, valueSize);
 }
+#define HashSlotSize(valueSize) (sizeof(HashSlot) - 1 + valueSize)
+HashSlot* HashSlot_create_(const char* key, const char* valueDataOpt, size_t valueSize) {
+    HashSlot* hs = coq_calloc(1, HashSlotSize(valueSize));
+    hashslot_init_(hs, key, valueDataOpt, valueSize);
+    return hs;
+}
+
 typedef struct {
     HashSlot* previous;
     HashSlot* slot;
@@ -95,7 +91,7 @@ HashSlot* hashslot_destroyWithKey_(HashSlot* const hsHead, const char* key, void
     printwarning("Key %s not found", key);
     return hsHead;
 }
-void      hashslot_print_(HashSlot const* hs, void (*printValue)(const char*)) {
+void      hashslot_print_(HashSlot const* hs, void (*printValue)(const void*)) {
     int i = 0;
     for(; hs; hs = hs->next, i++) {
         if(i > 0)
@@ -139,14 +135,13 @@ void       map_destroyAndNull(StringMap** const mapOptRef, void (*value_deinitOp
             HashSlot*const toDelete = slot;
             slot = slot->next;
             if(value_deinitOpt) value_deinitOpt(toDelete->valueData);
-            printf("*");
             coq_free(toDelete);
         }
     }
     // Destroy
     coq_free(map);
 }
-void  map_print(StringMap const*const map, void (*printValueOpt)(const char*)) {
+void  map_print(StringMap const*const map, void (*printValueOpt)(const void*)) {
     // Itérateur sur les slots.
     char (*const hs_beg)[map->slot_size] = (char (*)[map->slot_size])map->table_data;
     char (*hs)[map->slot_size] =      hs_beg;
@@ -183,21 +178,23 @@ char const* map_put(StringMap*const map, const char*const key, void const*const 
     slot->next = newSlot;
     return newSlot->valueData;
 }
+static char Map_stringBuffer[MAP_MAX_STRING_VALUE_SIZE];
 char const* map_putAsString(StringMap*const map, const char* key, const char*const string) {
     if(string == NULL) {
         printwarning("No string to put in map.");
         return NULL;
     }
-    size_t string_lenght = strnlen(string, map->value_size);
-    if(string_lenght >= map->value_size) {
-        printwarning("String too long.");
-        char*const copy = coq_callocSimpleArray(map->value_size, char);
-        strncpy(copy, string, map->value_size - 1);
-        char const*const value = map_put(map, key, copy);
-        coq_free(copy);
-        return value;
+    if(map->value_size > MAP_MAX_STRING_VALUE_SIZE) {
+        printwarning("map valueSize biger than max string value size.");
     }
-    return map_put(map, key, string);
+    size_t const maxLenght = uminu(MAP_MAX_STRING_VALUE_SIZE-1, (uint32_t)map->value_size-1);
+    size_t string_lenght = strnlen(string, maxLenght);
+    if(string_lenght >= maxLenght) {
+        printwarning("String too long ? %s", string);
+    }
+    strncpy(Map_stringBuffer, string, string_lenght);
+    Map_stringBuffer[string_lenght] = 0;
+    return map_put(map, key, Map_stringBuffer);
 }
 void        map_removeKeyValue(StringMap*const map, const char*const key, 
                                 void (*const value_deinitOpt)(void*)) 
@@ -216,6 +213,7 @@ void        map_removeKeyValue(StringMap*const map, const char*const key,
     }
     if(pair.previous) { // Cas slot supplémentaire, retirer.
         pair.previous->next = pair.slot->next;
+        if(value_deinitOpt) value_deinitOpt(pair.slot->valueData);
         coq_free(pair.slot);
         return;
     }
@@ -226,6 +224,7 @@ void        map_removeKeyValue(StringMap*const map, const char*const key,
     // Sinon le premier de la liste devient la slot de table et on l'efface.
     HashSlot*const oldFirst = table_slot->next;
     *table_slot = *oldFirst;
+    if(value_deinitOpt) value_deinitOpt(oldFirst->valueData);
     coq_free(oldFirst);
 }
 const char* map_valueRefOptOfKey(StringMap const*const map, const char*const key) {
@@ -325,16 +324,15 @@ const char* map_iterator_valueRefOpt(StringMap* map) {
     return map->it_slot->valueData;
 }
 
-void map_applyToAll(StringMap* map, void (*block)(char* valueData)) {
+void map_applyToAll(StringMap* map, void (*block)(void* valueData)) {
     if(!map) return;
     if(!map_iterator_init(map)) return;
-    
     do {
         block(map->it_slot->valueData);
     } while(map_iterator_next(map));
 }
 
-void test_printint_(const char* intRef) {
+void test_printint_(const void* intRef) {
     if(intRef == NULL) {
         printf("Nothing to print!");
         return;

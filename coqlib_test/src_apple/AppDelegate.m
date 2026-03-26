@@ -14,35 +14,29 @@
 @implementation AppDelegate
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
-    [NSApp setMenu:NSMenu_createDefault()];
-    // Init des variables `system`, Graphs, Sound.
+    // Init de Window, View, System...
     srand((uint32_t)time(NULL));
-    CoqSystem_init();
-    CoqGraph_metal_init(MTLCreateSystemDefaultDevice(), 0, 0, NULL, NULL);
-    // Init de la window avec view et renderer.
-    window = NSWindow_createDefault(@"Coqlib Test", 1.6);
+    [NSApp setMenu:NSMenu_createDefault()];
+    window = NSWindow_createDefault(1.6);
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     view = [[CoqMetalView alloc] initWithFrame:[window frame] 
-                                        device:CoqGraph_metal_device];
-    renderer = [[Renderer alloc] initWithView:view];
-    [view setDelegate:renderer];
+                                        device:device];
     [window setContentView:view];
-    CoqSystem_setViewSize((ViewSizeInfo) {
-        .margins = [view getMargins],
-        .framePt = CGSize_toVector2(window.frame.size),
-        .framePx = CGSize_toVector2([view drawableSize]), 
-        .fullScreen = [window styleMask] & NSWindowStyleMaskFullScreen,
-    });
+    ViewSizeInfo viewSizeInfo = ViewSizeInfo_fromMetalViewAndWindow(view, window);
+    CoqSystem_init(viewSizeInfo);
     
-    // Inits spécifiques au projet : textures, sons, renderer, structure.
+    // Inits spécifiques au projet : Renderer, textures, sons, structure.
+    CoqMtl_init(device, 0, 0);
+    [view setRenderer:[[Renderer alloc] initWithView:view]];
     Texture_loadCoqlibPngs();
     Texture_loadProjectPngs(MyProject_pngInfos, png_total_pngs);
+    GlyphMap_default_init((GlyphMapInit) {});
     Sound_initWithWavNames(MyProject_wavNames, sound_total_sounds, 0);
-    CoqEvent_root = Root_initAndGetProjectRoot();
+    Node_init((NodeInit) {});
+    
+    CoqEvent_rootOpt = Root_createMyProjectRoot();
     
     printok("Tout est init.");
-    
-    // Test...
-//    CoqFont_test_printAvailableFonts();
 }
 
 @end

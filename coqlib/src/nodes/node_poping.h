@@ -51,7 +51,7 @@ void   PopDisk_spawnOverAndOpen(Node *const nodeOverOpt, PopingNode_ **const ref
                    float x, float y, float twoDyRel);
 
 // MARK: - Sparkles ! (des feux d artifices)
-void Sparkle_init(Texture* sparkleTex, uint32_t sparkleSoundId);
+void Sparkle_init(Texture* sparkleTexOpt, uint32_t sparkleSoundId);
 /// Exemple d'implémentation de PopingNode...
 void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture *texOpt);
 void Sparkle_spawnOverAndOpen(Node *nd, float deltaRatio);

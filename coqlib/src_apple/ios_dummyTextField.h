@@ -11,6 +11,7 @@
 #import <UIKit/UIKit.h>
 #import "apple_view_metal.h"
 
+#warning Obsolete... Etait pour iOS 12 et avant...
 @interface DummyTextField : UITextField <UITextFieldDelegate> {
     CoqMetalView* metalView;
 }

@@ -8,6 +8,7 @@
 #include "my_root.h"
 #include "my_enums.h"
 #include "cellular.h"
+#include "my_particules.h"
 
 #include "systems/system_sound.h"
 #include "systems/system_base.h"
@@ -15,35 +16,36 @@
 #include "systems/system_language.h"
 #include "nodes/node_number.h"
 
-static Root my_root = {};
+//static Root my_root = {};
 
-View* View_createTest(void);
+View* View_createTest(Root* root);
 
 // Actions pour les boutons et enter...
 void view_enter_(View* v) {
-    root_changeViewActiveTo(&my_root, View_createTest());
+    guard_let(Root*, root, node_asRootOpt(v->n._parent), , )
+    root_changeViewActiveTo(root, View_createTest(root));
 }
-void view_keyDown_(View* v, KeyboardInput key) {
+//void view_keyDown_(View* v, KeyboardInput key) {
 //    printdebug("Key down. mkc %d, str %s, mod %x.", key.mkc, key.typed.c_str, key.modifiers);
-}
+//}
 
-void button_changeLanguage_action_(NodeTouch unused) {
+void button_changeLanguage_action_(NodeTouch nt) {
     if(Language_current() != language_french)
         Language_setCurrent(language_french);
     else
         Language_setCurrent(language_english);
     Sound_play(0, 1, 0, 0);
-    root_changeViewActiveTo(&my_root, View_createTest());
+    root_changeViewActiveTo(nt.root, View_createTest(nt.root));
 }
-void button_firework_action_(NodeTouch const bt) {
-    Sparkle_spawnOverAndOpen(bt.n, (0.5f + bt.n->nodrawData.data1.v.w) * 1.5f);
+void button_firework_action_(NodeTouch const nt) {
+    Sparkle_spawnOverAndOpen(nt.n, (0.5f + nt.n->nodrawData.data1.v.w) * 1.5f);
 }
-void button_quit_action_(NodeTouch unused) {
+void button_quit_action_(NodeTouch nt) {
     Sound_play(sound_sheep, 1, 0, 0);
-    root_changeViewActiveTo(&my_root, NULL);
+    root_changeViewActiveTo(nt.root, NULL);
 }
 static bool install_font_ = true;
-void button_installFont_action_(NodeTouch unused) {
+void button_installFont_action_(NodeTouch __attribute__((unused)) unused) {
     Sound_play(sound_note_piano, 1, 0, 0);
     if(CoqSystem_OS_type() == coqsystem_os_desktop) return;
     CoqEvent_addToWindowEvent((CoqEventWin) {
@@ -66,18 +68,17 @@ Node* Node_createFramedLoc_(Localizable loc, float widthMax) {
     return &b->n;
 }
 
-View* View_createTest(void) {
+View* View_createTest(Root*const root) {
     /// Par defaut les premiers enfants du screen (les "blocs") sont alignes.
     View* v = coq_callocTyped(View);
-    view_and_super_init(v, &my_root, flag_viewDontAlignElements);
+    view_and_super_init(v, root, flag_viewDontAlignElements);
     // Action au "enter"
     v->enterOpt = view_enter_;
     // Keyboard input
-    v->keyDownOpt = view_keyDown_;
+//    v->keyDownOpt = view_keyDown_;
     
-    // Glyph par défaut pour les strings.
-    if(!GlyphMap_default_isInit()) GlyphMap_default_init((GlyphMapInit) {});
     // Structure
+    PPNode_create(&v->n);
     // Title
     NodeString_create(&v->n, loc_stringGlyphedInit(loc_app_name), 0, 0.9, 0.0, 0.1, 0, 0);
     // Image du chat sur un `bloc` fluid qui "fade in".
@@ -94,7 +95,7 @@ View* View_createTest(void) {
     // Bouton quitter
     Node_last = &ButtonHoverable_create(&v->n, button_quit_action_,
                            png_coqlib_frame_white_back, loc_stringGlyphedInit(loc_quit),
-                           -0.55, -0.6, 0.15, 10, 0)->n;
+                           -0.75, -0.6, 0.15, 10, 0)->n;
     Node_last->w = 0.6f;
     node_last_addFramedString(png_coqlib_frame_mocha, loc_stringGlyphedInit(loc_quit),
                               framedString_defPars);
@@ -114,42 +115,60 @@ View* View_createTest(void) {
     Drawable_createImage(&b->n, png_icons, 0, 0, 0.25, 0);
     drawable_last_setTile(icon_help, 0);
 
-    // Drawabe avec array de pixels en bgra (0xAARRGGBB).
-    static PixelBGRA pixels[] = {
-        {0xFFFF0000}, {0x80FF0000},
-        {0xFF00FF00}, {0xFF0000FF},
+    // Drawabe avec array de pixels en bgra (0xAABBGGRR).
+    static PixelRGBA pixels[] = {
+        { 0xFFFF0000 }, { 0x80FF0000 },
+        { 0xFF00FF00 }, { 0xFF0000FF },
     };
     if_let(Drawable*, d, coq_callocTyped(Drawable))
     node_init(&d->n, &v->n, -0.2, 0.5, 0.25, 0.25, 0, 0);
-    drawable_init(d, Texture_createWithPixels(pixels, 2, 2, tex_flag_nearest), Mesh_drawable_sprite,
+    drawable_init(d, Texture_createWithPixels(pixels, 2, 2, tex_flag_nearest), NULL,
                    0.25, 0.25);
     if_let_end
     
     // Chargement de bitmaps
-    const char* bmp_path = FileManager_getResourcePathOpt("test24bits", "bmp", "assets");
-    with_beg(PixelBGRAArray, pa, PixelBGRAArray_createFromBitmapFile(bmp_path, true))
-    bmp_path = FileManager_getResourcePathOpt("test32bits", "bmp", "assets");
-    with_beg(PixelBGRAArray, pa2, PixelBGRAArray_createFromBitmapFile(bmp_path, false))
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, &v->n, -0.2, 0.22, 0.25, 0.25, 0, 0);
-    drawable_init(d, Texture_createWithPixels(pa->pixels, (uint32_t)pa->width, (uint32_t)pa->height,
-                  tex_flag_nearest), Mesh_drawable_sprite, 0, 0.25);
+    char* path = FileManager_getResourcePath();
+    String_pathAdd(path, "test24bits", "bmp", "assets");
+    with_beg(PixelArray, pa, PixelArray_createFromBitmapFileOpt(path, true))
+    drawable_init(d, Texture_createWithPixels(pa->pixels, 
+                  (uint32_t)pa->width, (uint32_t)pa->height,
+                  tex_flag_nearest), NULL, 0, 0.25);
+    with_end(pa)
+    
     d = coq_callocTyped(Drawable);
     node_init(&d->n, &v->n, -0.2, -0.05, 0.25, 0.25, 0, 0);
-    drawable_init(d, Texture_createWithPixels(pa2->pixels, (uint32_t)pa2->width, (uint32_t)pa2->height,
-                  tex_flag_nearest), Mesh_drawable_sprite, 0, 0.25);
-    with_end(pa2)
+    path = FileManager_getResourcePath();
+    String_pathAdd(path, "test32bits", "bmp", "assets");
+    with_beg(PixelArray, pa, PixelArray_createFromBitmapFileOpt(path, false))
+    drawable_init(d, Texture_createWithPixels(pa->pixels, 
+                  (uint32_t)pa->width, (uint32_t)pa->height,
+                  tex_flag_nearest), NULL, 0, 0.25);
+    with_end(pa)
+    
+    // SVG
+    d = coq_callocTyped(Drawable);
+    node_init(&d->n, &v->n, -0.2, -0.30, 0.25, 0.25, 0, 0);
+    path = FileManager_getResourcePath();
+    String_pathAdd(path, "emoji_u1f431", "svg", "assets");
+    with_beg(PixelArray, pa, PixelArray_createFromSvgFileOpt(path, 64, true))
+    drawable_init(d, Texture_createWithPixels(pa->pixels, 
+                  (uint32_t)pa->width, (uint32_t)pa->height,
+                  tex_flag_nearest), NULL, 0, 0.25);
     with_end(pa)
     
     // Drawable de char
-    DrawableChar_create(&v->n, (Character) { .c_str = "A" }, -0.2, -0.35, 0.15, 0);
+    DrawableChar_create(&v->n, (Character) { .c_str = "A" }, -0.2, -0.55, 0.15, 0);
 
     // Pop disk
     PopDisk_spawnOverAndOpen(NULL, NULL, png_disks, disk_color_blue, 3.f, 0.0f, -0.75f, 0.2f);
     
     // Menu deroulant
-    SlidingMenuInit sid = { 4, 1.2 };
-    SlidingMenu_create(&v->n, sid,  0.75, 0.f, 1.2, 1.5, 0, 0);
+    SlidingMenu_create(&v->n, 
+        (SlidingMenuInit) { .displayedCount = 4, .spacing = 1.2 },
+        0.75, 0.f, 1.2, 1.5, 0, 0
+    );
     float itemW = slidingmenu_last_itemRelativeWidth()*0.95;
     slidingmenu_last_addItem(&Button_createSlider(NULL, button_firework_action_, 0.5,
                         0, 0, itemW, 1, 0, flag_noParent)->n);
@@ -165,10 +184,10 @@ View* View_createTest(void) {
     return v;
 }
 
-View* View_createTest2(void) {
+View* View_createTest2(Root*const root) {
     /// Par defaut les premiers enfants du screen (les "blocs") sont alignes.
     View* v = coq_callocTyped(View);
-    view_and_super_init(v, &my_root, flag_viewDontAlignElements);
+    view_and_super_init(v, root, flag_viewDontAlignElements);
     // Test cellular
     CelGrid_create(&v->n, 0,  0.5, 0.9, 128, 64, false);
     CelGrid_create(&v->n, 0, -0.5, 0.9, 128, 64, true);
@@ -177,17 +196,18 @@ View* View_createTest2(void) {
 }
 
 
-View* View_createTest3(void) {
+View* View_createTest3(Root*const root) {
     View* v = coq_callocTyped(View);
-    view_and_super_init(v, &my_root, flag_viewDontAlignElements);
+    view_and_super_init(v, root, flag_viewDontAlignElements);
     
     printdebug("Un disque jaune.");
     Drawable_createImage(&v->n, png_disks, 0, 0, 1, 0);
     // Test
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, &v->n, 0, 0, 1, 1, 0, 0);
-    const char*const objPath = FileManager_getResourcePathOpt("singe2", "obj", "assets");
-    drawable_init(d, Texture_sharedImage(png_some_animals), 
+    char*const objPath = FileManager_getResourcePath();
+    String_pathAdd(objPath, "singe2", "obj", "assets");
+    drawable_init(d, Texture_getPng(png_some_animals), 
         Mesh_createFromObjFile(objPath), 0, 1);
     
     
@@ -207,27 +227,12 @@ void  view_testfont_escape_(View* v) {
     printdebug("Updating to sale chien...");
     nodestring_updateString(ns, "Ce n'est qu'un sale chien que voudrait bien japper.");
 }
-View* View_createTestFont(void) {
+View* View_createTestFont(Root*const root) {
     View* v = coq_callocTyped(View);
-    view_and_super_init(v, &my_root, flag_viewDontAlignElements);
+    view_and_super_init(v, root, flag_viewDontAlignElements);
     v->enterOpt = view_testfont_enter_;
     v->escapeOpt = view_testfont_escape_;
 
-    // Tester avec une font custom.
-    GlyphMap_default_init((GlyphMapInit) {
-        .fontInit = {
-            .nameOpt = "SnellRoundhand",
-//            .fileNameOpt = "Supplemental/Arial Unicode.ttf",
-            .fileNameOpt = "Supplemental/Chalkboard.ttc",
-//            .fileNameOpt = "Supplemental/Futura.ttc",
-            .sizeOpt = 60,
-            .nearest = false,
-        },
-        .customChars_count = 1,
-        .customChars_texOpt = Texture_sharedImageByName("coqlib_the_cat"),
-        .customChars_charsOpt = (Character[]){ spchar_newline_ },
-        .customChars_uvRectsOpt = (Rectangle[]) { {{0,0,1,1}}, },
-    });
     // Lettre
     DrawableChar* dc = DrawableChar_create(&v->n, (Character) { .c_str = "f" },
                                            -0.5, 0.0, 0.5, 0);
@@ -236,7 +241,7 @@ View* View_createTestFont(void) {
     b = drawablechar_getGlyphBox(dc);
     Drawable_createTestFrame2(&v->n, b);
     
-    dc = DrawableChar_create(&v->n, (Character) { .c_str = "🐉" },
+    dc = DrawableChar_create(&v->n, (Character) { .c_str = "🐺" },
                                            0, 0.0, 0.5, 0);
     b = node_hitbox(&dc->n);
     Drawable_createTestFrame2(&v->n, b);
@@ -272,37 +277,57 @@ View* View_createTestFont(void) {
     
     Drawable* d = coq_callocTyped(Drawable);
     node_init(&d->n, &v->n, 0.75, 0.5, 1, 1, 0, 0);
-    drawable_init(d, GlyphMap_default_texture(), Mesh_drawable_sprite, 0, 1);
+    drawable_init(d, GlyphMap_default_texture(), NULL, 0, 1);
 
     return v;
 }
 
-Root* Root_initAndGetProjectRoot(void) {
-    if(my_root.n._type) { printerror("Root already init."); return &my_root; }
-    root_and_super_init(&my_root, NULL, NULL);
+void test_chars_(void) {
+    char const*const test_str = "Bonjour ⁉️ Ca va ? 🐔-🐭 🇯🇵";
+    with_beg(CharacterArray, ca, CharacterArray_createFromString(test_str))
+    Character const*const c_end = characterarray_end(ca);
+    printdebug("Test string : %s", test_str);
+    for(Character const* c = characterarray_first(ca); c < c_end; c++) {
+        printdebug("Char %s, isEmoji %d, hex %#018llx.", 
+            c->c_str,
+            character_isEmoji(*c), c->c_data8
+        );
+    }
+    with_end(ca)
+    printdebug("fin de test.");
+    Character const c = (Character) { .c_str = "⁉️"};
+    printdebug("Char de ⁉️ : ");
+    for(int i = 0; i < 8; i++) {
+        printf("%#010x ,", c.c_str[i]);
+    }
+}
 
+Root* Root_createMyProjectRoot(void) {
+    Root*const root = coq_callocTyped(Root);
+    root_and_super_init(root, NULL, NULL);
+    
     // Création de l'arrière plan (avec particule pool)
     Vector4 backColor = color4_blue_sky;
-    fl_array_fix(my_root.back_RGBA, backColor.f_arr, 4);
+    fl_array_fix(root->back_RGBA, backColor.f_arr, 4);
     backColor = color4_gray_60;
-    fl_array_set(my_root.back_RGBA, backColor.f_arr, 4);
-    my_root.viewBackOpt = coq_callocTyped(View);
-    view_and_super_init(my_root.viewBackOpt, &my_root, flags_viewBackAndFrontDefault);
+    fl_array_set(root->back_RGBA, backColor.f_arr, 4);
+    root->viewBackOpt = coq_callocTyped(View);
+    view_and_super_init(root->viewBackOpt, root, flags_viewBackAndFrontDefault);
 
     // Création de l'avant plan (pour les feux d'artifices, popover...)
-    my_root.viewFrontOpt = ({
+    root->viewFrontOpt = ({
         View *v = coq_callocTyped(View);
-        view_and_super_init(v, &my_root, flags_viewBackAndFrontDefault);
+        view_and_super_init(v, root, flags_viewBackAndFrontDefault);
         PopingNode_setFrontView(v);
         v;
     });
 
     // Création d'une view de test.
-    root_changeViewActiveTo(&my_root, View_createTest());
-//    root_changeViewActiveTo(&my_root, View_createTestFont());
+    root_changeViewActiveTo(root, View_createTest(root));
+//    root_changeViewActiveTo(root, View_createTestFont(root));
 
     // Init des fireworks...
-    Sparkle_init(Texture_sharedImageByName("coqlib_sparkle_stars"), sound_fireworks);
+    Sparkle_init(Texture_getPngByName("coqlib_sparkle_stars"), sound_fireworks);
 
-    return &my_root;
+    return root;
 }

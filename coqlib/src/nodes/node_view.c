@@ -95,11 +95,13 @@ void  view_touchDragDefault_(NodeTouch const nt) {
     View*const v = (View*)nt.n;
     guard_let(Button*, grabbed, v->buttonSelectedOpt,,)
     if(grabbed->dragOpt == NULL) {
-        printwarning("Grabbed node without drag function.");
+        printwarning("Grabbed node without drag function %p.", grabbed);
         return;
     }
     grabbed->dragOpt((NodeTouch) {
         .n = &grabbed->n,
+        .v = nt.v,
+        .root = nt.root,
         .posAbs = nt.posAbs,
         .touchId = nt.touchId,
     });
@@ -115,17 +117,20 @@ void  view_touchUpDefault_(NodeTouch const nt) {
     }
     grabbed->letGoOpt((NodeTouch) {
         .n = &grabbed->n,
+        .v = nt.v,
+        .root = nt.root,
         .posAbs = nt.posAbs,
         .touchId = nt.touchId,
     });
 }
 
-void  view_and_super_init(View* const v, Root* const root, flag_t const flags) {
+void  view_and_super_init(View*const v, Root*const root, flag_t const flags) {
     /** Les écrans sont toujours ajoutés juste après l'ainé.
     * add back : root->back,  add front : root->{back,front},
     * add 3 : root->{back,3,front},  add 4 : root->{back,4,3,front}, ...
     * i.e. les deux premiers écrans sont le back et le front respectivement,
     * les autres sont au milieu. */
+    if(!root) { printerror("No root for view."); return; }
     Node* const bigBro = root->n._firstChild;
     node_init(&v->n, bigBro ? bigBro : &root->n, 0, 0, 4, 4, 
                flags|flag_parentOfReshapable, bigBro ? node_place_asBro : 0);
@@ -133,6 +138,7 @@ void  view_and_super_init(View* const v, Root* const root, flag_t const flags) {
     fluid_init(&v->f, 10.f);
     // Init as View (avec méthodes par défault)
     v->n._type |= node_type_view;
+    *(Root**)&v->root = root;
     v->n.openOpt =     view_open_;
     v->n.reshapeOpt =  view_reshape_;
     v->touchHovering = view_touchHoveringDefault_;

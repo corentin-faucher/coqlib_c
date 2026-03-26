@@ -30,7 +30,14 @@ void fluid_renderer_defaultUpdateInstanceUniforms_(Node *const n) {
 }
 
 float  Fluid_defaultFadeInDelta = 2.2f;
-void (*Fluid_renderer_defaultUpdateInstanceUniforms)(Node*) = fluid_renderer_defaultUpdateInstanceUniforms_;
+static void (*Fluid_renderer_defaultUpdateInstanceUniforms)(Node*) = fluid_renderer_defaultUpdateInstanceUniforms_;
+
+void Fluid_init_(void (*const renderer_defautUpdateIUOpt)(Node*), float const defaultFadeInDeltaOpt) {
+    if(renderer_defautUpdateIUOpt)
+        Fluid_renderer_defaultUpdateInstanceUniforms = renderer_defautUpdateIUOpt;
+    if(defaultFadeInDeltaOpt)
+        Fluid_defaultFadeInDelta = defaultFadeInDeltaOpt;
+}
 
 void fluid_init(Fluid* f, float lambda) {
     f->n._type |= node_type_fluid;
@@ -121,7 +128,6 @@ const PopingInfo popinginfo_default = {
     {{ 0.0, 1.0,  0.0,  0.0 }},
     10, 25, 10, 25,
 };
-const PopingInfo popinginfo_zeros = { 0 };
 
 /// Applique un effet d'apparition. *Non compatible avec les `flags_fluidOpen` et `flags_fluidClose`*,
 /// i.e. Soit on utilise le fluid pour setter relativement, soint on l'utilies pour l'effet `poping`.

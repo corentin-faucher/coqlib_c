@@ -11,63 +11,60 @@
 #include "../utils/util_base.h"
 #include "../coq__buildConfig.h"
 
-// MARK: - Mesh de base et init
-
-void  mesh_init_(Mesh* mesh, MeshInit const initInfo) {
-    uint32_t const vertexSize = initInfo.vertexSizeOpt ? initInfo.vertexSizeOpt : sizeof(Vertex);
-    uint_initConst(&mesh->vertexCount, initInfo.vertexCount);
-    uint_initConst(&mesh->maxIndexCount, initInfo.indexCountOpt);
-    uint_initConst(&mesh->actualIndexCount, initInfo.indexCountOpt);
-    uint_initConst(&mesh->vertexSize, vertexSize);
-    size_initConst(&mesh->verticesSize, initInfo.vertexCount * vertexSize);
-    *(uint16_t*)&mesh->primitive_type = initInfo.primitive_type;
-    *(uint16_t*)&mesh->cull_mode =    initInfo.cull_mode;
-    mesh->flags = initInfo.flags;
-    if(mesh->flags & mesh_flag_mutable) {
-        if(mesh->flags & mesh_flag_metal_mutableDoubleVertices) {
-            // En mode double-vertices, première moitié pour l'édition, seconde moitié pour la lecture.
-            *(float**)&mesh->verticesReadOpt = (float*)((char*)mesh->verticesEdit + mesh->verticesSize);
-        }
-        // Prefill
-        if(initInfo.verticesOpt) {
-            memcpy(mesh->verticesEdit, initInfo.verticesOpt, mesh->verticesSize);
-            if(mesh->flags & mesh_flag_metal_mutableDoubleVertices) {
-                memcpy(mesh->verticesReadOpt, initInfo.verticesOpt, mesh->verticesSize);
-            }
-        }
-        
-    }
-    mesh_engine_initBuffers_(mesh, initInfo.verticesOpt, initInfo.indicesOpt);
-}
+// MARK: - Mesh de base et init 
+bool Mesh_engineIsMetal_ = false;
 
 Mesh*  Mesh_create(MeshInit initInfo)
 {
+    if(!initInfo.vertexCount) {
+        printerror("vertexCount is 0."); return NULL;
+    }
     size_t const vertexSize = (initInfo.vertexSizeOpt ? initInfo.vertexSizeOpt : sizeof(Vertex));
     size_t const verticesSize = initInfo.vertexCount * vertexSize;
     // Si non mutable, on ne garde pas l'array `vertices`. (Seulement dans le buffer Metal/OpenGL)
     size_t meshSize;
     initInfo.flags &= ~mesh_flags__privates;
-    if(initInfo.flags & mesh_flag_mutable) {
-        if(verticesSize >= Mesh_verticesSizeForBuffer) {
-            meshSize = sizeof(Mesh) +   verticesSize - sizeof(float);
-            initInfo.flags |= mesh_flag_metal_useVerticesMTLBuffer|mesh_flag_metal_useVerticesDoubleMTLBuffer;
-        } else {
-            // Petit mutable pas de buffer, juste l'array vertices de taille doublé
-            meshSize = sizeof(Mesh) + 2*verticesSize - sizeof(float);
-            initInfo.flags |= mesh_flag_metal_mutableDoubleVertices;
-        }
+    bool metal_no_buffer = false;
+    if(Mesh_engineIsMetal_ && (initInfo.flags & mesh_flag_mutable) && (verticesSize < Mesh_verticesSizeForBuffer)) {
+    // Double buffering directement dans Mesh.vertices0.
+        meshSize = sizeof(Mesh) + 2*verticesSize - sizeof(float);
+        metal_no_buffer = true;
     } else {
-        // Non mutable -> juste le buffer ordinaire.
-        initInfo.flags |= mesh_flag_metal_useVerticesMTLBuffer;
-        meshSize = sizeof(Mesh);
+        meshSize = sizeof(Mesh) + verticesSize - sizeof(float);
     }
+    // Création de la mesh.
     Mesh *mesh = coq_calloc(1, meshSize);
-    mesh_init_(mesh, initInfo);
+    uint_initConst(&mesh->vertexCount, initInfo.vertexCount);
+    uint_initConst(&mesh->vertexSize, (uint32_t)vertexSize);
+    size_initConst(&mesh->verticesSize, verticesSize);
+    if(initInfo.indicesOpt && initInfo.indexCountOpt) {
+        uint_initConst(&mesh->maxIndexCount, initInfo.indexCountOpt);
+        uint_initConst(&mesh->actualIndexCount, initInfo.indexCountOpt);
+    } else if(initInfo.indicesOpt || initInfo.indexCountOpt) {
+        printwarning("Missing indices or index Count.");
+        initInfo.indicesOpt = NULL;
+        initInfo.indexCountOpt = 0;
+    }
+    *(uint16_t*)&mesh->primitive_type = initInfo.primitiveType;
+    *(uint16_t*)&mesh->cull_mode =    initInfo.cullMode;
+    mesh->flags = initInfo.flags;
+    if(metal_no_buffer) {
+        *(float**)&mesh->mtl_vertices1Opt = (float*)((char*)mesh->vertices0 + verticesSize);
+    }
+    // Filling
+    if(initInfo.verticesOpt) {
+        memcpy(mesh->vertices0, initInfo.verticesOpt, verticesSize);
+        if(mesh->mtl_vertices1Opt)
+            memcpy(mesh->mtl_vertices1Opt, initInfo.verticesOpt, verticesSize);
+    } else if(!(mesh->flags & mesh_flag_mutable)) {
+        printwarning("Non mutable mesh without init vertices.");
+    }
+    if(initInfo.indicesOpt && initInfo.indexCountOpt) {
+        mesh->indicesOpt = coq_callocSimpleArray(initInfo.indexCountOpt, uint16_t);
+        size_t const indicesSize = initInfo.indexCountOpt * sizeof(uint16_t);
+        memcpy(mesh->indicesOpt, initInfo.indicesOpt, indicesSize);
+    }
     return mesh;
-}
-
-bool       mesh_isReadyToEdit(Mesh const*const mesh) {
-    return (mesh->flags & mesh_flag_mutable) && !(mesh->flags & (mesh_flag__editing|mesh_flag__needUpdate));
 }
 
 MeshToEdit mesh_retainToEditOpt(Mesh*const mesh) {
@@ -79,15 +76,17 @@ MeshToEdit mesh_retainToEditOpt(Mesh*const mesh) {
         printerror("Mesh already in edit mode. Forget releaseVertices?");
         return (MeshToEdit) {};
     }
-    if(mesh->flags & mesh_flag__needUpdate) {
-        printwarning("Renderer has still not updated vertices.");
-        return (MeshToEdit) {};
-    }
     mesh->flags |= mesh_flag__editing;
+    void* verticesToEdit = mesh->vertices0;
+    if(mesh->mtl_vertices1Opt) { // Cas Metal avec double vertices et pas de buffer.
+        // Si vertices0 sont en lecture, les vertices1 peuvent être édités.
+        if(!mesh->mtl_readBuffer1)
+            verticesToEdit = mesh->mtl_vertices1Opt;
+    }
     return (MeshToEdit) {
-        .v =    mesh->verticesEdit,
-        .beg =  mesh->verticesEdit,
-        .end = (char*)mesh->verticesEdit + mesh->verticesSize,
+        .v =    verticesToEdit,
+        .beg =  verticesToEdit,
+        .end = (char*)verticesToEdit + mesh->verticesSize,
         .vertexSize = mesh->vertexSize,
         ._mesh = mesh,
     };
@@ -95,66 +94,25 @@ MeshToEdit mesh_retainToEditOpt(Mesh*const mesh) {
 void       meshtoedit_release(MeshToEdit const meshEdit) {
     Mesh*const mesh = meshEdit._mesh;
     if(!(mesh->flags & mesh_flag_mutable) ||
-       !(mesh->flags & mesh_flag__editing) ||
-        (mesh->flags & mesh_flag__needUpdate)) {
+       !(mesh->flags & mesh_flag__editing)) {
         printerror("Bad vertices release."); return;
     }
     mesh->newIndexCountOpt = meshEdit.indexCount;
-    mesh->flags = (mesh->flags | mesh_flag__needUpdate) & (~mesh_flag__editing);
+    mesh->verticesEdited = meshEdit.beg;
+    mesh->flags &= ~ mesh_flag__editing;
 }
-
-void     meshref_releaseAndNull(Mesh** const meshRef) {
+void  meshref_init(Mesh*const*const meshRef, Mesh*const initValue) {
+    if(*meshRef || !initValue) { printerror("Already init or no initValue."); return; }
+    *(Mesh**)meshRef = initValue;
+}
+void  meshref_render_releaseAndNull(Mesh*const*const meshRef) {
     if(!meshRef) { printerror("No mesh ref."); return; }
-    Mesh *const mesh = *meshRef;
-    *meshRef = NULL;
-    if(!mesh) return; // (ok pas grave, déjà release)
-    if(mesh->flags & mesh_flag_shared) return;
-    mesh_engine_deinit_(mesh);
-    coq_free(mesh);
-}
-
-static const Vertex mesh_sprite_vertices_[4] = {
-    {{-0.5, 0.5, 0, 0.0001, 0.0001, 0,0,1}},
-    {{-0.5,-0.5, 0, 0.0001, 0.9999, 0,0,1}},
-    {{ 0.5, 0.5, 0, 0.9999, 0.0001, 0,0,1}},
-    {{ 0.5,-0.5, 0, 0.9999, 0.9999, 0,0,1}},
-};
-Mesh* Mesh_drawable_sprite = NULL;
-
-static const Vertex mesh_shaderQuad_vertices_[4] = {
-    {{-1.0, 1.0, 0, 0.0, 0.0, 0,0,1}},
-    {{-1.0,-1.0, 0, 0.0, 1.0, 0,0,1}},
-    {{ 1.0, 1.0, 0, 1.0, 0.0, 0,0,1}},
-    {{ 1.0,-1.0, 0, 1.0, 1.0, 0,0,1}},
-};
-Mesh* Mesh_rendering_quad = NULL;
-
-void   Mesh_initDefaultMeshes_(MeshInit const*const drawableSpriteInitOpt,
-                               MeshInit const*const renderingQuadInitOpt)
-{
-    if(Mesh_drawable_sprite) {
-        printerror("Default meshes already init."); 
-        return;
-    }
-    MeshInit drawableSpriteInit = drawableSpriteInitOpt ? *drawableSpriteInitOpt :
-        (MeshInit) {
-            .verticesOpt = mesh_sprite_vertices_,
-            .vertexCount = 4,
-            .primitive_type = meshprimitive_triangleStrip,
-            .cull_mode = mesh_cullMode_none,
-    };
-    drawableSpriteInit.flags |= mesh_flag_shared;
-    Mesh_drawable_sprite = Mesh_create(drawableSpriteInit);
-    
-    MeshInit renderingQuadInit = renderingQuadInitOpt ? *renderingQuadInitOpt :
-        (MeshInit) {
-            .verticesOpt = mesh_shaderQuad_vertices_,
-            .vertexCount = 4,
-            .primitive_type = meshprimitive_triangleStrip,
-            .cull_mode = mesh_cullMode_none,
-    };
-    renderingQuadInit.flags  |= mesh_flag_shared;
-    Mesh_rendering_quad =  Mesh_create(renderingQuadInit);
+    Mesh*const toRelease = *meshRef;
+    *(Mesh**)meshRef = (Mesh*)NULL;
+    if(!toRelease) return; // (ok pas grave, déjà release)
+    if(toRelease->flags & mesh_flag_shared) return;
+    mesh_render_deinit_(toRelease);
+    coq_free(toRelease);
 }
 
 // MARK: - "Bar" i.e. `====`
@@ -182,7 +140,7 @@ Mesh*  Mesh_createHorizontalBar(void) {
     return Mesh_create((MeshInit) {
         .verticesOpt = mesh_bar_vertices_,
         .vertexCount = 8,
-        .primitive_type = meshprimitive_triangleStrip,
+        .primitiveType = meshprimitive_triangleStrip,
         .flags = mesh_flag_mutable,
     });
 }
@@ -190,7 +148,7 @@ Mesh*  Mesh_createVerticalBar(void) {
     return Mesh_create((MeshInit) {
         .verticesOpt = mesh_vbar_vertices_,
         .vertexCount = 8,
-        .primitive_type = meshprimitive_triangleStrip,
+        .primitiveType = meshprimitive_triangleStrip,
         .flags = mesh_flag_mutable,
     });
 }
@@ -231,7 +189,7 @@ Mesh*  Mesh_createFrame(void) {
         .vertexCount = 16,
         .indicesOpt = mesh_frame_indices_,
         .indexCountOpt = 54,
-        .primitive_type = meshprimitive_triangle,
+        .primitiveType = meshprimitive_triangle,
         .flags = mesh_flag_mutable,
     });
 }
@@ -287,7 +245,7 @@ Mesh*  Mesh_createFan(void) {
         .vertexCount = 10,
         .indicesOpt = _mesh_fan_indices,
         .indexCountOpt = 24,
-        .primitive_type = meshprimitive_triangle,
+        .primitiveType = meshprimitive_triangle,
         .flags = mesh_flag_mutable,
     });
     with_end(vertices)
@@ -366,7 +324,7 @@ Mesh*  Mesh_createPlot(float* xs, float* ys, uint32_t count, float delta, float 
         .vertexCount = vertices_count,
         .indicesOpt = indices,
         .indexCountOpt = indices_count,
-        .primitive_type = meshprimitive_triangle,
+        .primitiveType = meshprimitive_triangle,
     });
     with_end(indices)
     with_end(vertices)
@@ -423,7 +381,7 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
         .vertexCount = vertices_count,
         .indicesOpt = indices,
         .indexCountOpt = indices_count,
-        .primitive_type = meshprimitive_triangle,
+        .primitiveType = meshprimitive_triangle,
     });
     coq_free(vertices);
     coq_free(indices);
@@ -472,6 +430,7 @@ Mesh*  Mesh_createFromObjFile(char const*const path)
     char first[32];
     Vector3 tmp;
     VTNindex ind0, ind1, ind2;
+    // Lecture du fichier obj.
     while(fgets(line, Mesh_obj_lineMax_, f)) {
         sscanf(line, "%s", first);
         if(strcmp(first, "v") == 0) {
@@ -500,7 +459,7 @@ Mesh*  Mesh_createFromObjFile(char const*const path)
             uvs_count++;
             if(uvs_count >= uvs_maxCount) {
                 uvs_maxCount += Mesh_chunck_count_;
-                uvs = coq_realloc(uvs, uvs_maxCount*sizeof(Vector3));
+                uvs = coq_realloc(uvs, uvs_maxCount*sizeof(Vector2));
             }
             continue;
         }
@@ -520,10 +479,19 @@ Mesh*  Mesh_createFromObjFile(char const*const path)
             continue;
         }
     }
+    fclose(f);
+    
     // Version indexé avec les coord. uv.
-    Vertex*   mesh_vertices = coq_callocSimpleArray(uvs_count, Vertex);
-    uint16_t* mesh_indices = coq_callocSimpleArray(indices_count, uint16_t);
-    for(int i = 0; i < indices_count; i++) {
+    Mesh* mesh = NULL;
+    Vertex*   mesh_vertices = NULL;
+    uint16_t* mesh_indices = NULL;
+    if(!uvs_count || !indices_count) {
+        printerror("No vertex ?");
+        goto release_and_return_mesh;
+    }
+    mesh_vertices = coq_callocSimpleArray(uvs_count, Vertex);
+    mesh_indices = coq_callocSimpleArray(indices_count, uint16_t);
+    for(size_t i = 0; i < indices_count; i++) {
         VTNindex const ind = indices[i];
         uint16_t index = ind.t-1;
         mesh_vertices[index] = (Vertex) {
@@ -534,33 +502,17 @@ Mesh*  Mesh_createFromObjFile(char const*const path)
         mesh_indices[i] = index;
         
     }
-    Mesh*const mesh = Mesh_create((MeshInit) {
+    mesh = Mesh_create((MeshInit) {
         .verticesOpt = mesh_vertices,
         .vertexCount = (uint32_t)uvs_count,
         .indicesOpt = mesh_indices,
         .indexCountOpt = (uint32_t)indices_count,
-        .primitive_type = meshprimitive_triangle,
+        .primitiveType = meshprimitive_triangle,
     });
-    
-    // Version array, sans index.
-//    Vertex* mesh_vertices = coq_malloc(indices_count*sizeof(Vertex));
-//    for(int i = 0; i<indices_count; i++) {
-//        VTNindex ind = indices[i];
-//        mesh_vertices[i] = (Vertex) {
-//            .pos = positions[ind.v-1],
-//            .norm = normals[ind.n-1],
-//            .uv =  uvs[ind.t-1],
-//        };
-//    }
-//    Mesh* mesh = Mesh_create((MeshInit) {
-//        .verticesOpt = mesh_vertices,
-//        .vertexCount = (uint32_t)indices_count,
-//        .primitive_type = mesh_primitive_triangle,
-//    });
-    
-    fclose(f);
-    coq_free(mesh_vertices);
-    coq_free(mesh_indices);
+
+release_and_return_mesh:
+    if(mesh_vertices) coq_free(mesh_vertices);
+    if(mesh_indices)  coq_free(mesh_indices);
     coq_free(positions);
     coq_free(normals);
     coq_free(uvs);
@@ -585,7 +537,7 @@ static const Vertex _vertex_uv11 = {{
 }};
 Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
     if(v_count < 2) {
-        printerror("Mesh curve with less than 2 pos."); return Mesh_drawable_sprite;
+        printerror("Mesh curve with less than 2 pos."); return NULL;
     }
     uint32_t vertex_count = 4*(v_count - 1);
     Mesh *curve = NULL;
@@ -658,7 +610,7 @@ Mesh*  Mesh_creatCurve(Vector2* v_arr, uint32_t v_count, float delta) {
     curve = Mesh_create((MeshInit) {
         .verticesOpt = vertices,
         .vertexCount = vertex_count,
-        .primitive_type = meshprimitive_triangleStrip,
+        .primitiveType = meshprimitive_triangleStrip,
         .flags = mesh_flag_mutable,
     });
     with_end(vertices)

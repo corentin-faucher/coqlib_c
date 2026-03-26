@@ -31,9 +31,6 @@ typedef struct coq_Fluid {
 } Fluid;
 
 extern float Fluid_defaultFadeInDelta;  // 2.2 par defaut.
-/// La fonction utilisée par défaut pour mettre à jour les instances uniformes avant l'affichage.
-/// (Peut être remplacé par un fonction custom)
-extern void (*Fluid_renderer_defaultUpdateInstanceUniforms)(Node*);
 
 Fluid*  Fluid_create(Node* const refOpt, float x, float y, float w, float h,
                               float lambda, flag_t flags, uint8_t node_place);
@@ -76,7 +73,6 @@ typedef struct PopingInfo {
 } PopingInfo;
 /// PopingInfo par défaut, grossi et va vers le haut de +1.
 extern const PopingInfo popinginfo_default;
-extern const PopingInfo popinginfo_zeros;
 
 /// Applique un effet d'apparition. *Non compatible avec les `flags_fluidOpen` et `flags_fluidClose`*,
 /// i.e. Soit on utilise le fluid pour setter relativement, soint on l'utilies pour l'effet `poping`.
@@ -90,5 +86,7 @@ void    fluid_popOut(Fluid* f, PopingInfo popInfo);
 void    fluid_open_(Node* node);    // Ajouté par défaut s'il y a un `flags_fluidOpen`.
 void    fluid_close_(Node* node);   // Ajouté par défaut s'il y a un `flags_fluidClose`.
 void    fluid_reshape_(Node* node); // Ajouté par défaut s'il y a un `flags_fluidReshape`.
+
+void Fluid_init_(void (*renderer_defautUpdateIUOpt)(Node*), float defaultFadeInDeltaOpt);
 
 #endif /* fluid_h */

@@ -15,6 +15,8 @@
 
 void    nodetouch_init(NodeTouch*const nt, NodeTouch const ref) {
     *(Node**)&nt->n = ref.n;
+    *(Root**)&nt->root = ref.root;
+    *(View**)&nt->v = ref.v;
     *(Vector2*)&nt->posAbs = ref.posAbs;
     uint_initConst(&nt->touchId, ref.touchId);
     *(Vector2*)&nt->_posRelOpt = ref._posRelOpt;
@@ -32,8 +34,11 @@ static CoqEvent*          event_current_ =  &event_poll_[0];
 static CoqEvent*          event_todo_ =     &event_poll_[0];
 
 bool CoqEvent_ignoreRepeatKeyDown = true;
+uint32_t CoqEvent_currentMod = 0;
 
+int64_t CoqEvent_lastEventTimeMS_ = 0;
 void   CoqEvent_addToRootEvent(CoqEvent event) {
+    CoqEvent_lastEventTimeMS_ = EventTimeCapture.app_elapsedMS;
     if(!(event.type & event_types_root_)) {
         printerror("Not a `to root` event.");
         return;
@@ -50,10 +55,11 @@ void   CoqEvent_addToRootEvent(CoqEvent event) {
     if(event_current_ >= event_poll_end_)
         event_current_ = event_poll_;
 }
-Root* CoqEvent_root = NULL;
+Root*volatile CoqEvent_rootOpt = NULL;
+
 void  CoqEvent_processAllQueuedRootEvents(void) {
-    Root*const root = CoqEvent_root;
-    if(!root) printerror("CoqEvent_root not defined.");
+    guard_let(Root*, root, CoqEvent_rootOpt, printerror("CoqEvent_root not defined."), )
+    if(!event_todo_->_todo) return;
     while (event_todo_->_todo) {
         if(root) switch (event_todo_->type & event_types_root_) {
         case eventtype_touch_hovering: {
@@ -62,6 +68,8 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
                                                     event_todo_->touch_info.yInverted);
             viewActive->touchHovering((NodeTouch) {
                 .n = &viewActive->n,
+                .v = viewActive,
+                .root = root,
                 .posAbs = posAbs,
                 .touchId = event_todo_->touch_info.touchId,
             });
@@ -73,6 +81,8 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
                                                     event_todo_->touch_info.yInverted);
             viewActive->touchDown((NodeTouch) {
                 .n = &viewActive->n,
+                .v = viewActive,
+                .root = root,
                 .posAbs = posAbs,
                 .touchId = event_todo_->touch_info.touchId,
             });
@@ -84,6 +94,8 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
                                                     event_todo_->touch_info.yInverted);
             viewActive->touchDrag((NodeTouch) {
                 .n = &viewActive->n,
+                .v = viewActive,
+                .root = root,
                 .posAbs = posAbs,
                 .touchId = event_todo_->touch_info.touchId,
             });
@@ -95,6 +107,8 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
                                                     event_todo_->touch_info.yInverted);
             viewActive->touchUp((NodeTouch) {
                 .n = &viewActive->n,
+                .v = viewActive,
+                .root = root,
                 .posAbs = posAbs,
                 .touchId = event_todo_->touch_info.touchId,
             });
@@ -152,6 +166,7 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
             	viewActive->keyUpOpt(viewActive, event_todo_->key); 
         } break;
         case eventtype_key_mod: {
+            CoqEvent_currentMod = event_todo_->key.modifiers;
             View*const viewActive = root->viewActiveOpt;
             if(viewActive && viewActive->modifiersChangedToOpt)
             	viewActive->modifiersChangedToOpt(viewActive, event_todo_->key.modifiers);
@@ -172,7 +187,7 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
             	viewActive->gamePadValueOpt(viewActive, event_todo_->gamepadInput);
         } break;
         case eventtype_resize: {
-            CoqSystem_setViewSize(event_todo_->resize_info);
+            CoqSystem_setViewSize_(event_todo_->resize_info);
             root_viewResized(root, event_todo_->resize_info);
             break;
         }
@@ -189,6 +204,10 @@ void  CoqEvent_processAllQueuedRootEvents(void) {
             event_todo_ = event_poll_;
     }
 }
+int64_t CoqEvent_timeSinceLastEventMS(void) {
+    return EventTimeCapture.app_elapsedMS - CoqEvent_lastEventTimeMS_;
+}
+
 
 static CoqEventWin           event_win_arr_[10];
 static CoqEventWin* const    event_win_arr_end_ = &event_win_arr_[10];

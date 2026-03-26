@@ -5,13 +5,19 @@
 //  Created by Corentin Faucher on 2023-12-22.
 //
 
-#include "node_drawable_curve.h"
+#include "node_drawable.h"
 
+Drawable* Drawable_createCurve(Node*const refOpt, Texture*const tex, 
+        Vector2*const v_arr, uint32_t const v_count, float const delta) 
+{
+    (void)refOpt; (void)tex; (void)v_arr; (void)v_count; (void)delta;
+    printerror("TODO.");
+    return NULL;
+}
 
-
-
-Drawable* Drawable_createCurve(Node* refOpt, Texture* tex, Vector2* v_arr, uint32_t v_count, float delta) {
 /*
+Drawable* Drawable_createCurve(Node* refOpt, Texture* tex, Vector2* v_arr, uint32_t v_count, float delta) {
+
     uint32_t index = 0;
     // Les deux points du segment et le next.
     while(index <) {}
@@ -58,6 +64,7 @@ Drawable* Drawable_createCurve(Node* refOpt, Texture* tex, Vector2* v_arr, uint3
     Drawable* d = Drawable_create(refOpt, tex, mesh_sprite, flag_drawableDontRespectRatio, 0);
     return d;
  
- */
+
     return NULL;
 }
+*/

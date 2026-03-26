@@ -11,11 +11,12 @@ OS_NAME := $(shell uname -s)
 # Flags du compileur
 # Ici, on ajoute le flag `DEBUG` pour voir les logs, e.g. les printdebug("allo").
 # Pour freetype, il faut aller dans le sous-répertoire freetype2.
+WARNINGS := -Wall -Wextra -Werror
 ifeq ($(OS_NAME), Darwin)
-	CFLAGS=-g -Wall -Wno-deprecated-declarations -Wno-unknown-pragmas \
+	CFLAGS=-g $(WARNINGS) \
 		-DDEBUG -I/usr/local/include/freetype2
 else
-	CFLAGS=-g -Wall -Wno-deprecated-declarations -Wno-unknown-pragmas \
+	CFLAGS=-g $(WARNINGS) \
        -DDEBUG -I/usr/include/freetype2
 endif
 
@@ -28,17 +29,17 @@ LIB := $(LIBDIR)/lib$(LIBNAME).a
 
 # Rule primaire : créé la librairie (package/archive de .o)
 $(LIB): $(OBJS)
-	@echo Creating library $@.
+	@echo 🦜 Creating library $@.
 	@test -d $(@D) || mkdir -p $(@D)
 	@ar -rcs $@ $(OBJS)
 	@echo Done!
 
 # Compilations des .c en .o.
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
-	@echo Compiling object $@...
+	@echo 🦫 Compiling object $@...
 	@test -d $(@D) || mkdir -p $(@D)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	@echo Removing objects and lib.
+	@echo 🦤 Removing objects and lib.
 	@rm -r $(LIBDIR) $(OBJDIR)

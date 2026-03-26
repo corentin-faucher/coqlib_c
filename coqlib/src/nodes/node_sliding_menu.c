@@ -8,6 +8,7 @@
 #include "node_sliding_menu.h"
 
 #include "node_tree.h"
+#include "node_root.h"
 #include "../utils/util_base.h"
 
 // MARK: - Scroll bar du sliding menu
@@ -27,12 +28,12 @@ ScrollBar* _ScrollBar_create(Node* ref, float width) {
     // Back of scrollBar
     Frame_create(&sb->n, 1.f, 0.5*width, 0.f, parHeight,
         // texOpt ? texOpt :
-        Texture_sharedImageByName("coqlib_scroll_bar_back"),
+        Texture_getPngByName("coqlib_scroll_bar_back"),
         frame_option_verticalBar);
     // Nub (sliding)
     sb->nub = Fluid_create(&sb->n, 0, 0.25f*parHeight, width, width*3, 30, 0, 0);
     sb->nubFrame = Frame_create(&sb->nub->n, 1.f, 0.5f*width, 0.f, 0.f, 
-                        Texture_sharedImageByName("coqlib_scroll_bar_front"), frame_option_verticalBar);
+                        Texture_getPngByName("coqlib_scroll_bar_front"), frame_option_verticalBar);
     return sb;
 }
 // Retourne false si hidden, true si affiche
@@ -214,29 +215,28 @@ void _slidingmenu_open(Node* nd) {
     // ?
 }
 void slidingmenu_reshape_(Node* n) {
-#ifdef __APPLE__
-#if TARGET_OS_OSX != 1
+#if defined (__APPLE__) && (TARGET_OS_OSX != 1)
     SlidingMenu* sm = (SlidingMenu*)n;
-    float deltaY = _sm_menuDeltaYMax;
-    if(deltaY > 0.f) {
-        Rectangle rect = node_windowRectangle(&sm->n, true);
-        float contentFactor = slidingmenu_contentFactor(sm);
-        float offSetRatio = slidingmenu_offsetRatio(sm);
-        CoqEvent_addToWindowEvent((CoqEventWin) {
-            .type = eventtype_win_ios_scrollviewNeeded,
-            .win_scrollViewInfo = { rect, contentFactor, offSetRatio },
-        });
-    }
-#endif
+    guard_let(float, deltaY, sm->deltaYMax, , )
+    Rectangle rect = node_windowRectangle(&sm->n, true);
+    float contentFactor = slidingmenu_contentFactor(sm);
+    float offSetRatio = slidingmenu_offsetRatio(sm);
+    CoqEvent_addToWindowEvent((CoqEventWin) {
+        .type = eventtype_win_ios_scrollviewNeeded,
+        .win_scrollViewInfo = { rect, contentFactor, offSetRatio },
+    });
+#else
+    (void)n;
+    printwarning("Undefined");
 #endif
 }
-void slidingmenu_close_(Node* nd) {
-#ifdef __APPLE__
-#if TARGET_OS_OSX != 1
+void slidingmenu_close_(Node* UNUSED()) {
+#if defined (__APPLE__) && (TARGET_OS_OSX != 1)
     CoqEvent_addToWindowEvent((CoqEventWin) {
         .type = eventtype_win_ios_scrollviewNotNeeded,
     });
-#endif
+#else
+    printwarning("Undefined");
 #endif
 }
 void _slidingmenu_deinit(Node* n) {
@@ -270,7 +270,7 @@ SlidingMenu* SlidingMenu_create(Node* ref, SlidingMenuInit sid,
     sm->back = Frame_create(&sm->n, 1, scrollBarWidth,
                          0.f, 0.f,
                          sid.backFrameTexOpt ? sid.backFrameTexOpt :
-                         Texture_sharedImageByName("coqlib_sliding_menu_back"),
+                         Texture_getPngByName("coqlib_sliding_menu_back"),
                          frame_option_getSizesFromParent);
     if(sid.backFrameTexOpt) {
         drawable_setUVRect(&sm->back->d, sid.backFrameUVrect);
@@ -304,7 +304,7 @@ float slidingmenu_contentFactor(SlidingMenu* sm) {
     return sm->menu->n.h / sm->n.h;
 }
 float slidingmenu_offsetRatio(SlidingMenu* sm) {
-    float deltaY = sm->deltaYMax;
+    float const deltaY = sm->deltaYMax;
     if(deltaY == 0.f) return 0.f;
     return (fl_real(&sm->menu->y) + deltaY) / sm->menu->n.h;
 }

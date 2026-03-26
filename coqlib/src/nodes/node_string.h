@@ -35,10 +35,8 @@ typedef struct NodeString {
         Drawable      d;
         DrawableMulti dm;
     };
-    StringGlyphed *const sg; // String avec infos pour dessiner.
-//    GlyphSimple*      gsArr;
-//    size_t            gsArrCount;
-//    size_t            gsArrMaxCount;
+    StringGlyphed*const sg; // String avec infos pour dessiner.
+    char const*const    c_str; // La chaine de caractère en utf8.
     // Instant `ChronoRender` à l'ouverture.
     float const       openTimeSec;
     float const       twoDxOpt;
@@ -46,6 +44,9 @@ typedef struct NodeString {
 NodeString* NodeString_create(Node* ref, StringGlyphedInit data,
                       float x, float y, float widthOpt, float height,
                       flag_t flags, uint8_t node_place);
+// Vérifier les dimension du noeud après avoir modifier la StringGlyphed.
+void        nodestring_checkDimensions(NodeString* const ns);
+// Convenience fonction pour changer la string (stringglyphed_setChars + nodestring_checkDimensions)
 void        nodestring_updateString(NodeString* ns, const char* newString);
 static inline NodeString* node_asNodeStringOpt(Node* nOpt) {
     return (nOpt && (nOpt->_type & node_type_string)) ? (NodeString*)nOpt : NULL;

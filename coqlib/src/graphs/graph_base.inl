@@ -6,21 +6,21 @@
 //
 
 /// Convertion d'un float en gris (et alpha = f)
-static inline PixelBGRA float_toPixelBGRA(float const f) {
-    return (PixelBGRA) {
-        .b = f < 0.f ? 0 : (f > 1.f ? 255 : (uint8_t)(f*255.f)),
-        .g = f < 0.f ? 0 : (f > 1.f ? 255 : (uint8_t)(f*255.f)),
+static inline PixelRGBA float_toPixelRGBA(float const f) {
+    return (PixelRGBA) {
         .r = f < 0.f ? 0 : (f > 1.f ? 255 : (uint8_t)(f*255.f)),
+        .g = f < 0.f ? 0 : (f > 1.f ? 255 : (uint8_t)(f*255.f)),
+        .b = f < 0.f ? 0 : (f > 1.f ? 255 : (uint8_t)(f*255.f)),
         .a = f < 0.f ? 0 : (f > 1.f ? 255 : (uint8_t)(f*255.f)),
     };
 }
 /// Conversion de Vector4 vers un pixel en BGRA uint8,
 /// e.g. (1, 0.25, 0, 0.5) -> 0x7F003FFF
-static inline PixelBGRA vector4_color_toPixelBGRA(Vector4 const v) {
-    return (PixelBGRA) {
-        .b = v.b < 0.f ? 0 : (v.b > 1.f ? 255 : (uint8_t)(v.b*255.f)),
-        .g = v.g < 0.f ? 0 : (v.g > 1.f ? 255 : (uint8_t)(v.g*255.f)),
+static inline PixelRGBA vector4_color_toPixelRGBA(Vector4 const v) {
+    return (PixelRGBA) {
         .r = v.r < 0.f ? 0 : (v.r > 1.f ? 255 : (uint8_t)(v.r*255.f)),
+        .g = v.g < 0.f ? 0 : (v.g > 1.f ? 255 : (uint8_t)(v.g*255.f)),
+        .b = v.b < 0.f ? 0 : (v.b > 1.f ? 255 : (uint8_t)(v.b*255.f)),
         .a = v.a < 0.f ? 0 : (v.a > 1.f ? 255 : (uint8_t)(v.a*255.f)),
     };
 }

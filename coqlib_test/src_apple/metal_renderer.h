@@ -6,18 +6,20 @@
 //
 
 #import <MetalKit/MetalKit.h>
+#import "coqlib_apple.h"
 
 #define EFFECTS_COUNT 100
 
 @interface Renderer : NSObject <MTKViewDelegate> {
     id<MTLCommandQueue>        queue;
     
-    id<MTLDepthStencilState>   depthStencilState;
-    MTLClearColor              clearColor;
-    
     // Première passe
     id<MTLRenderPipelineState> firstPipelineState;
-    MTLRenderPassDescriptor*   firstRenderPassDescr;
+    
+    // Frame buffer, i.e. intermédiare entre 1re et 2e passe.
+    CoqFramebuffer             fb;
+    
+    // Seconde passe
     id<MTLRenderPipelineState> secondPipelineState;
     
 @public

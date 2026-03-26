@@ -16,6 +16,9 @@
 #import <CoreFoundation/CFCGTypes.h>
 #import <Metal/MTLRenderPass.h>
 
+#include "utils/util_event.h"
+#include "apple_view_metal.h"
+
 // MARK: - Conversion pratiques
 static inline CGRect    rectangle_toCGRect(Rectangle const rect) {
     return (CGRect) { rect.o_x, rect.o_y, rect.w, rect.h };
@@ -42,7 +45,7 @@ static inline MTLClearColor vector4_toMTLClearColor(Vector4 v) {
 #import <UIKit/UIGeometry.h>
 static inline Margins   UIEdgeInsets_toMargins(UIEdgeInsets m) { 
     return (Margins) { m.top, m.left, m.bottom, m.right };
-]
+}
 #endif
 
 // MARK: - NSApp et NSWindow: Default NSWindow et menu.
@@ -50,7 +53,10 @@ static inline Margins   UIEdgeInsets_toMargins(UIEdgeInsets m) {
 #import <AppKit/AppKit.h>
 /// Menu minimaliste macOS (juste `Quit` avec la localized string "quit").
 NSMenu*   NSMenu_createDefault(void);
-NSWindow* NSWindow_createDefault(NSString* defaultName, float const fixedRatioOpt);
+/// Création d'une fenêtre ordinaire pour macOS.
+/// Si le ratio == 0 -> on peut modifier le ratio de la fenêtre (pas fixe).
+NSWindow* NSWindow_createDefault(float fixedRatioOpt);
+ViewSizeInfo ViewSizeInfo_fromMetalViewAndWindow(CoqMetalView* view, NSWindow* window);
 #endif
 
 #endif /* bundle_util_h */

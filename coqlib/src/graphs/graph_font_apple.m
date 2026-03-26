@@ -7,33 +7,40 @@
 
 #include "graph_font.h"
 #include "../utils/util_base.h"
-#include "../utils/util_string.h"
+#include "../utils/util_chars.h"
 #include "../coq__buildConfig.h"
 #include "../utils/util_map.h"
-#import <AppKit/AppKit.h>
 
 // MARK: - Dessin de glyph (fonts)
 #if TARGET_OS_OSX == 1
+//#import <AppKit/AppKit.h>
+#import <AppKit/NSFont.h>
+#import <AppKit/NSColor.h>
+#import <AppKit/NSAttributedString.h>
+#import <AppKit/NSStringDrawing.h>
+#import <AppKit/NSGraphicsContext.h>
 typedef NSFont Font;
 #else
+#import <UIKit/UIKit.h>
+#import <CoreText/CTFont.h>
 typedef UIFont Font;
 #endif
 /// Référence pour la théorie (cap height, baseline, descender, ...) : 
 /// https://en.wikipedia.org/wiki/Typeface_anatomy
 
 typedef struct coq_Font {
-//    union {
-        // Version Apple -> Dictionnaire d'attributes (dont la NSFont/UIFont)
-        void const*const _nsdict_attributes;
-        // Version Freetype -> FT_Face
-//        void const*const _ft_face;
-//    };
+    // Version Apple -> Dictionnaire d'attributes (dont la NSFont/UIFont)
+    void const*const _nsdict_attributes;
+    CGFontRef const  font_cg;
+    
     bool const   nearest; // Pixelisé ou smooth ?
+    float const  fontSize;
     float const  fullHeight;
     float const  solidHeight;
     float const  fontHeight; // `ascender - descender`.
     float const  deltaY;  // Décalage pour centre les glyphes, i.e. (ascender - capHeight)/2.
     float const  _bottomExtraMargin;
+    float const  _topExtraMargin;
     // float const  _maxDesc;    // ("Privé" distance positive entre bas et baseline, un peu plus que descender)
 } CoqFont;
 
@@ -54,26 +61,31 @@ typedef struct {
 void CoqFont_test_calculateFontExtraInfo_(CoqFont const* coqfont);
 FontExtraInfo_ CoqFont_getExtraInfo_(char const* fontName);
 CoqFont* CoqFont_engine_create(CoqFontInit const init) {
-    double fontSize = init.sizeOpt ? init.sizeOpt : 32; // (Default)
+    double fontSize = init.sizeOpt ? init.sizeOpt : FONT_defaultSize; // (Default)
     if(fontSize < 12) { printwarning("Font too small."); fontSize = 12; }
     if(fontSize > 200) { printwarning("Font too big.");  fontSize = 200; }
     // Set font
     Font* font;
-    if(init.nameOpt)
-        font = [Font fontWithName:[NSString stringWithUTF8String:init.nameOpt]
+    if(init.apple_fontNameOpt)
+        font = [Font fontWithName:[NSString stringWithUTF8String:init.apple_fontNameOpt]
                                  size:fontSize];
     else
         font = [Font systemFontOfSize:fontSize];
     if(font == nil) { 
-        printwarning("Font %s not found, taking system font.", init.nameOpt);
+        printwarning("Font %s not found, taking system font.", init.apple_fontNameOpt);
         font = [Font systemFontOfSize:fontSize];
     }
     // Style... Ajouter la couleur comme paramètre d'init ?
     NSMutableParagraphStyle* paragraphStyle = [[NSParagraphStyle defaultParagraphStyle] mutableCopy];
     paragraphStyle.alignment = NSTextAlignmentCenter;
     paragraphStyle.lineBreakMode = NSLineBreakByTruncatingTail;
+    #if TARGET_OS_OSX == 1
+    NSColor *color = [NSColor blackColor];
+    #else
+    UIColor *color = [UIColor blackColor];
+    #endif
     NSDictionary* attributes = [NSMutableDictionary 
-        dictionaryWithObjects:@[font,  paragraphStyle,                [NSColor blackColor]         ]
+        dictionaryWithObjects:@[font,  paragraphStyle, color]
         forKeys:@[NSFontAttributeName, NSParagraphStyleAttributeName, NSForegroundColorAttributeName]];
     
     // Dimensions
@@ -112,23 +124,31 @@ CoqFont* CoqFont_engine_create(CoqFontInit const init) {
     // Save data
     CoqFont*const cf = coq_callocTyped(CoqFont);
     *(const void**)&cf->_nsdict_attributes = CFBridgingRetain(attributes);
+    *(CGFontRef*)&cf->font_cg = CGFontCreateWithFontName((__bridge CFStringRef)font.fontName);
     
     bool_initConst(&cf->nearest, init.nearest);
+    float_initConst(&cf->fontSize, fontSize);
     float_initConst(&cf->fullHeight, fullHeight);
     float_initConst(&cf->solidHeight, solidHeight);
     float_initConst(&cf->fontHeight, fontHeight);
     float_initConst(&cf->deltaY, deltaY);
     float_initConst(&cf->_bottomExtraMargin, bottomExtra);
+    float_initConst(&cf->_topExtraMargin, topExtra);
     
     if(COQ_TEST_FONT)
         CoqFont_test_calculateFontExtraInfo_(cf);
     
     return cf;
 }
+CoqFont* CoqFont_engine_createEmojiFont_(double const size, bool const nearest) {
+    printwarning("Not used with apple fonts.");
+    return NULL;
+}
 void    coqfont_engine_destroy(CoqFont**const cfRef) {
     CoqFont*const cf = *cfRef;
     *cfRef = (CoqFont*)NULL;
     CFRelease(cf->_nsdict_attributes);
+    CGFontRelease(cf->font_cg);
     coq_free(cf);
 }
 
@@ -139,17 +159,17 @@ CoqFontDims coqfont_dims(CoqFont const* cf) {
         .solidHeight = cf->solidHeight,
 //        .relGlyphHeihgt = cf->fullHeight / cf->solidHeight,
 //        .relGlyphY = cf->deltaY / cf->solidHeight,
+        .fontSize = cf->fontSize,
         .nearest = cf->nearest,
     };
 }
-
-
 
 typedef struct {
     Character c;
     double   deltaX, deltaY;
     double   solidWidth, solidHeight;
-    NSRect   drawRect; // Rectangle de dessin CoreGraphics dans context NSGraphics.
+    CGRect   drawCGRect; // Rectangle de dessin CoreGraphics dans context NSGraphics.
+//    NSRect   drawRect; 
     double   bottom, top; // Pour ajuster les marges supplémentaire en bas et en haut. 
 } GlyphInfo_;
 GlyphInfo_ character_getGlyphInfo_(Character const c, CoqFont const*const coqfont)
@@ -157,29 +177,53 @@ GlyphInfo_ character_getGlyphInfo_(Character const c, CoqFont const*const coqfon
     NSDictionary* attributes = (__bridge NSDictionary*)coqfont->_nsdict_attributes;
     Font* font = [attributes valueForKey:NSFontAttributeName];
     NSString* string = [NSString stringWithUTF8String:c.c_str];
-    if(stringUTF8_isSingleEmoji(c.c_str)) {
+    if(character_isEmoji(c)) {
         font = [Font systemFontOfSize:[font pointSize]];
     }
     CTFontRef const font_ct = (__bridge CTFontRef)font;
     // Obetnir les dimensions d'un char avec AppKit `sizeWithAttributes`
     // et CoreText `CTFontGetGlyphsForCharacters`...
     CGSize const string_size = [string sizeWithAttributes:attributes];
-    NSRect glyphRect = ({
+    CGRect glyphRect = ({
         NSUInteger const string_length = [string length];
         unichar characters[string_length + 1];
         [string getCharacters:characters range:NSMakeRange(0, string_length)];
         characters[string_length] = 0;
         CGGlyph glyphs[string_length];
         CTFontGetGlyphsForCharacters(font_ct, characters, glyphs, string_length);
-        [font boundingRectForCGGlyph:glyphs[0]];
+        
+        #if TARGET_OS_OSX == 1
+        CGRect rect = [font boundingRectForCGGlyph:glyphs[0]];
+//        printdebug("NSFont %s (%f %f), %f x %f.", c.c_str, 
+//            rect2.origin.x, rect2.origin.y,
+//            rect2.size.width, rect2.size.height);
+        #else
+        CGRect rect;
+        CGFontGetGlyphBBoxes(coqfont->font_cg, glyphs, 1, &rect);
+        CGFloat const scale = font.pointSize / CGFontGetUnitsPerEm(coqfont->font_cg);
+        rect.origin.x *= scale;   rect.origin.y *= scale;
+        rect.size.width *= scale; rect.size.height *= scale;
+//        printdebug("CGFont %s (%f %f), %f x %f.", c.c_str, 
+//            rect.origin.x, rect.origin.y,
+//            rect.size.width, rect.size.height);
+        #endif
+        rect;
     });
     if(glyphRect.size.width < string_size.width)
         glyphRect.size.width = string_size.width;
-    double extra_margin = FONT_extra_margin(coqfont->nearest);
-    double deltaX = glyphRect.origin.x - 0.5*string_size.width + 0.5*glyphRect.size.width;
-    double marginX = fmaxf(0.5*(string_size.width - glyphRect.size.width) + fabs(deltaX), 0) + extra_margin;
+    double const extra_margin = FONT_extra_margin(coqfont->nearest);
+    double const deltaX = glyphRect.origin.x - 0.5*string_size.width + 0.5*glyphRect.size.width;
+    double const marginX = fmaxf(0.5*(string_size.width - glyphRect.size.width) + fabs(deltaX), 0) + extra_margin;
 //    printf("🐷 %s : x %.1f, g_w %.1f, s_w %.1f, Dx %.1f, m_x %.1f.\n",
 //           c.c_str, glyphRect.origin.x, glyphRect.size.width, string_size.width, deltaX, marginX);
+    #if TARGET_OS_OSX == 1
+    double const drawOriginY = coqfont->_bottomExtraMargin;
+    #else
+    double const drawOriginY = -coqfont->fullHeight
+                    + 1*coqfont->_topExtraMargin
+                    + 0* coqfont->deltaY 
+                    + 0*coqfont->_bottomExtraMargin;
+     #endif
            
     return (GlyphInfo_) {
         .c = c,
@@ -188,9 +232,9 @@ GlyphInfo_ character_getGlyphInfo_(Character const c, CoqFont const*const coqfon
         .deltaY = coqfont->deltaY,  // (constant pour tout char)
         .solidWidth = string_size.width, // Espace occupé par le char.
         .solidHeight = coqfont->solidHeight, // (constant pour tout char)
-        .drawRect = { // Positionnement pour dessiner avec CoreGraphics.
+        .drawCGRect = { // Positionnement pour dessiner avec CoreGraphics.
             .origin = { -glyphRect.origin.x + marginX, //  ,
-                        coqfont->_bottomExtraMargin 
+                        drawOriginY
             },
             .size = { glyphRect.size.width + 2*marginX, coqfont->fullHeight },
         },
@@ -199,14 +243,14 @@ GlyphInfo_ character_getGlyphInfo_(Character const c, CoqFont const*const coqfon
     };
 }
 
-PixelBGRAArray* Pixels_engine_createArrayFromCharacter(Character const c, CoqFont const* coqFont) 
+PixelArray* PixelsArray_engine_createFromCharacter(Character const c, CoqFont const* coqFont) 
 {
     NSDictionary* attributes = (__bridge NSDictionary*)coqFont->_nsdict_attributes;
     GlyphInfo_ info = character_getGlyphInfo_(c, coqFont);
     NSString* string = [NSString stringWithUTF8String:c.c_str];
     // 1. Setter la Destination : Pixel Array
-    PixelBGRAArray*const pa = PixelBGRAArray_createEmpty(info.drawRect.size.width, 
-                                                         info.drawRect.size.height);
+    PixelArray*const pa = PixelArray_createEmpty(info.drawCGRect.size.width, 
+                                                 info.drawCGRect.size.height);
     pa->deltaX = info.deltaX;
     pa->deltaY = info.deltaY;
     pa->solidWidth = info.solidWidth;
@@ -214,31 +258,34 @@ PixelBGRAArray* Pixels_engine_createArrayFromCharacter(Character const c, CoqFon
     
     // 2. Init CoreGraphics context
     CGColorSpaceRef const colorSpace = CGColorSpaceCreateDeviceRGB(); // ? pas de BGR ?
-    NSUInteger const bytesPerRow = pa->width * sizeof(PixelBGRA);
+    NSUInteger const bytesPerRow = pa->width * sizeof(PixelRGBA);
     NSUInteger const bitsPerComponent = 8;
-    CGContextRef const context = CGBitmapContextCreate(pa->pixels, pa->width, pa->height,
+    CGContextRef const context = CGBitmapContextCreate(
+                    pa->pixels, pa->width, pa->height,
                     bitsPerComponent, bytesPerRow, colorSpace,
-                    kCGImageAlphaPremultipliedLast);
+                    (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(colorSpace);
     CGContextSetTextDrawingMode(context, kCGTextFillStroke);
     
     // 3. Dessiner la string dans le context
     //    CTFontDrawGlyphs(font_ct, glyphs, &drawPoint, 1, context);
     // (set context CoreGraphics dans context NSGraphics pour dessiner la NSString.)
+    #if TARGET_OS_OSX == 1
     @autoreleasepool {
         [NSGraphicsContext saveGraphicsState];
         [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithCGContext:context flipped:false]];
-        [string drawAtPoint:info.drawRect.origin withAttributes:attributes];
+        [string drawAtPoint:info.drawCGRect.origin withAttributes:attributes];
         [NSGraphicsContext setCurrentContext:nil];
         [NSGraphicsContext restoreGraphicsState];
     }
+    #else
+    UIGraphicsPushContext(context);
+    CGContextScaleCTM(context, 1, -1);
+    [string drawAtPoint:info.drawCGRect.origin withAttributes:attributes];
+    UIGraphicsPopContext();
+    #endif
     // 4. Relâcher le context CoreGraphic
     CGContextRelease(context);
-    // 5. Swapper Red et Blue pour rgb -> bgr...
-    PixelBGRA*const end = &pa->pixels[pa->width*pa->height];
-    for(PixelBGRA* p = pa->pixels; p < end; p++) {
-        *p = (PixelBGRA) {.b = p->r, .g = p->g, .r = p->b, .a = p->a, };
-    }
     
     return pa;
 }
@@ -343,9 +390,8 @@ void CoqFont_test_calculateFontExtraInfo_(CoqFont const* coqfont) {
     printCharInfo_(info);
     top = 0.5f*(info.top + top);
     float topExtra = info.top > coqfont->fontHeight ? info.top - coqfont->fontHeight : 0;
-    
-    printf("🐷 Testing font family %s, display %s, name %s : capH %.1f, asc %.1f, desc %.1f, x %.1f.\n", 
-           [[font familyName] UTF8String], [[font displayName] UTF8String], [[font fontName] UTF8String], 
+    printf("🐷 Testing font family %s, name %s : capH %.1f, asc %.1f, desc %.1f, x %.1f.\n", 
+           [[font familyName] UTF8String], [[font fontName] UTF8String], 
         [font capHeight], [font ascender], [font descender], [font xHeight]);
     printf("    └-> fullHeight %.1f, solidHeight %.1f, fontHeight %.1f, bottom %.1f, top %.1f.\n",
            coqfont->fullHeight, coqfont->solidHeight, fontHeight, bottom, top);
@@ -355,25 +401,25 @@ void CoqFont_test_calculateFontExtraInfo_(CoqFont const* coqfont) {
     );
 }
 
-
 void CoqFont_test_printAvailableFonts(void) {
 #if TARGET_OS_OSX == 1
     for(NSString *family in [[NSFontManager sharedFontManager] availableFonts]) {
         printf("Font : %s.\n", [family UTF8String]);
     }
 #else
-    for(NSString *family in [[UIFont sharedFontManager] familyNames]) {
+    for(NSString *family in [UIFont familyNames]) {
         printf("Font : %s.\n", [family UTF8String]);
     }
 #endif
 }
 
-PixelBGRAArray* Pixels_engine_test_createArrayFromString_(const char* c_str, CoqFont const* coqFont) 
+PixelArray* PixelsArray_engine_test_createFromString_(const char* c_str, CoqFont const* coqFont) 
 {
     NSDictionary* attributes = (__bridge NSDictionary*)coqFont->_nsdict_attributes;
     Font* font = [attributes valueForKey:NSFontAttributeName];
     NSString* string = [NSString stringWithUTF8String:c_str];
-    if(stringUTF8_isSingleEmoji(c_str)) {
+    Character const c = Character_fromUTF8string(c_str);
+    if(character_isEmoji(c)) {
         font = [Font systemFontOfSize:[font pointSize]];
     }
     CTFontRef font_ct = (__bridge CTFontRef)font;
@@ -393,7 +439,7 @@ PixelBGRAArray* Pixels_engine_test_createArrayFromString_(const char* c_str, Coq
     size_t const width = string_size.width + coqFont->solidHeight;
     size_t const height = coqFont->fullHeight;
     printdebug("String width %zu, height %zu.", width, height);
-    PixelBGRAArray* pa = PixelBGRAArray_createEmpty(width, height);
+    PixelArray* pa = PixelArray_createEmpty(width, height);
     pa->solidWidth = string_size.width;
     pa->solidHeight = coqFont->solidHeight;
     
@@ -406,13 +452,14 @@ PixelBGRAArray* Pixels_engine_test_createArrayFromString_(const char* c_str, Coq
     NSUInteger const bitsPerComponent = 8;
     CGContextRef context = CGBitmapContextCreate(pa->pixels, pa->width, pa->height,
                     bitsPerComponent, bytesPerRow, colorSpace,
-                    kCGImageAlphaPremultipliedLast);
+                    (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
     CGColorSpaceRelease(colorSpace);
     CGContextSetTextDrawingMode(context, kCGTextFillStroke);
     
     // 3. Dessiner la string dans le context
     //    CTFontDrawGlyphs(font_ct, glyphs, &drawPoint, 1, context);
     // (set context CoreGraphics dans context NSGraphics pour dessiner la NSString.)
+    #if TARGET_OS_OSX == 1
     @autoreleasepool {
         [NSGraphicsContext saveGraphicsState];
         [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithCGContext:context flipped:false]];
@@ -420,6 +467,12 @@ PixelBGRAArray* Pixels_engine_test_createArrayFromString_(const char* c_str, Coq
         [NSGraphicsContext setCurrentContext:nil];
         [NSGraphicsContext restoreGraphicsState];
     }
+    #else
+    UIGraphicsPushContext(context);
+    [string drawAtPoint:drawPoint withAttributes:attributes];
+    UIGraphicsPopContext();
+    #endif
+    
     // 4. Relâcher le context CoreGraphic
     CGContextRelease(context);
     

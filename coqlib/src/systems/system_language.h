@@ -7,7 +7,7 @@
 #ifndef COQ_UTIL_LANGUAGE_H
 #define COQ_UTIL_LANGUAGE_H
 
-#include "../utils/util_string.h"
+#include "../utils/util_chars.h"
 
 typedef enum {
     language_french,
@@ -28,14 +28,19 @@ typedef enum {
     language_portuguese,
     language_korean,
     language_vietnamese,
+    
     // Autres langues importantes... ?
     // language_hindi,
     // language_swahili,
     // language_indonesian,
     // language_dutch,
+    // language_turkish,
+    // language_javanese, // (Indonesia)
+    // language_urdu,     // (Pakistan)
+    // language_persian,  // (farsi?)
     
     language_total_language,
-    language_undefined_language,
+    language_undefined_language =  100,
 } Language;
 
 extern const Language Language_defaultLanguage; // language_english
@@ -73,6 +78,7 @@ const char* language_name(Language language);
 // MARK: - Pour la localisation des strings. ----------------
 /// Localization d'une string dans la langue courante.
 /// Apple : Utilise le Bundle de l'app et la resource Localizable.strings.
+/// Sinon : Utilise le fichier, e.g., `localized/fr.json`.
 const char* String_createLocalized(const char* stringKey);
 void        String_copyLocalizedTo(const char* stringKey, char* dstBuffer, size_t size_max_opt);
 /// Version par defaut de la string, e.g. localization anglaise.
@@ -83,7 +89,10 @@ SharedStringsArray LanguageFont_allFontNamesForLanguage(Language language);
 const char*        LanguageFont_defaultFontNameForLanguage(Language language);
 const char*        LanguageFont_getFontShortName(const char* fontNameOpt);
 
+
+// MARK: Test, conversion string->json.
 void Language_test_fontLanguage_(void);
+void Language_apple_convertStringToJson_(void);
 
 
 #endif

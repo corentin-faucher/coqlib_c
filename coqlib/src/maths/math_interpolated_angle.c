@@ -20,7 +20,7 @@ void intangle_init(InterpolatedAngle* ia, float pos) {
 }
 
 void intangle_push(InterpolatedAngle* ia, float newPos) {
-    int64_t time = ChronosRender.render_elapsedMS;
+    int64_t time = RendererTimeCapture.render_elapsedMS;
     if(time == ia->vT[ia->indexLast]) return;
     newPos = float_toNormalizedAngle(newPos);
     ia->vX[ia->indexCurrent] = newPos;

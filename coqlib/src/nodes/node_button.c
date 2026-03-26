@@ -38,12 +38,12 @@ Button* Button_create(Node* refOpt, void (*const touch)(NodeTouch),
     return b;
 }
 
-Button* const Button_getLastOpt(void) {
+Button* Button_getLastOpt(void) {
     return button_last_;
 }
 
 // Fonction dummy quand il n'y a rien à faire.
-void    button_touchOrDrag_pass_(NodeTouch bt) {
+void    button_touchOrDrag_pass_(NodeTouch UNUSED()) {
     // (pass)
 }
 
@@ -137,8 +137,8 @@ void button_switch_set(Button* b, bool isOn) {
 bool    button_switch_value(Button* b) {
     return b->n.nodrawData.data1.u3 & button_switch_flag_isOn;
 }
-Button* Button_createDummySwitch(Node* refOpt, void (*const touchOpt)(NodeTouch), uint32_t data,
-                                 float x, float y, float height, float lambda, flag_t flags) 
+Button* Button_createDummySwitch(Node* refOpt, void (*const touchOpt)(NodeTouch), uint32_t UNUSED(data),
+                float x, float y, float height, float lambda, flag_t flags) 
 {
     Button* b = coq_callocTyped(Button);
     node_init(&b->n, refOpt, x, y, 2, 1, flags, 0);
@@ -193,7 +193,7 @@ Button* Button_createSlider(Node* refOpt, void (*action)(NodeTouch),
     b->n.nodrawData.data1.v.w = value;
     // Structure
     Frame_create(&b->n, 0, 0.25*height, slide_width, height,
-                 Texture_sharedImageByName("coqlib_bar_in"), frame_option_horizotalBar);
+                 Texture_getPngByName("coqlib_bar_in"), frame_option_horizotalBar);
     float nub_x = (value - 0.5f) * slide_width;
     Fluid* nub = Fluid_create(&b->n, nub_x, 0, height, height, 10, 0, 0);
     Drawable_createImageWithName(&nub->n, "coqlib_switch_front", 0, 0, height, 0);

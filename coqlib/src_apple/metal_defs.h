@@ -13,6 +13,10 @@ struct VertexIn {
     packed_float2 uv;
     packed_float3 normal;
 };
+struct VertexBare {
+    packed_float2 position;
+    packed_float2 uv;
+};
 
 struct InstanceUniforms {
     float4x4 model;

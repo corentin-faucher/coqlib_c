@@ -42,6 +42,7 @@ typedef enum {
     png_coqlib_frame_red,
     png_coqlib_frame_white_back,
     png_coqlib_test_frame,
+    png_coqlib_the_cat,
     
     png_total_pngs
 } MyPngEnum;
@@ -56,6 +57,7 @@ typedef enum {
     
     sound_total_sounds,
 } MySound;
+
 extern const char*   MyProject_wavNames[];
 
 typedef enum {

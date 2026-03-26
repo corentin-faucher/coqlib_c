@@ -12,47 +12,28 @@
 #include "../systems/system_file.h"
 #include "../utils/util_base.h"
 
+// Où sont stockées les données d'utilisateur 
+static char const*const FileManager_supportDirectory_ = "./userdata";
+
 // Espace où est stocker le dernier path demandé.
 static char  FileManager_tmpPath_[PATH_MAX];
-char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
-                        const char* fileExtOpt, const char* subDirOpt) 
+char*        FileManager_getResourcePath(void) 
 {
     memset(FileManager_tmpPath_, 0, PATH_MAX);
-    if(fileNameOpt) {
-        if(subDirOpt) {
-            if(fileExtOpt)
-                sprintf(FileManager_tmpPath_, "./res/%s/%s.%s",
-                    subDirOpt, fileNameOpt, fileExtOpt);
-            else
-                sprintf(FileManager_tmpPath_, "./res/%s/%s",
-                    subDirOpt, fileNameOpt);
-        } else {
-            if(fileExtOpt)
-                sprintf(FileManager_tmpPath_, "./res/%s.%s",
-                    fileNameOpt, fileExtOpt);
-            else
-                sprintf(FileManager_tmpPath_, "./res/%s",
-                    fileNameOpt);
-        }
-    } else {
-        if(subDirOpt) {
-            sprintf(FileManager_tmpPath_, "./res/%s/", subDirOpt);
-        } else {
-            sprintf(FileManager_tmpPath_, "./res/");
-        }
-    }
+    sprintf(FileManager_tmpPath_, "./res");
 
     return FileManager_tmpPath_;
 }
-char*        FileManager_getApplicationSupportDirectoryPathOpt(void) {
+
+
+char*        FileManager_getApplicationSupportDirectoryPath(void) {
     memset(FileManager_tmpPath_, 0, PATH_MAX);
     struct stat st = {0};
-    if(stat("./userdata/", &st) == -1) {
-        mkdir(".userdata", 0755);
+    if(stat(FileManager_supportDirectory_, &st) == -1) {
+        mkdir(FileManager_supportDirectory_, 0755);
     }
-    sprintf(FileManager_tmpPath_, "./userdata/");
-
-    return FileManager_tmpPath_;
+    sprintf(FileManager_tmpPath_, "%s/", FileManager_supportDirectory_);
+    return FileManager_tmpPath_;       
 }
 
 char*        FileManager_getApplicationCloudMainDirectoryPathOpt(void) {

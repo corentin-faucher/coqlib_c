@@ -29,11 +29,11 @@ Vector2 vector2_toNorm(Vector2 v, float newNorm) {
     return (Vector2) {{ v.x * newNorm / n, v.y * newNorm / n }};
 }
 
-static char     tmp_vector_c_str_[10][30];
+static char     tmp_vector_c_str_[Vector2_MaxDisplayable][30];
 static uint32_t tmp_vector_index_ = 0;
-const char*const vector2_toString(Vector2 const v) {
+const char* vector2_toString(Vector2 const v) {
     char* c_str = tmp_vector_c_str_[tmp_vector_index_];
-    tmp_vector_index_ = (tmp_vector_index_ + 1) % 10;
+    tmp_vector_index_ = (tmp_vector_index_ + 1) % Vector2_MaxDisplayable;
     sprintf(c_str, "[ %5.2f, %5.2f ]", v.x, v.y);
     return c_str;
 }
@@ -48,7 +48,7 @@ Vector3 vector3_normalize(Vector3 const v) {
 }
 const char* vector3_toString(Vector3 const v) {
     char* c_str = tmp_vector_c_str_[tmp_vector_index_];
-    tmp_vector_index_ = (tmp_vector_index_ + 1) % 10;
+    tmp_vector_index_ = (tmp_vector_index_ + 1) % Vector2_MaxDisplayable;
     sprintf(c_str, "[ %5.2f, %5.2f, %5.2f ]", v.x, v.y, v.z);
     return c_str;
 }

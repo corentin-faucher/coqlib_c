@@ -6,23 +6,25 @@
 //
 
 #import <MetalKit/MetalKit.h>
-#if TARGET_OS_OSX != 1
-#import "ViewController.h"
-#endif
 #include "nodes/node_root.h"
+#if TARGET_OS_OSX != 1
+#import "ios_viewcontroller.h"
+#endif
 
 @interface CoqMetalView : MTKView {
     
 @public
 #if TARGET_OS_OSX == 1
-    NSTrackingArea*  trackingArea;
+    NSTrackingArea*     trackingArea;
 #else
-    ViewController*  viewController;
+    ViewControllerBase* viewController;
 #endif
-    dispatch_queue_t checkup_queue;
-    NSTimer*         win_event_timer;
+    dispatch_queue_t    checkup_queue;
+    dispatch_queue_t    drawPng_queue;
+    NSTimer*            win_event_timer;
 }
 
+@property (nonatomic) id <MTKViewDelegate> renderer;
 @property (nonatomic, getter=isSuspended) BOOL suspended;
 @property (nonatomic) BOOL willTerminate;
 @property (nonatomic) BOOL shouldTerminate;
@@ -30,17 +32,20 @@
 @property (nonatomic) BOOL didTransition;
 @property (nonatomic) BOOL iosForceVirtualKeyboard;
 
+- (void)addEvent:(CoqEvent)coqEvent;
+- (void)startDrawMissingPngsDispatchQueue;
 - (instancetype)initWithFrame:(CGRect)frameRect device:(id<MTLDevice>)device;
 - (void)setUpNotifications;
 - (void)updateRootFrame:(CGSize)sizePx dontFix:(BOOL)dontFix;
 - (Margins)getMargins;
-
-// Méthodes à overrider. Superflu ?
-//- (NodeRoot *)getRootNode;
-//- (const PngInfo *)getPngInfoList;
-//- (uint)getPngInfoListCount;
+- (void)checksAfterRendererDraw;
 
 @end
+
+CoqMetalView* mtkView_asCoqMetalViewOpt(MTKView* view);
+#if TARGET_OS_OSX != 1
+CoqMetalView* uiview_asCoqMetalViewOpt(UIView* view);
+#endif
 
 //@protocol CoqViewDelegate <NSObject>
 //

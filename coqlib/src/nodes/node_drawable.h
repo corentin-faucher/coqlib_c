@@ -47,43 +47,50 @@ void  smoothflag_setDeltaT(SmoothFlag *st, int16_t deltaT);
 ///  voir `DrawableChar` comme exemple.)
 typedef struct Coq_Drawable {
     Node     n;  // Upcasting as Node.
+    
     /// La texture attaché. Peut être owned ou shared.
     /// C'est plus ou moins `privé`... On ne devrait pas avoir besoin d'y toucher.
+    ///  Drawable s'occupe de releaser sa texture lors du deinit.
     /// (Les texture doivent être `release` quand on en a plus besoin...
-    ///  Drawable s'occupe de releaser sa texture lors du deinit.)
-    TextureRef texr;
+    Texture*const _tex;
+    /// Copie des info utiles de la texture.
+    TextureDims const texDims;
     /// La mesh attachée. Peut être owned ou shared.
     /// Ici aussi c'est plus ou moins privé, et le deinit de Drawable libère la mesh si owned.
-    Mesh*    _mesh;
+    /// Par défaut, on utilise `Drawable_spriteMesh`.
+    Mesh*const _mesh;
     /// Smooth transition pour affichage ON/OFF.
     SmoothFlag trShow;
     /// Transition en extra ! e.g. emphasis, flip, transparence, etc.
     SmoothFlag trExtra;
 } Drawable;
 
+Mesh*   Drawable_getSpriteMesh(void);
+
+// MARK: Méthodes sur instances drawables.
 /// Init (ne fait que setter les variables et méthodes de Drawable)
 /// A priori, utiliser les constructeur `Drawable_create...`.
 /// Un drawable est un noeud feuille ou w et h sont fixés à 1 a priori. (Largeur et hauteur sont settés avec sx / sy.)
-void      drawable_init(Drawable* d, Texture* tex, Mesh* mesh, float twoDxOpt, float twoDy);
+/// La mesh utilisée par défaut est `Drawable_spriteMesh`.
+void      drawable_init(Drawable* d, Texture* tex, Mesh* meshOpt, 
+                        float twoDxOpt, float twoDy);
 /// Deinit de drawable (pour sub-struct)
-void      drawable_deinit_(Node* nd);
+void      drawable_render_deinit_(Node* nd);
 /// Voir `noderef_fastDestroyAndNull`.
 void      drawableref_destroyAndNull(Drawable** const drawableOptRef);
 /// Downcasting node as drawable.
 static inline Drawable* node_asDrawableOpt(Node* nOpt) {
     return (nOpt && (nOpt->_type & node_type_drawable)) ? (Drawable*)nOpt : NULL;
 }
-void      drawable_changeMeshTo(Drawable* d, Mesh* newMesh);
+void      drawable_render_changeMeshTo(Drawable* d, Mesh* newMesh);
 /// Convenience : Met à jour le smooth flag trShow et le renderIU.flag avec `renderflag_show`.
 /// Retourne le `show` smooth (> 0.f s'il faut dessiner).
 float     drawable_updateShow(Drawable *d);
 
-
-/// La fonction utilisée pour mettre à jour la matrice modèle avant l'affichage.
-/// (Peut être remplacé par un fonction custom)
-extern void (*Drawable_renderer_defaultUpdateInstanceUniforms)(Node*);
-/// Couleur par défaut lors de la création d'un Drawable (init avec 1, 1, 1, 1).
-extern Vector4 Drawable_renderIU_defaultColor;
+/// Change la texture présente. Peu glitcher l'image si le drawable est "live".
+/// Il faut probablement ajuster le rectangle UV ou le ratio de l'image ensuite -> `drawable_setTile`,
+/// `drawable_checkRatioWithUVrectAndTexture`, ...
+void      drawable_changeSharedTexTo(Drawable* d, Texture* newTex);
 
 /// Convenience constructor : création d'une image (sprite avec png). 
 /// Le ratio w/h est le même que le png d'origine.
@@ -106,11 +113,6 @@ Drawable* Drawable_createColor(Node* refOpt, Vector4 color,
 /// Convenience constructor : image de `coqlib_test_frame.png` pour testing.                   
 Drawable* Drawable_createTestFrame(Node* parent, float x, float y, float twoDx, float twoDy);
 static inline Drawable* Drawable_createTestFrame2(Node* p, Box hitBox);
-
-/// Change la texture présente pour la texture d'un autre png.
-/// Il faut probablement ajuster le rectangle UV ou le ratio de l'image ensuite -> `drawable_setTile`,
-/// `drawable_checkRatioWithUVrectAndTexture`, ...
-void      drawable_changeTexToPngId(Drawable* d, uint32_t const newPngId);
 
 
 // MARK: - Setters
@@ -154,15 +156,27 @@ typedef struct _Frame {
     void     (*setDims)(Frame* f, Vector2 deltas);
 } Frame;
 
-/*-- Surface de "Frame". Un cadre ajustable. Typiquement autour d'un autre noeud. -----------*/
 Frame* Frame_create(Node* const refOpt, float inside, float delta, 
                     float twoDxOpt, float twoDyOpt, Texture* tex, uint16_t options);
-
-void   node_tryUpdatingAsFrameOfBro(Node* nodeOpt, Node* broOpt);
+static inline Frame* node_asFrame(Node* n);
+// Prend les dimensions du petit frère (e.g. un NodeString)
+void   frame_tryToUpdateToLittleBro(Frame* f);
 
 /*-- Surface pour visualiser les dimension d'un noeud. (debug only) --*/
 void   node_tryToAddTestFrame(Node* ref);
 void   node_last_tryToAddTestFrame(void);
+
+void    Drawable_init_(MeshInit spriteMeshInitOpt, 
+            void (*renderer_updateInstanceUniformsOpt)(Node*),
+            Vector4 renderIUdefaultColor
+);
+extern void  (*Drawable_renderer_defaultUpdateInstanceUniforms_)(Node*);
+extern Vector4 Drawable_renderIU_defaultColor_;
+
+// MARK: Courbe... TODO...
+Drawable* Drawable_createCurve(Node* refOpt, Texture* tex, Vector2* v_arr,
+                               uint32_t v_count, float delta); 
+
 
 // Définitions des inlines
 #include "node_drawable.inl"

@@ -41,70 +41,58 @@ int64_t  ChronoApp_lastSleepTimeMS(void) {
     return CA_lastSleepTime_;
 }
 
-// MARK: - ChronoRender, le chrono pour le rendering. --
-Chronos ChronosRender = { .deltaTMS = 16 };
-// variable "prives"
-static       int     CR_isPaused_ = 0;
-static       int64_t CR_sleepTime_ = 16000;
-static       int64_t CR_elapsedAngleMS_ = 0;
-static       int64_t CR_touchTimeMS_ = 0;
-#define CR_angleLoopTimeMS_ (int64_t)(24000 * M_PI)
 
-static Chrono ChronoRender_deltaT_;
-void ChronoRender_update(void) {
-    if(CR_isPaused_) return;
-    int64_t deltaTMS = chrono_elapsedMS(&ChronoRender_deltaT_);
+// MARK: - ChronoRender, le chrono pour le rendering. --
+TimeCapture  RendererTimeCapture = { .deltaTMS = 16 };
+// variable "prives"
+static  int     RTC_isPaused_ = 0;
+static  int64_t RTC_elapsedAngleMS_ = 0;
+static  int64_t RTC_angleLoopTimeMS_ = 60000;
+static  Chrono  RTC_deltaT_ = {}; // Temps entre les frames.
+void RendererTimeCapture_update(void) {
+    if(RTC_isPaused_) return;
+    // Évaluation du temps passé depuis la dernière frame.
+    int64_t deltaTMS = chrono_elapsedMS(&RTC_deltaT_);
     deltaTMS = deltaTMS < 1 ? 1 : (deltaTMS > 60 ? 60 : deltaTMS);
-    chrono_start(&ChronoRender_deltaT_);
-    
-    *(int64_t*)&ChronosRender.app_elapsedMS =    ChronoApp_elapsedMS();
-    *(int64_t*)&ChronosRender.render_elapsedMS = ChronosRender.render_elapsedMS + deltaTMS;
-    *(int64_t*)&ChronosRender.event_elapsedMS =  ChronosEvent.event_elapsedMS;
-    *(int64_t*)&ChronosRender.deltaTMS =         deltaTMS;
-    *(int64_t*)&ChronosRender.tick = ChronosRender.tick + 1; 
-    CR_elapsedAngleMS_ += deltaTMS;
-    if(CR_elapsedAngleMS_ > CR_angleLoopTimeMS_)
-        CR_elapsedAngleMS_ -= CR_angleLoopTimeMS_;
+    chrono_start(&RTC_deltaT_);
+    // Capture ! (en dé-castant les const)
+    *(int64_t*)&RendererTimeCapture.app_elapsedMS = ChronoApp_elapsedMS();
+    *(int64_t*)&RendererTimeCapture.render_elapsedMS = RendererTimeCapture.render_elapsedMS + deltaTMS;
+    *(int64_t*)&RendererTimeCapture.event_elapsedMS = EventTimeCapture.event_elapsedMS;
+    *(int64_t*)&RendererTimeCapture.deltaTMS = deltaTMS;
+    *(int64_t*)&RendererTimeCapture.tick = RendererTimeCapture.tick + 1; 
+    RTC_elapsedAngleMS_ += deltaTMS;
+    if(RTC_elapsedAngleMS_ > RTC_angleLoopTimeMS_)
+        RTC_elapsedAngleMS_ -= RTC_angleLoopTimeMS_;
 }
-void    ChronoRender_setPaused(bool isPaused) {
-    CR_isPaused_ = isPaused;
-    if(isPaused) {
-        chrono_pause(&ChronoRender_deltaT_);
-        return;
-    }
-    chrono_unpause(&ChronoRender_deltaT_);
-    CR_touchTimeMS_ = ChronosRender.render_elapsedMS;
+void    RendererTimeCapture_setAngleLoopTime(float const angleLoopTimeSec) {
+    RTC_angleLoopTimeMS_ = float_clamp(angleLoopTimeSec, 1.f, 3600.f) * MS_PER_SEC;
 }
-bool    ChronoRender_shouldSleep(void) {
-    return ChronosRender.render_elapsedMS - CR_touchTimeMS_ > CR_sleepTime_;
+float   RendererTimeCapture_elapsedAngleSec(void) {
+    return (float)RTC_elapsedAngleMS_ / 1000.f;
 }
-void    ChronoRender_setSleepTime(int64_t deltaTMStoSleep) {
-    CR_sleepTime_ = deltaTMStoSleep;
-}
-float   ChronoRender_elapsedSec(void) {
-    return (float)ChronosRender.render_elapsedMS / 1000.f;
-}
-float   ChronoRender_elapsedAngleSec(void) {
-    return (float)CR_elapsedAngleMS_ / 1000.f;
-}
+
 
 // MARK: - ChronoEvent : chrono global pour la gestion des events et timers. Mis à jour à chaque tic. Basé sur le vrai temps écoulé de l'app.
-Chronos ChronosEvent = { .deltaTMS = 50 };
+TimeCapture EventTimeCapture = { .deltaTMS = 50 };
 int64_t ChronosEvent_nextDeltaTMS = 0;
 /// Mise à jour à chaque tic, e.g. 20 fois par sec -> à chaque ~50ms.
-void     ChronoEvent_update(void) {
-    *(int64_t*)&ChronosEvent.app_elapsedMS =    ChronoApp_elapsedMS();
-    *(int64_t*)&ChronosEvent.render_elapsedMS = ChronosRender.render_elapsedMS ;
+void     EventTimeCapture_update(void) {
+    // Mise à jour de deltaT ?
     if(ChronosEvent_nextDeltaTMS) {
-        *(int64_t*)&ChronosEvent.deltaTMS = ChronosEvent_nextDeltaTMS;
+        *(int64_t*)&EventTimeCapture.deltaTMS = ChronosEvent_nextDeltaTMS;
         ChronosEvent_nextDeltaTMS = 0;
     }
-    *(int64_t*)&ChronosEvent.event_elapsedMS =  ChronosEvent.event_elapsedMS + ChronosEvent.deltaTMS;
-    *(int64_t*)&ChronosEvent.tick = ChronosEvent.tick + 1;
+    // Capture ! (en dé-castant les const)
+    *(int64_t*)&EventTimeCapture.app_elapsedMS =    ChronoApp_elapsedMS();
+    *(int64_t*)&EventTimeCapture.render_elapsedMS = RendererTimeCapture.render_elapsedMS ;
+    *(int64_t*)&EventTimeCapture.event_elapsedMS =  EventTimeCapture.event_elapsedMS + EventTimeCapture.deltaTMS;
+    *(int64_t*)&EventTimeCapture.tick = EventTimeCapture.tick + 1;
 }
-void     ChronoEvent_setTicDeltaT(int64_t newDeltaTMS) {
+void     EventTimeCapture_setTicDeltaT(int64_t newDeltaTMS) {
     ChronosEvent_nextDeltaTMS = newDeltaTMS;
 }
+
 
 // MARK: - Chrono ordinaire.
 /** Un chronomètre basé sur le AppChrono (temps écoulé sans les "pause" de l'app).
@@ -179,10 +167,31 @@ bool     countdown_isRinging(const Countdown *cd) {
 ChronoChecker chronochecker_startNew(void) {
     return Chrono_systemTimeMS_();
 }
-int64_t       chronochecker_elapsedMS(ChronoChecker const cc) {
+int64_t chronochecker_elapsedMS(ChronoChecker const cc) {
     return Chrono_systemTimeMS_() - cc;
 }
 void chronochecker_toc_(const ChronoChecker cc, const char*const filename, uint32_t const line) {
     printf("🐸 Toc ! %d ms -> %s line %d\n",
         (int)(Chrono_systemTimeMS_() - cc), filename, line);
+}
+void chronochecker_tocWithComment(const ChronoChecker cc, const char*const comment) {
+    printf("🐸 Toc ! %d ms, %s.\n",
+        (int)(Chrono_systemTimeMS_() - cc), comment);
+}
+void chronochecker_sleepRemaining_(ChronoChecker cc, int64_t deltaTMS, bool showWarning, 
+                                      const char* filename, uint32_t line) 
+{
+    int64_t sleepDeltaT = cc + deltaTMS - Chrono_systemTimeMS_();
+    if(sleepDeltaT < 1) {
+        if(showWarning) {
+            printf("🐸 Overwork ! elapsedMS %lld, -> %s line %d", 
+                Chrono_systemTimeMS_() - cc, filename, line);
+            print_trace_(3, true);
+        }
+        return;
+    }
+//    printf("🐸 Ok ! elapsedMS %lld, -> %s line %d", Chrono_systemTimeMS_() - cc, filename, line);
+//    print_trace_(3, true);
+    struct timespec time = {0, sleepDeltaT*ONE_MILLION};
+    nanosleep(&time, NULL);
 }

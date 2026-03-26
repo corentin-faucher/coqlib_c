@@ -9,24 +9,25 @@
 
 #include "system_locale.h"
 #include "../utils/util_base.h"
-#include "../utils/util_string.h"
+#include "../utils/util_chars.h"
+#include "system_file.h"
 
 // MARK: - Langue et région
 
 // Specifique a Apple.
 NSBundle *default_bundle_ = nil;
 NSBundle *current_bundle_ = nil;
-NSBundle* getBundleForIsoOpt_(const char* iso) {
+NSBundle* getBundleForIsoOpt_(const char* iso, bool const showError) {
     NSString* path = [NSBundle.mainBundle
         pathForResource:[NSString stringWithUTF8String:iso]
                  ofType:@"lproj"];
     if(path == NULL) {
-        printerror("Cannot find bundle resource for %s.", iso);
+        if(showError) printerror("Cannot find bundle resource for %s.", iso);
         return nil;
     }
     NSBundle* bundle = [NSBundle bundleWithPath:path];
     if(bundle == NULL) {
-        printerror("Cannot load bundle at %s.", path.UTF8String);
+        if(showError) printerror("Cannot load bundle at %s.", path.UTF8String);
         return nil;
     }
     return bundle;
@@ -35,7 +36,7 @@ NSBundle* getBundleForIsoOpt_(const char* iso) {
 void     Language_init_(void) {
     // Init app bundle.
     if(default_bundle_ != nil) { printerror("Language already init."); return; }
-    default_bundle_ = getBundleForIsoOpt_("en");
+    default_bundle_ = getBundleForIsoOpt_("en", true);
     if(!default_bundle_) default_bundle_ = [NSBundle mainBundle];
     current_bundle_ = default_bundle_;
     // Init system language
@@ -45,7 +46,7 @@ void     Language_init_(void) {
 /// Mettre le bundle dans la bonne langue...
 bool     Language_system_tryToSetTo_(Language const language) {
     const char* iso = language_iso(language);
-    NSBundle* bundle_tmp = getBundleForIsoOpt_(iso);
+    NSBundle* bundle_tmp = getBundleForIsoOpt_(iso, false);
     if(!bundle_tmp) {
         printerror("No bundle for language %s.", iso);
         return false;
@@ -115,4 +116,44 @@ const char* String_createLocalizedDefault(const char* stringKey) {
     }
     printerror("Cannot localized %s in english.", stringKey);
     return String_createCopy(stringKey);
+}
+
+// MARK: Conversion string->json.
+void Language_apple_convertStringToJson_(void) {
+    char*const path_dir = FileManager_getApplicationSupportDirectoryPath();
+        String_pathAdd(path_dir, NULL, NULL, "localized_jsons");
+    FileManager_checkAndCreateDirectory(path_dir);
+    
+    for(Language language = 0; language < language_total_language; language++) {
+        // 1. Charger le .string dans un dictionnaire.
+        guard_let_loop(NSBundle*, bundle, getBundleForIsoOpt_(language_iso(language), false),)
+        printf("🐳 Converting strings for %s.\n", language_name(language));
+        NSURL*const locURL = [bundle URLForResource:@"Localizable" withExtension:@"strings"];
+        NSError* error = nil;
+        NSDictionary*const dict = 
+            [NSDictionary dictionaryWithContentsOfURL:locURL 
+                                                error:&error];
+        if(error || !dict) {
+            printerror("No Localizable file for language %s.", language_name(language));
+            continue;
+        }
+        
+        // 2. Ouvrir un fichier texte en sortie.
+        char*const path_json = FileManager_getApplicationSupportDirectoryPath();
+        String_pathAdd(path_json, language_iso(language), "json", "localized_jsons");
+        withFILE_beg(f, path_json, "w")
+        fputs("{\n", f);
+        
+        // 3. Scaner le dictionnaire
+        bool first = true;
+        for(NSString* key in dict) {
+            NSString* value = dict[key];
+            if(!first) fputs(",\n", f);
+            else       first = false;
+            fprintf(f, "  \"%s\" : \"%s\"", 
+                [key UTF8String], [value UTF8String]);
+        }
+        fputs("\n}", f);
+        withFILE_end(f)
+    }
 }

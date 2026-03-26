@@ -26,10 +26,10 @@ typedef enum {
     node_type_string =       0x0200,
     node_type_poping =       0x0400,
     
-    
-    /// Premier "type flag" custom pour un noeud.
-    /// Seulement besoin d'un "type flag" si la sous-struct de Node a besoin d'etre casté.
+    /// Premier "type flag" pour un noeud custom.
+    /// Nécessaire, seulement si la sous-struct de Node a besoin d'être down-casté.
     node_type_firstCustomType = 0x001000,
+    
     node_types_defaultTypes =     0x0FFF,
     node_types_defaultDrawables = node_type_drawable|node_type_drawMulti,
     node_type__last_ =        0x80000000,  // (uint32_t)

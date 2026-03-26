@@ -52,27 +52,24 @@
 
 
 -(void)scrollViewDidScroll:(UIScrollView *)scrollView {
-    [self->metalView setPaused:NO];
     float offSetRatio = (float)scrollView.contentOffset.y / scrollView.contentSize.height;
-    CoqEvent_addToRootEvent((CoqEvent) {
+    [self->metalView addEvent:(CoqEvent) {
         .type = eventtype_scroll,
         .scroll_info = {.scrollType = scrolltype_offSet, .offset_ratio = offSetRatio, .offset_letGo = false }
-    });
+    }];
 }
 -(void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
-    [self->metalView setPaused:NO];
     float offSetRatio = (float)scrollView.contentOffset.y / scrollView.contentSize.height;
-    CoqEvent_addToRootEvent((CoqEvent) {
+    [self->metalView addEvent:(CoqEvent) {
         .type = eventtype_scroll,
         .scroll_info = {.scrollType = scrolltype_offSet, .offset_ratio = offSetRatio, .offset_letGo = true }
-    });
+    }];
 }
 -(void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
-    [self->metalView setPaused:NO];
     float offSetRatio = (float)scrollView.contentOffset.y / scrollView.contentSize.height;
-    CoqEvent_addToRootEvent((CoqEvent) {
+    [self->metalView addEvent:(CoqEvent) {
         .type = eventtype_scroll,
         .scroll_info = {.scrollType = scrolltype_offSet, .offset_ratio = offSetRatio, .offset_letGo = true }
-    });
+    }];
 }
 @end

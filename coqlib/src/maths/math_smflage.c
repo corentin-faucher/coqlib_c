@@ -10,8 +10,8 @@
 #include "../utils/util_chrono.h"
 #include "../utils/util_base.h"
 
-#define SFE_elapsedTicks      (int16_t)ChronosEvent.tick
-#define SFE_elapsedNextTicks ((int16_t)ChronosEvent.tick + 1)
+#define SFE_elapsedTicks      (int16_t)EventTimeCapture.tick
+#define SFE_elapsedNextTicks ((int16_t)EventTimeCapture.tick + 1)
 
 // MARK: - ChronoTiny : un mini chrono de 2 octets -
 /// Mini chrono de 2 octets.

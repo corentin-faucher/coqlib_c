@@ -1,6 +1,6 @@
 #  coqlib c
 
-## Tester avec Makefile
+## Tester avec Makefile (linux)
 
 0.1 Installer Glad. Aller a https://glad.dav1d.de/ 
 et generer les fichiers khrplatform.h, glad.h et glad.c 
@@ -8,7 +8,7 @@ et generer les fichiers khrplatform.h, glad.h et glad.c
 ```bash
    c -cc glad.c
 ```
-Faire de l'objet une library (archive d'un fichier) :
+Faire de l'objet une library (archive de fichiers compilés) :
 ```bash
    ar rcs libglad.a glad.o
 ```
@@ -46,6 +46,7 @@ freetype (affichage de texte), OpenAL (son).
     coqlib_test $ subl src/my_root.c &
 ```
 
+
 ## Tester dans Xcode (macOS)
 
 1. Créer un projet macOS -> App ; nom "xc_coqlib_test", interface "XIB" (pas important, on va effacer le .xib) ; language Objective-C. Placer dans le répertoire de `coqlib_c`.
@@ -81,28 +82,32 @@ Cliquer le target `xc_coqlib_test` -> `Edit Scheme...` -> `Build` -> `Post actio
 perl "${PROJECT_DIR}/../coqlib_test/res_apple/sort_xcode_project" "${PROJECT_FILE_PATH}/project.pbxproj"
 ```
 
+
 ## Notations utilisées pour nommer les structures et leurs méthodes.
 
 Soit la structure
 ```c
 typedef struct A { int myInt; } A;
 ```
+Pour une structure complexe, on utilise la structure avec le suffixe `Init` pour passer les paramètres d'initialisation, e.g. `StringGlyphedInit`. 
 Une instance sera définie par `a`, e.g. `A a = { .myInt = 1};`.
+
 Pour les méthodes, on a :
 - `A_doStuf()` : Majuscule, méthode statique (une fonction global de la struct A), e.g. `A_create()` -> crée une instance de A.
 - `a_doStuf(A* a)` : Minuscule, méthode d'instance (une fonction appliquée à une instance de la struct A), e.g. `a_update(&a)`.
-- `a_doPrivateStuff_(A* a)` : Underscore, pour les variables ou fonction "privées"/"internes". (On met à la fin car au début c'est réservé...)
-- `A_create(...)` : create -> Création (alloc) *et* initialisation d'un objet. *On est responsable de detruire l'objet* -> `a_destroy`/`a_release`.
+- `a_doPrivateStuff_(A* a)` : Underscore, pour les variables ou fonction "privées"/"internes". (underscore en début est réservé...)
+- `A_create(...)` : create = alloc + init. Création (alloc) *et* initialisation d'un objet. *On est responsable de detruire l'objet* -> `free`/`a_destroy`/`a_release`.
 - `A_spawn(...)` : Création (et init) d'un objet qui s'autodétruit (pas besoin de deinit/destroy).
 - `a_init(A* a)` : Initialisation d'un objet existant.
 - `a_deinit(A* a)` : Préparation pour déallocation (Ne dealloc que les sous-objets, pas l'objet lui-même).
-- `a_destroy(A** aRef)` : Deinit et deallocation, e.g. call *deinit* et *free* sur l'objet.
-- `a_set...` : Setters, définir une/des variable(s) d'un objet, e.g. `void a_setIsOn(A *a, Bool isOn)`.
-- `a_(action)...` : Méthode d'instance quelconque, e.g. void chrono_pause(Chrono *c).
+- `a_destroy(A** aRef)` : destroy = deinit + free. Deinit et deallocation, e.g. call *deinit* et *free* sur l'objet.
+- `a_set...` : Setters, définir une/des variable(s) d'un objet, e.g. `void a_setMyInt(A *a, int newVal)`.
+- `a_(action)...` : Méthode d'instance quelconque, e.g. `void chrono_pause(Chrono *c)`.
 - `a_(propriété)...` : Getter quelconque ("get" est sous-entendu),
-     e.g. `Vector2 node_deltas(node* n)` -> hit box (espace occupé) d'un noeud.
+     e.g. `Vector2 node_deltas(node* n)`.
 - `a_is...` : Is -> Getter de boolean, e.g. `Bool countdown_isRinging(Countdown *cd)`.
-- `a_as...` : "as"/Downcasting, essaie de caster en tant que sous-struct, e.g. `Drawable *d = node_asDrawableOpt(node); if(d) draw(d);`.
+- `a_as...` : "as"/Downcasting, essaie de caster en tant que sous-struct, 
+e.g. caster un noeud comme un drawable : `Drawable *d = node_asDrawableOpt(node); if(d) draw(d);`.
 - `a_arr_...` : arr ou array, fonction agissant sur un array d'éléments, e.g. Conversion de 4 "fluides" en un vecteur de 4 float : `Vector4 fl_array_toVec4(FluidPos *fl_arr);`.
 
 
@@ -112,12 +117,13 @@ Pour les méthodes, on a :
 - Déréférencer : obtenir le contenu d'un pointeur (pour l'édition), ce fait avec l'opérateur `*`,
 e.g. `int a = 1; int* ptr = &a; *ptr = 2;`. 
 
-- `A** ptrRef` : Ref est pour "Référence" d'un pointeur, e.g. pour modifier où on pointe.
-- `end` vs `last` : last pointe sur le dernier élément _actif_. end pointe juste après la fin de l'array, e.g. `while(p < end) { if(p->actif) doStuf(p); p++; }`, le dernier élément traité sera le "last".
-- `head` vs `first` : First -> premier "actif". Head -> début de l'array (superflu en général, correspond au pointeur de l'array).
-- `unowned` : on n'est *pas* propriétaire du contenu du pointeur, i.e. il ne faut pas dealloc/`free`.
-- `given` : on donne l'`ownership` de l'objet. La fonction/objet qui reçoit devient responsable du dealloc.
-- `myObjOpt` : Opt, pour les pointeurs/reference optionnels (de fonction, paramètre, variable...), i.e. *pouvant* être NULL. _Normalement_, s'il n'y a pas de *opt*, il est superflu de vérifier si le pointeur est NULL.
+Suffixes utilisés:
+- Ref, e.g. `A** ptrRef` : Ref est pour "Référence" d'un pointeur, e.g. pour modifier où on pointe.
+- Last et End : last pointe sur le dernier élément _actif_. end pointe juste après la fin de l'array, e.g. `while(p < end) { if(p->actif) doStuf(p); p++; }`, le dernier élément traité sera le "last".
+- First et Head : First -> premier "actif". Head -> début d'une liste (superflu pour un array).
+- Unowned : on n'est *pas* propriétaire du contenu du pointeur, i.e. il ne faut pas dealloc/`free`.
+- Given : Lorsque reçu, on reçoit aussi l'`ownership` de l'objet, i.e. on devient responsable du dealloc.
+- Opt (optional) : Pour les pointeurs/variables optionnels, i.e. *pouvant* être NULL. _Normalement_, s'il n'y a pas de suffixe *opt*, il est superflu de vérifier si le pointeur est NULL.
 
 
 ## Notations et trucs sur les arrays
@@ -131,7 +137,7 @@ e.g. `int mat[4][3] = {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}, {10, 11, 12}}`,
 ou encore `const char someSmallStrings[][4] = { "ab", "cd", "ef", "jk", "lm", "no", "pq" };`.
 On accède au "haut" niveau en premier.
 
--La convention utilisée pour les matrices est qu'une matrice est un array de vecteurs "colonnes", e.g. soit la matrice ci-haut : `int mat[4][3]`, il s'agit d'une matrice de 4 vecteurs de dim. 3, et cette matrice s'écrit (forme mathématique) :
+-La convention utilisée pour les matrices est qu'une matrice est un array de vecteurs "colonnes", e.g. soit la matrice précédente : `int mat[4][3]`, il s'agit d'une matrice de 4 vecteurs de dim. 3, et cette matrice s'écrit (forme mathématique) :
 ```
 mat = ( 1 4 7 10
         2 5 8 11
@@ -144,7 +150,7 @@ pixels = (1  2  3  4
           5  6  7  8
           9 10 11 12).
 ```
-Ceci étant dis, il faut vérifier au cas pas cas... ;)
+Ceci étant dit, il faut vérifier au cas pas cas... ;)
 
 -Itérateur dans array multi-D: Soit `int mat[4][3];`, l'itérateur de ligne serait `int (*ligne)[3] = &mat[0];`.
 Ce type de pointeur peut aussi être utilisé comme un array 2D, e.g. pour transformer un array 1D en array 2D :
@@ -161,19 +167,49 @@ size_t arrayCount = sizeof(stringArray) / sizeof(char*);
 ```
 
 
-## Notes et trucs diverses sur le C...
+## Les `__attribute__` utiles en C
 
-- Pour afficher en hexadecimal (dans une formated string), on utilise,
-  e.g. "%#010x". # pour 0x, x pour hexadec, 10 pour 10 chars (en comptant 0x).
+- `__attribute__((aligned(xx)))` : pour forcer l'alignement des données sur une adresse "ronde". Par exemple, pour mulitiple de 16 : `__attribute__((aligned(16)))`.
 
--Pour identifier une fonction comme étant obsolete:
+- `__attribute__((deprecated("...")))` : pour identifier une fonction comme étant obsolete:
 ```
 __attribute__((deprecated("Utiliser `coq_calloc` + `node_init_` + `drawable_init_`.")))
 ```
 
--Pour "étiqueter" une ligne comme "TODO", ajouter par exemple `#warning TODO: Réviser cette fonction.` ou juste `// TODO: à finir`, `// FIXME: bogue?` (habituellement détectés par l'IDE).
+- `__attribute__((fallthrough))` : pour identifier un `case` de switch n'ayant pas besoin de break. (Va avec l'option de compilation `-Wimplicit-fallthrough`.)
 
-- Pour forcer un alignement compact des données, e.g. un `uint16_t` suivi d'un `uint32_t`, utiliser : `__attribute__((packed))`. Utile par exemple pour définir un header de fichier où la position de chaque variable est importante (voir header de bmp).
+- `__attribute__((packed))` : pour forcer un alignement compact des données, e.g. un `uint16_t` suivi d'un `uint32_t`. Utile par exemple pour définir un header de fichier où la position de chaque variable est importante, voir header de bmp `BMHeader_` pour un exemple.
+
+- `__attribute__((vector_size(16)))` : pour utiliser les "Single instruction multiple data" ou SIMD. Voir par exemple les `Vector4` dans `math_base.h`.
+
+- `__attribute__ ((warn_unused_result))` : pour avertir si une fonction n'utilise pas la valeur retournée 
+(à utiliser pour les fonctions dont le but est de retourner une valeur...)
+```
+static inline Box box_referentialIn(Box b, Box referential)
+__attribute__ ((warn_unused_result));
+```
+
+## Warnings de compilation pratiques
+
+- `-Wimplicit-fallthrough` : détecte les break manquant. Désavantage, il faut expliciter les fallthrough avec `__attribute__((fallthrough))`.
+
+- `-Wshadow` : avertissement quand une variable locale a le même nom qu'une variable déjà définie.
+
+
+
+## Autres notes et trucs diverses sur le C...
+
+- Pour les macro, utiliser `#` pour transformer en string litéral.
+  Utiliser `##` pour concaténer et créer un nom de variable/fonction, e.g.
+```
+#define TEST(index) test_ ## index ## _function
+// -> test_index_function...
+```
+
+- Pour afficher en hexadecimal (dans une formated string), on utilise,
+  e.g. "%#010x". # pour 0x, x pour hexadec, 10 pour 10 chars (en comptant 0x).
+
+-Pour "étiqueter" une ligne comme "TODO", ajouter par exemple `#warning TODO: Réviser cette fonction.` ou juste `// TODO: à finir`, `// FIXME: bogue?` (habituellement détectés par l'IDE).
 
 -Pour init une variable style Kotlin (.also, .let), utiliser `({ ... });`.
 ```
@@ -183,8 +219,6 @@ int my_var = ({
     b + c;  // -> my_var = b + c
 });
 ```
-
--Pour utiliser les "Single instruction multiple data" ou SIMD, utiliser par exemple `__attribute__((vector_size(16)))`. Voir par exemple les `Vector4` dans `math_base.h`.
 
 -Init d'une struct/union :
 ```
@@ -199,9 +233,11 @@ Par exemple
 union MonUnion {
     struct { int   ia, ib, ic, id; };
     struct { float fa, fb, fc, fd; };
+    char first;
 };
 union MonUnion u = { .ia = 5, .fb = 0.5f, }; // -> ❌ Non ! juste `fb` sera init.
 ```
+Attention aussi : si on init avec une sous-struct de l'union plus petite que les autres, le reste des données est indéterminé. Soit `union MonUnion u = {.first = 'a'};`, les bytes suivant 'a' ont des valeurs quelconques (pas à zéro).
 
 -Parfois, c'est pratique d'utiliser des variables "anonymes",
 e.g. `(int){ 1 }`, cette variable peut être référencé : `&(int){1}` (rarement utile). 
@@ -215,7 +251,13 @@ ComplexStruct* myStruct = ComplexStruct_create((ComplexStructInit) {
 -Truc pour initialiser un variable `const` dans une struct (ou pour `cast away the const`): `*(uint32_t*)&my_struct->constCount = theCount;`.
 
 
+## Les Threads dans Apple (objective-c)
 
+-`dispatch_queue_create(...)` : créer une "dispatch queue", i.e. une file d'attente exécuté dans une thread.
+
+-`dispatch_async(queue, block)` : envoyer du code à exécuter dans la thread "queue".
+
+-`dispatch_get_main_queue()` : obtenir la thread principale.
 
 
 

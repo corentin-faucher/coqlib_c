@@ -66,7 +66,7 @@ NodeString* node_addFramedString(Node* n, uint32_t framePngId, StringGlyphedInit
         strW = fmaxf(0.f, n->w - 2.f*delta*(1.f - params.frame_inside));
     }
     Frame_create(n, params.frame_inside, delta, 0, 0,
-                 Texture_sharedImage(framePngId),
+                 Texture_getPng(framePngId),
                  params.updateParentSizes ? frame_option_giveSizesToParent : 0);
     return NodeString_create(n, str, 0, 0, strW, strH, flag_giveSizeToBigbroFrame, 0);
 }
@@ -79,7 +79,7 @@ void Node_createFramedMultiString(Node* parent, uint32_t framePngId, StringGlyph
         strW = fmaxf(0.f, strW - 2.f*delta*(1.f - params.frame_inside));
     }
     Node* n = Node_create(parent, x, y, 1, 1, 0, 0);
-    Frame_create(n, params.frame_inside, delta, 0, 0, Texture_sharedImage(framePngId), frame_option_giveSizesToParent);
+    Frame_create(n, params.frame_inside, delta, 0, 0, Texture_getPng(framePngId), frame_option_giveSizesToParent);
     Node* strsRoot = Node_create(n, 0, 0, 1, 1, flag_giveSizeToBigbroFrame, 0);
     for(uint32_t i = 0; i < str_count; i ++) {
         NodeString_create(strsRoot, str_arr[i], 0, 0, strW, strHeight, 0, 0);

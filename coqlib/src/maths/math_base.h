@@ -76,14 +76,21 @@ static inline Vector2 vector2_polarToCartesian(Vector2 const v);
 static inline Vector2 vector2_cartesianToPolar(Vector2 const v);
 
 /// Projection de v sur target, i.e. proj = (v • t) * t / ||t||^2.
-Vector2 vector2_projOn(Vector2 v, Vector2 target);
+Vector2 vector2_projOn(Vector2 v, Vector2 target)
+__attribute__ ((warn_unused_result));
 /// Normalise le vecteur (longueur == 1).
 /// Si ~= 0 -> retourne un vecteur unitaire random (voir `rand_vector2_ofNorm,`.)
-Vector2 vector2_normalize(Vector2 v);
+Vector2 vector2_normalize(Vector2 v)
+__attribute__ ((warn_unused_result));
 /// Garde la direction mais modifie la grandeur du vecteur.
-Vector2 vector2_toNorm(Vector2 v, float newNorm);
-/// Pour l'affichage en debug (le buffer des string est de taille 10, i.e. max de 10 vecteurs simultanés)
-const char*const vector2_toString(Vector2 v); 
+Vector2 vector2_toNorm(Vector2 v, float newNorm)
+__attribute__ ((warn_unused_result));
+/// Pour l'affichage en debug 
+/// (le buffer des string est de taille `Vector2_MaxDisplayable`, 
+/// i.e. max de `Vector2_MaxDisplayable` vecteurs simultanés)
+#define Vector2_MaxDisplayable 10
+const char* vector2_toString(Vector2 v)
+__attribute__ ((warn_unused_result)); 
 
 // MARK: - Paire de unsigned
 /// Paire de unsigned.
@@ -125,7 +132,8 @@ typedef union {
     uint32_t width, height;
   };
 } RectangleInt;
-static inline RectangleInt rectangle_roundedToRectangleInt(Rectangle r);
+static inline RectangleInt rectangle_roundedToRectangleInt(Rectangle r)
+__attribute__ ((warn_unused_result));
 
 
 // MARK: - Box : hitbox ou referentialBox
@@ -154,13 +162,17 @@ static inline bool vector2_isInBox(Vector2 pos, Box hitBox);
 // Référentiel "identité" (pas de translation et scaling neutre).
 #define box_identity (Box) {{ 0, 0, 1, 1 }}
 /// On place la position `xy` dans le référentiel `referential`.
-static inline Vector2 vector2_referentialIn(Vector2 xy, Box referential);
+static inline Vector2 vector2_referentialIn(Vector2 xy, Box referential)
+__attribute__ ((warn_unused_result));
 /// Resort du référentiel de la boîte.
-static inline Vector2 vector2_referentialOut(Vector2 xy, Box referential);
+static inline Vector2 vector2_referentialOut(Vector2 xy, Box referential)
+__attribute__ ((warn_unused_result));
 /// On place `b` dans le référentiel `referential`.
-static inline Box box_referentialIn(Box b, Box referential);
+static inline Box box_referentialIn(Box b, Box referential)
+__attribute__ ((warn_unused_result));
 /// Resort `b` du `referential`.
-static inline Box box_referentialOut(Box b, Box referential);
+static inline Box box_referentialOut(Box b, Box referential) 
+__attribute__ ((warn_unused_result));
 
 // MARK: - Marges (autour d une view)
 /// Marges en pixels.
@@ -205,8 +217,7 @@ Vector3 vector3_normalize(Vector3 v);
 const char* vector3_toString(Vector3 v);
 
 // MARK: - Vector4 : struct de 4 floats alignés en mémoire.
-// Pour les 4 floats, on utilise le simd, i.e. `__attribute__((aligned(16)))`.
-// (SIMD : Single instruction multiple data.)
+// Pour les 4 floats, on utilise le simd (SIMD : Single instruction multiple data).
 // └> Les Vector4 sont donc dans un espace "atomic" (pas de conflits ecriture/lecture entre threads),
 //    et sont alloc sur un espace mémoire multiple de 16 octets, e.g. 0x3fd782a0 (finit avec 0).
 // On peut initialiser un Vector4 avec une opération simd via le `.v` :
@@ -364,7 +375,6 @@ static inline uint32_t uint_clamp(uint32_t const u, uint32_t const min, uint32_t
 /// Cast away the const pour init un unsigned const.
 static inline void  uint_initConst(const uint32_t* const u, uint32_t const initValue);
 static inline void  size_initConst(const size_t* const s, size_t const initValue);
-static inline void  voidptr_initConst(const void**const ptr, void*const init_ptr);
 
 uint32_t uint_highestDecimal(uint32_t u);
 uint32_t uint_digitAt(uint32_t u, uint32_t decimal);

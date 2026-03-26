@@ -9,6 +9,6 @@
 
 #include "nodes/node_root.h"
 
-Root* Root_initAndGetProjectRoot(void);
+Root* Root_createMyProjectRoot(void);
 
 #endif /* my_root_h */

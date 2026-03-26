@@ -16,7 +16,7 @@
 // Vitesse de convergence.
 #define FPE_LAMBDA 0.25f // Test lambda constant. Si paramètre changer pour `f->lambda`.
 
-#define FPE_globalTicks      ChronosEvent.tick
+#define FPE_globalTicks      EventTimeCapture.tick
 #define FPE_elapsedTicks     (float)(FPE_globalTicks - f->time)
 #define FPE_elapsedNextTicks (float)(FPE_globalTicks + 1 - f->time)
 

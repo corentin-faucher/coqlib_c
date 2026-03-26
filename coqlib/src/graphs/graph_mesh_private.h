@@ -25,23 +25,37 @@ typedef struct Mesh {
         // Metal, pointeurs des Objective-C MTLBuffer, 
         // à caster avec `(__bridge id<MTLBuffer>)`.
         struct {
-            const void* const indicesMTLBufferOpt;
-            const void* const verticesMTLBufferOpt;
-            const void* const vertices2MTLBufferOpt;
+            const void* const mtl_verticesBuffer0Opt;
+            const void* const mtl_verticesBuffer1Opt;
+            const void* const mtl_indicesBufferOpt;
+            float*const       mtl_vertices1Opt;
+            bool mtl_bufferInit;
+            bool mtl_readBuffer1;
         };
         // OpenGl, IDs des vertex buffer object et vertex array object.
         struct {
-            uint32_t _glVertexArrayId;   // VAO
-            uint32_t _glVertexBufferId;  // VBO
-            uint32_t _glIndicesBufferId; // VBO des indices
-            // TODO: Double VertexBuffer comme Metal ? avec `mesh_flag__withDoubleVertBuffer` 
-            // pour fluidité lors d'éditions de vertex...
-//            uint32_t _glVertexBuffer2Id;  // VBO
+            uint32_t glVertexArrayId;   // VAO
+            uint32_t glVertexBuffer0Id;  // VBO
+//            uint32_t glVertexBuffer1Id; // Double buffer superflu pour OpenGL ?
+            uint32_t glIndicesBufferId; // VBO des indices
         };
     };
     // Liste des vertex gardé en mémoire pour l'édition (si mutable, si non mutable -> vide)
-    float *const verticesReadOpt; // Deuxième moitié de vertices (cas doubleVertices)
-    float        verticesEdit[1];
+//    float *const verticesReadOpt; // Deuxième moitié de vertices (cas doubleVertices)
+    uint16_t*    indicesOpt;
+    float*       verticesEdited;
+//    float*const  vertices1Opt;
+    float        vertices0[1];
 } Mesh;
+
+extern bool Mesh_engineIsMetal_;
+
+enum {
+// Flags "privé"
+    mesh_flag__editing =         0x0020, // (privé. En train d'éditer les vertices.)
+//    mesh_flag__mutableNoBuffer = 0x0080, // Peu de vertices, pas besoinde buffer pour les vertices.
+    mesh_flags__privates =       0x0FF0,
+};
+
 
 #endif

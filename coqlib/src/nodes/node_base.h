@@ -11,6 +11,7 @@
 #include "node__flags.h"
 #include "node__types.h"
 #include "../graphs/graph_base.h"
+#include "../graphs/graph_mesh.h"
 #include "../utils/util_timer.h"
 
 // Pre-déclarations...
@@ -95,8 +96,6 @@ typedef __attribute__((aligned(16))) struct coq_Node {
   Node* volatile _littleBro;
 } Node;
 
-
-
 // Flag de placement d'un nouveau noeud : enfant/frere, aine/cadet.
 // Defaut 0 -> enfant, cadet.
 enum {
@@ -104,6 +103,18 @@ enum {
     node_place_asElderBig = 0x0002,
 //    node_place_asBigBro =   0x0003,
 };
+
+// MARK: - Class Init
+typedef struct NodeInit {
+    void   (*node_renderer_updateInstanceUniformsOpt)(Node*);
+    void   (*fluid_renderer_updateInstanceUniformsOpt)(Node*);
+    float    fluid_fadeInDeltaOpt;
+    void   (*drawable_renderer_updateInstanceUniformsOpt)(Node*);
+    MeshInit drawable_spriteMeshInitOpt;
+    Vector4  drawable_defaultColorOpt; // Si 0 partout -> garde (1, 1, 1, 1)
+} NodeInit;
+// Init des fonctions de rendering et drawables... (tout est optionel) 
+void Node_init(NodeInit nodeInit);
 
 // MARK: - Constructors
 /// Init de base d'un noeud. Set les dimensions, connecte avec les voisins...
@@ -125,36 +136,30 @@ void noderef_destroyAndNull(Node **nodeOptRef);
 /// Version avec délai de `noderef_fastDestroyAndNull`.
 /// Close, et schedule destroy. `deltaTimeMS` = 400 par défaut (si mit à 0).
 void  noderef_slowDestroyAndNull(Node** const nodeOptRef, Timer *parentDestroyTimer, int64_t deltaTimeMSOpt);
-/// Free les noeuds dans la poubelle. A faire régulièrement
-/// (à chaque 2~3 frame? ou après avoir updaté la structure).
-void NodeGarbage_burn(void);
-/// `Privé` : Enleve un noeud de la structure, ** Ne doit plus être référencé. **,
-/// et le place dans la poubelle.
+/// Dealloc les noeuds dans la poubelle. A faire régulièrement.
+/// Doit être dans la "render" thread car peut dealloc des buffers graphique,
+/// e.g. `glDeleteBuffers`.
+void Node_render_burnDownGarbage(void);
+/// `Privé` : Enleve un noeud de la structure, et le place dans la poubelle.
+/// ** Ne doit plus être référencé. **
 /// Utiliser de préférence les versions plus safe `noderef_destroyAndNull`...
 void node_throwToGarbage_(Node* n);
 /// Version `void *` pour timer callback. 
 static void (* const node_throwToGarbage__)(void*) = (void (*)(void*))node_throwToGarbage_;
 
-
-// MARK: - Model matrix ---
+// MARK: - Getters --
 /// Retourne la matrice model du parent pour mise à jour de model (vérifie s'il y a parent).
 const Matrix4* node_parentModel(Node const* n);
-/// La fonction utilisée par défaut pour mettre à jour les instances uniformes avant l'affichage.
-/// (Peut être remplacé par un fonction custom)
-extern void (*Node_renderer_defaultUpdateInstanceUniforms)(Node*);
-
-
-// MARK: - Getters --
 /// "Demi-Espaces occupés"/"hitbox" du noeud de l'extérieur,
 /// i.e. `Dx = w * sx / 2`, `Dy = h * sy / 2`.
-static inline Vector2 node_deltas(Node const*const n);
-static inline float   node_deltaX(Node const*const n);
-static inline float   node_deltaY(Node const*const n);
-static inline float   node_deltaZ(Node const*const n);
-static inline Box     node_hitbox(Node const*const n);
+static inline Vector2 node_deltas(Node const* n);
+static inline float   node_deltaX(Node const* n);
+static inline float   node_deltaY(Node const* n);
+static inline float   node_deltaZ(Node const* n);
+static inline Box     node_hitbox(Node const* n);
 /// Noeud en tant que "boîte" référentiel (non absolue, pour absolue il faut remonter à la root),
 /// i.e. simplement position et scaling.
-static inline Box     node_referential(Node const*const n);
+static inline Box     node_referential(Node const* n);
 
 /// Donne la position du noeud dans le référentiel d'un (grand) parent.
 /// e.g. si parentOpt est la root (ou NULL) -> on obtient la position absolue du
@@ -208,20 +213,3 @@ const char* node_debug_getTypeName(const Node* n);
 
 #endif /* node_h */
 
-// Garbage
-/// Allocation d'un noeud de type quelconque.
-/// Obsolete : utiliser `coq_calloc` + `node_init_`...
-//__attribute__((deprecated("utiliser `coq_calloc` + `node_init_`."))) void *
-//Node_createOfType_Obsolete_(uint32_t type, size_t size,
-//                            flag_t flags, Node* refOpt,
-//                            uint8_t node_place);
-///// Set x en verifiant si c'est Fluid ou Node.
-// void    node_setX(Node* n, float x);
-// void    node_fixX(Node* n, float x);
-/////// Set y en tant que Fluid ou Node.
-// void    node_setY(Node* n, float y);
-// void    node_fixY(Node* n, float y);
-// void    node_setScaleX(Node* n, float sx);
-// void    node_fixScaleX(Node* n, float sx);
-// void    node_setScaleY(Node* n, float sy);
-// void    node_fixScaleY(Node* n, float sy);

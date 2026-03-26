@@ -9,7 +9,6 @@
 
 #include "system_language.h"
 #include "../utils/util_base.h"
-#include "../utils/util_string.h"
 
 #import <Foundation/Foundation.h>
 #import <CloudKit/CloudKit.h>
@@ -41,8 +40,11 @@ void  CoqSystem_setOs_(void) {
 #endif
 }
 void  CoqSystem_cloudDrive_init_(void); // (voir plus bas)
-void  CoqSystem_init(void) {
+static ViewSizeInfo coqsystem_viewsize_ = {};
+void  CoqSystem_init(ViewSizeInfo viewSize) {
     if(coqsystem_os_version_ != NULL) { printerror("Already init."); return; }
+    // Dimension de la view
+    coqsystem_viewsize_ = viewSize;
     // Os version
     CoqSystem_setOs_();
 #if TARGET_OS_OSX == 1
@@ -71,15 +73,14 @@ void  CoqSystem_init(void) {
     }
 #endif
     // Theme
-    CoqSystem_theme_OsThemeUpdate();
+    CoqSystem_OS_appearanceUpdate();
     // iCloud
     CoqSystem_cloudDrive_init_();
     // Langue
     Language_init_();
 }
 
-static ViewSizeInfo coqsystem_viewsize_ = {};
-void       CoqSystem_setViewSize(ViewSizeInfo const viewSize) {
+void       CoqSystem_setViewSize_(ViewSizeInfo const viewSize) {
     coqsystem_viewsize_ = viewSize;
 }
 ViewSizeInfo CoqSystem_getViewSize(void) {
@@ -87,6 +88,9 @@ ViewSizeInfo CoqSystem_getViewSize(void) {
         printerror("View size info still not init...");
     }
     return coqsystem_viewsize_;
+}
+bool CoqSystem_viewIsLandScape(void) {
+    return coqsystem_viewsize_.frameSizePx.w > coqsystem_viewsize_.frameSizePx.h;
 }
 
 // MARK: - Keyboard Layout
@@ -138,6 +142,11 @@ const char*  CoqSystem_OS_versionOpt(void) {
     if(coqsystem_os_version_ == NULL) { printerror("System not init."); return NULL; }
     return coqsystem_os_version_;
 }
+
+unsigned     CoqSystem_fontEngine(void) {
+    return fontengine_apple;
+}
+
 const char*  CoqSystem_appVersionOpt(void) {
     if(coqsystem_app_version_ == NULL) { printerror("System not init."); return NULL; }
     return coqsystem_app_version_;
@@ -156,7 +165,7 @@ const char* CoqSystem_appDisplayNameOpt(void) {
 static bool os_theme_is_dark_ = false;
 static bool current_theme_is_dark_ = false;
 static bool current_theme_as_os_theme_ = true;
-void        CoqSystem_theme_OsThemeUpdate(void) {
+void        CoqSystem_OS_appearanceUpdate(void) {
 #if TARGET_OS_OSX == 1
     NSAppearance* appearance;
     if (@available(macOS 11.0, *)) {
@@ -181,19 +190,16 @@ void        CoqSystem_theme_OsThemeUpdate(void) {
         current_theme_is_dark_ = os_theme_is_dark_;
     }
 }
-bool        CoqSystem_theme_OsThemeIsDark(void) {
+bool        CoqSystem_OS_appearanceIsDark(void) {
     return os_theme_is_dark_;
 }
-void        CoqSystem_theme_setAppTheme(bool isDark) {
+void        CoqSystem_OS_appearanceSet(bool isDark) {
     current_theme_is_dark_ = isDark;
     current_theme_as_os_theme_ = false;
 }
-void        CoqSystem_theme_setAppThemeToOsTheme(void) {
+void        CoqSystem_OS_appearanceSetToOS(void) {
     current_theme_is_dark_ = os_theme_is_dark_;
     current_theme_as_os_theme_ = true;
-}
-bool        CoqSystem_theme_appThemeIsDark(void) {
-    return current_theme_is_dark_;
 }
 
 // MARK: - iCloud Drive

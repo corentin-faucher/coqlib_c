@@ -14,7 +14,7 @@
 
 
 bool             Sound_isMute = false;
-static float     _volumes[Sound_volume_count] = {
+static float     Sound_volumes_[Sound_volume_count] = {
     1, 1, 1, 1, 1
 };
 
@@ -27,16 +27,16 @@ struct Player_ {
     AVAudioUnitTimePitch* pitch_controller;
     int64_t               expirationTimeMS;
 };
-const uint32_t               player_count_ = 5;
-static struct Player_        players_[player_count_] = {};
+#define Player_count_ 8
+static struct Player_     Sound_players_[Player_count_] = {};
 
 typedef struct {
     size_t const      count;
     AVAudioPCMBuffer* buffers[1];
 } BufferArray_;
-static const char**           Sound_wavNames_ = NULL;
-static uint32_t               Sound_wavCount_ = 0;
-static BufferArray_*          Sound_buffers_ = NULL;
+static const char**       Sound_wavNames_ = NULL;
+static uint32_t           Sound_wavCount_ = 0;
+static BufferArray_*      Sound_buffers_ = NULL;
 
 AVAudioPCMBuffer* Sound_createBuffer_(NSString* wavName, AVAudioFormat* expectedFormat) {
     // 1. Loader le wav.
@@ -79,7 +79,7 @@ AVAudioPCMBuffer* Sound_createBuffer_(NSString* wavName, AVAudioFormat* expected
     return buffer;
 }
 
-void  Sound_resume(void) {
+void  Sound_resume_(void) {
     if(avEngine_ != nil) { return; }
     if(Sound_wavNames_ == NULL || Sound_wavCount_ == 0) {
         printerror("No wav sound to load."); return;
@@ -87,26 +87,29 @@ void  Sound_resume(void) {
     // 1. Buffers
     Sound_buffers_ = coq_callocArray(BufferArray_, AVAudioPCMBuffer*, Sound_wavCount_);
     size_initConst(&Sound_buffers_->count, Sound_wavCount_);
-    NSString* wavName = [NSString stringWithUTF8String:Sound_wavNames_[0]];
-    Sound_buffers_->buffers[0] = Sound_createBuffer_(wavName, nil);
-    AVAudioFormat* format = Sound_buffers_->buffers[0].format;
-    for(uint32_t sndId = 1; sndId < Sound_wavCount_; sndId ++) {
+    AVAudioFormat* format = nil;
+    for(uint32_t sndId = 0; sndId < Sound_wavCount_; sndId ++) {
         NSString* wavName = [NSString stringWithUTF8String:Sound_wavNames_[sndId]];
         Sound_buffers_->buffers[sndId] = Sound_createBuffer_(wavName, format);
+        if(Sound_buffers_->buffers[sndId] == nil) {
+            printerror("Cannot create buffer for wav %s.", Sound_wavNames_[sndId]);
+            continue;
+        }
+        if(format == nil) format = Sound_buffers_->buffers[sndId].format;
         wavName = nil;
     }
     // 2. Engine
     AVAudioEngine* engine = [[AVAudioEngine alloc] init];
     // 3. Attach/connect 5 AudioPlayers with their PitchControler (On peut jouer jusqu'à 5 sons en même temps...)
-    for(uint32_t playerId = 0; playerId < player_count_; playerId ++) {
-        players_[playerId].audio_player = [[AVAudioPlayerNode alloc] init];
-        players_[playerId].pitch_controller = [[AVAudioUnitTimePitch alloc] init];
-        players_[playerId].expirationTimeMS = ChronoApp_elapsedMS();
-        [engine attachNode:players_[playerId].audio_player];
-        [engine attachNode:players_[playerId].pitch_controller];
-        [engine connect:players_[playerId].audio_player
-                      to:players_[playerId].pitch_controller format:format];
-        [engine connect:players_[playerId].pitch_controller
+    for(uint32_t playerId = 0; playerId < Player_count_; playerId ++) {
+        Sound_players_[playerId].audio_player = [[AVAudioPlayerNode alloc] init];
+        Sound_players_[playerId].pitch_controller = [[AVAudioUnitTimePitch alloc] init];
+        Sound_players_[playerId].expirationTimeMS = ChronoApp_elapsedMS();
+        [engine attachNode:Sound_players_[playerId].audio_player];
+        [engine attachNode:Sound_players_[playerId].pitch_controller];
+        [engine connect:Sound_players_[playerId].audio_player
+                      to:Sound_players_[playerId].pitch_controller format:format];
+        [engine connect:Sound_players_[playerId].pitch_controller
                       to:engine.mainMixerNode format:format];
     }
     // (superflu?)
@@ -120,16 +123,16 @@ void  Sound_resume(void) {
     avEngine_ = engine;
 }
 
-void  Sound_suspend(void) {
+void  Sound_suspend_(void) {
     if(avEngine_ == nil) {
         printwarning("Sound already deinit."); return;
     }
     // Suspendre dans la thread sound_queue (pour pas faire boguer un sound_play)
     dispatch_async(coqSound_dispatch_queue_, ^{
         [avEngine_ stop];
-        for(uint32_t playerId = 0; playerId < player_count_; playerId ++) {
-            players_[playerId].audio_player = nil;
-            players_[playerId].pitch_controller = nil;
+        for(uint32_t playerId = 0; playerId < Player_count_; playerId ++) {
+            Sound_players_[playerId].audio_player = nil;
+            Sound_players_[playerId].pitch_controller = nil;
         }
         
         if(Sound_buffers_) {
@@ -143,10 +146,17 @@ void  Sound_suspend(void) {
     });
 }
 
-void  Sound_initWithWavNames(const char* wav_names[], uint32_t wav_count) {
-    Sound_wavNames_ = wav_names;
+void  Sound_initWithWavNames(const char** wav_namesOpt, 
+                             uint32_t wav_count, uint32_t const extraSound_count) {
+    if((wav_namesOpt == NULL) != (wav_count == 0)) {
+        printwarning("Bad waves files init params.");
+        wav_namesOpt = NULL; wav_count = 0;
+    }
+    if(extraSound_count)
+        printwarning("Extra sound not implemented.");
+    Sound_wavNames_ = wav_namesOpt;
     Sound_wavCount_ = wav_count;
-    Sound_resume();
+    Sound_resume_();
 }
 
 void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volumeId) {
@@ -158,7 +168,7 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
         printerror("SoundId overflow %d, wav_count %d.", soundId, Sound_wavCount_);
         return;
     }
-    if(Sound_isMute || _volumes[volumeId] < 0.01)
+    if(Sound_isMute || Sound_volumes_[volumeId] < 0.01)
         return;
     if(coqSound_dispatch_queue_ == NULL) {
         printerror("No Sound queue."); return;
@@ -182,11 +192,11 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
 //        int64_t  bestRemainingMS = 20000;
         struct Player_* player = NULL;
 //        bool     foundFree = false;
-        for(uint32_t playerId = 0; playerId < player_count_; playerId ++) {
-            int64_t remaining = players_[playerId].expirationTimeMS - ChronoApp_elapsedMS();
+        for(uint32_t playerId = 0; playerId < Player_count_; playerId ++) {
+            int64_t remaining = Sound_players_[playerId].expirationTimeMS - ChronoApp_elapsedMS();
             // Ok, trouve...
             if(remaining <= 0) {
-                player = &players_[playerId];
+                player = &Sound_players_[playerId];
 //                bestPlayerId = playerId;
 //                foundFree = true;
                 break;
@@ -215,7 +225,7 @@ void  Sound_play(uint32_t const soundId, float volume, int pitch, uint32_t volum
             [player->audio_player stop];
         }
         player->pitch_controller.pitch = (float)(pitch * 100);
-        player->audio_player.volume = volume * _volumes[volumeId];
+        player->audio_player.volume = volume * Sound_volumes_[volumeId];
         [player->audio_player scheduleBuffer:Sound_buffers_->buffers[soundId] completionHandler:nil];
         // 5. Jouer le son !
         [player->audio_player play];

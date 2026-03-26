@@ -28,22 +28,23 @@ StringGlyphedInit loc_stringGlyphedInit(Localizable loc) {
 }
 
 const PngInfo MyProject_pngInfos[] = {
-    {"bar_gray", 1, 1, false},
-    {"bar_in", 1, 1, false},
-    {"country_flags", 8, 4, false},
-    {"digits_brown", 12, 2, false},
-    {"digits_green", 12, 2, false},
-    {"digits_red", 12, 2, false},
-    {"disks", 4, 4, false},
-    {"icons", 8, 4, false},
-    {"language_flags", 4, 4, false},
-    {"some_animals", 4, 7, false},
+    { .name = "bar_gray",      .m = 1, .n = 1,  },
+    { .name = "bar_in",        .m = 1, .n = 1,  },
+    { .name = "country_flags", .m = 8, .n = 4,  },
+    { .name = "digits_brown",  .m = 12, .n = 2, },
+    { .name = "digits_green",  .m = 12, .n = 2, },
+    { .name = "digits_red",    .m = 12, .n = 2, },
+    { .name = "disks",         .m = 4, .n = 4,  },
+    { .name = "icons",         .m = 8, .n = 4,  },
+    { .name = "language_flags", .m = 4, .n = 4, },
+    { .name = "some_animals",  .m = 4, .n = 7,  },
 
-    {"coqlib_frame_gray_back", 1, 1, false, true},
-    {"coqlib_frame_mocha", 1, 1, false, true},
-    {"coqlib_frame_red", 1, 1, false, true},
-    {"coqlib_frame_white_back", 1, 1, false, true},
-    {"coqlib_test_frame", 1, 1, true, true},
+    { .name = "coqlib_frame_gray_back", .m = 1, .n = 1, },
+    { .name = "coqlib_frame_mocha",     .m = 1, .n = 1, },
+    { .name = "coqlib_frame_red",       .m = 1, .n = 1, },
+    { .name = "coqlib_frame_white_back", .m = 1, .n = 1,},
+    { .name = "coqlib_test_frame",      .m = 1, .n = 1, },
+    { .name = "coqlib_the_cat",      .m = 1, .n = 1, .flags = tex_flag_keepPixels },
 };
 
 const char* MyProject_wavNames[] = {

@@ -8,23 +8,28 @@
 #include "graph_glyphs.h"
 #include "graph_texture_private.h"
 
-#include "../utils/util_base.h"
+#include "../systems/system_base.h"
+#include "../systems/system_file.h"
 #include "../systems/system_language.h"
+#include "../utils/util_base.h"
 #include "../utils/util_map.h"
 
 // MARK: - Map de glyphs (pour dessiner les strings)
 /// Une texture avec les glyphs (caractères) d'une font.
 typedef struct GlyphMap {
+    // 1. Une texture
     Texture           tex;  // "upcasting"
     TextureDims const texDims;
-
-    /// Font utilisée pour dessiner
+    
+    // 2. Une map pour retrouver les glyphes
+    StringMap* glyphInfos;  // Map char -> glyph
+    size_t     currentTexX; // (Où on est rendu pour dessiner la next glyphe)
+    size_t     currentTexY;
+    
+    // 3. La Font utilisée pour dessiner les glyphes de char dans la texture.
     CoqFont*const     font;
     CoqFontDims const fontDims;
-
-    size_t     currentTexX; // (Où est rendu pour dessiner la next glyphe)
-    size_t     currentTexY;
-    StringMap* glyphInfos;  // Map char -> glyph
+    
     GlyphInfo  _defaultGlyph;
 
     // Custom chars...
@@ -34,129 +39,11 @@ typedef struct GlyphMap {
     Rectangle *cc_uvRectsOpt;
     size_t     cc_count;
 } GlyphMap;
+// La glyph map par défaut.
+static GlyphMap* GlyphMap_default_ = NULL;
 
-// MARK: - Dessin des glyphs avec CoreGraphics / Metal
-GlyphInfo  glyphmap_drawCharacter_(GlyphMap* const gm, Character const c) {
-    CoqFontDims const fd = coqfont_dims(gm->font);
-    if(gm->currentTexY + fd.fullHeight > gm->tex.dims.height) {
-        printerror("Cannot add glyph of %s. Glyphmap full.", c.c_str);
-        return (GlyphInfo) {};
-    }
-    // Création de la string en pixels
-    GlyphInfo gi = {};
-    with_beg(PixelBGRAArray, pa, Pixels_engine_createArrayFromCharacter(c, gm->font))
-    // Vérifier si on peut copier le glyph sur la ligne courante (sinon aller à la prochaine ligne).
-    float const width = pa->width;
-    if(gm->currentTexX + width > gm->tex.dims.width) {
-        gm->currentTexX = 0;
-        gm->currentTexY += fd.fullHeight;
-        if(gm->currentTexY + fd.fullHeight > gm->tex.dims.height) {
-            printerror("Cannot add glyph of %s. Glyphmap full.", c.c_str);
-            goto free_pixels;
-        }
-        if(gm->currentTexY + fd.fullHeight > 0.65*gm->tex.dims.height)
-            printwarning("Glyph map texture seems too small... Texture size is %d for font of height %f.",
-                (int)gm->tex.dims.height, fd.fullHeight);
-    }
-    
-    // Setter les infos (dimensions) du glyphs.
-    // -> normalisés par rapport à solidHeight (la hauteur `hit-box`)
-    gi = (GlyphInfo) {
-        .uvRect = {{
-            (float)gm->currentTexX   / gm->tex.dims.width, (float)gm->currentTexY / gm->tex.dims.height,
-            (float)width / gm->tex.dims.width, (float)fd.fullHeight / gm->tex.dims.height
-        }},
-        .relGlyphX =     pa->deltaX     / fd.solidHeight,
-        .relGlyphY =     fd.deltaY      / fd.solidHeight,
-        .relGlyphWidth = width          / fd.solidHeight,
-        .relGlyphHeight = fd.fullHeight / fd.solidHeight,
-        .relSolidWidth = pa->solidWidth / fd.solidHeight,
-    };
-    // Copier les pixels du char dans la texture de la glyph map.
-    texture_engine_writePixelsAt(&gm->tex, pa, (UintPair) { (uint32_t)gm->currentTexX, 
-                                                            (uint32_t)gm->currentTexY });
-    // Ok, fini, placer x tex coord pour next.
-    gm->currentTexX += width;
-    // Libérer les pixels
-free_pixels:
-    with_end(pa)
-    return gi;
-}
-GlyphInfo  glyphmap_tryToDrawAsCustomCharacter_(GlyphMap* const gm, Character const c) {
-    if(!gm->cc_texOpt) { return (GlyphInfo){}; }
-    // Trouver si c'est un custom char.
-    uint32_t charIndex = 0;
-    for(; charIndex < gm->cc_count; charIndex++) {
-        if(gm->cc_charsOpt[charIndex].c_data8 == c.c_data8)
-            break;
-    }
-    if(charIndex >= gm->cc_count) return (GlyphInfo) {};
-
-    // Vérifier les dimensions de la région à copier.
-    CoqFontDims const fd = coqfont_dims(gm->font);
-    if(gm->currentTexY + fd.fullHeight > gm->tex.dims.height) {
-        printerror("Cannot add texture glyph. Glyphmap full.");
-        return (GlyphInfo) {};
-    }
-    RectangleUint srcRegion = texturedims_pixelRegionFromUVrect(gm->cc_texDims, gm->cc_uvRectsOpt[charIndex]);
-    if(srcRegion.h > fd.fullHeight) {
-        printwarning("H > fullHeight."); srcRegion.h = (uint32_t)fd.fullHeight;
-    }
-    if(srcRegion.w > 3*fd.fullHeight) {
-        printwarning("W > 3*glyphHeight."); srcRegion.w = (uint32_t)(3*fd.fullHeight);
-    }
-    size_t const extra_margin = FONT_extra_margin(gm->tex.flags & tex_flag_nearest);
-    size_t const dstWidth = srcRegion.w + 2*extra_margin;
-
-     // Vérifier s'il reste assez de place sur la ligne.
-    if(gm->currentTexX + dstWidth > gm->tex.dims.width) {
-        gm->currentTexX = 0;
-        gm->currentTexY += fd.fullHeight;
-        if(gm->currentTexY + fd.fullHeight > gm->tex.dims.height) {
-            printerror("Cannot add texture glyph. Glyphmap full.");
-            return (GlyphInfo){};
-        }
-        if(gm->currentTexY + fd.fullHeight > 0.65*gm->tex.dims.height)
-            printwarning("Glyph map texture seems too small... Texture size is %d for font of height %f.",
-                (int)gm->tex.dims.height, fd.fullHeight);
-    }
-    // Endroit où on est rendu pour dessiner le glyph dans la glyphMap. 
-    UintPair dstOrigin = {(uint32_t)gm->currentTexX + (uint32_t)extra_margin,
-                          (uint32_t)gm->currentTexY + (uint32_t)(fd.fullHeight - srcRegion.h)/2};
-
-    // Dessin !
-    texture_engine_copyRegionTo(gm->cc_texOpt, srcRegion, &gm->tex, dstOrigin);
-
-    // Region du dessin (avec marge)
-    RectangleUint glyphRegion = {{
-        (uint32_t)gm->currentTexX, (uint32_t)gm->currentTexY,
-        (uint32_t)dstWidth,        (uint32_t)fd.fullHeight,
-    }};
-    Rectangle glyphUVrect = texturedims_UVrectFromPixelRegion(gm->cc_texDims, glyphRegion);
-    // Placer x tex coord sur next.
-    gm->currentTexX += dstWidth;
-
-    // 7. Infos du glyph dans la texture (glyphHeight_pixels est la dimension de référence)
-    return (GlyphInfo) {
-        .uvRect = glyphUVrect,
-        .relGlyphX = 0,
-        .relGlyphY = fd.deltaY / fd.solidHeight,
-        .relGlyphWidth = dstWidth    / fd.solidHeight,    // (avec marge)
-        .relGlyphHeight = fd.fullHeight / fd.solidHeight,
-        .relSolidWidth = srcRegion.w / fd.solidHeight, // (sans marge)
-    };
-}
-
-// MARK: - Constructor / destructor
-// (sous-fonction de `GlyphMap_create`)
-size_t         textureWidthFromRefHeight_(float refHeight) {
-    if(refHeight < 25) return 256;
-    if(refHeight < 50) return 512;
-    if(refHeight < 100) return 1024;
-    return 2048;
-}
-void           glyphmap_deinit(GlyphMap* gm) {
-    texture_deinit_(&gm->tex);
+void glyphmap_render_deinit(GlyphMap* gm) {
+    texture_render_deinit_(&gm->tex);
     map_destroyAndNull(&gm->glyphInfos, NULL);
     coqfont_engine_destroy((CoqFont**)&gm->font);
     // Custom chars...
@@ -167,7 +54,25 @@ void           glyphmap_deinit(GlyphMap* gm) {
     gm->cc_count = 0;
     gm->cc_texOpt = NULL;
 }
-GlyphMap*  GlyphMap_create(GlyphMapInit const info)
+void glyphmapref_render_releaseAndNull(GlyphMap *const*const fgmOptRef) {
+    GlyphMap* const fgm = *fgmOptRef;
+    if(!fgm) return;
+    *(GlyphMap***)&fgmOptRef = (GlyphMap**)NULL;
+    // Default reste disponible (shared).
+    if(fgm == GlyphMap_default_) { return; }
+
+    glyphmap_render_deinit(fgm);
+    coq_free(fgm);
+}
+// (sous-fonction de `GlyphMap_create`)
+size_t textureWidthFromRefHeight_(float refHeight) {
+    if(refHeight < 25) return 256;
+    if(refHeight < 50) return 512;
+    if(refHeight < 100) return 1024;
+    return 2048;
+}
+GlyphInfo glyphmap_drawCharacter_(GlyphMap* gm, Character c);
+GlyphMap* GlyphMap_create(GlyphMapInit const info)
 {
     // Création de glyphmap
     GlyphMap* gm = coq_callocTyped(GlyphMap);
@@ -175,57 +80,194 @@ GlyphMap*  GlyphMap_create(GlyphMapInit const info)
     *(CoqFontDims*)&gm->fontDims = coqfont_dims(gm->font);
     gm->glyphInfos = Map_create(100, sizeof(GlyphInfo));
     // Custom chars
-    if(info.customChars_count) {
+    if(info.customChars_count && info.customChars_texOpt && 
+       info.customChars_charsOpt && info.customChars_uvRectsOpt) 
+    {
         gm->cc_count = info.customChars_count;
         gm->cc_texOpt = info.customChars_texOpt;
-        if(gm->cc_texOpt) gm->cc_texDims = texture_dims(gm->cc_texOpt);
+        gm->cc_texDims = texture_dims(gm->cc_texOpt);
+        if(!(gm->cc_texOpt->flags & tex_flag_keepPixels)) {
+            printwarning("Custom chars texture %s does not keep pixels.", gm->cc_texOpt->string);
+        }
         size_t charsSize = info.customChars_count * sizeof(Character);
         gm->cc_charsOpt = coq_malloc(charsSize);
         memcpy(gm->cc_charsOpt, info.customChars_charsOpt, charsSize);
         size_t rectsSize = info.customChars_count * sizeof(Rectangle);
         gm->cc_uvRectsOpt = coq_malloc(rectsSize);
         memcpy(gm->cc_uvRectsOpt, info.customChars_uvRectsOpt, rectsSize);
+    } else if(info.customChars_count || info.customChars_texOpt || 
+              info.customChars_charsOpt || info.customChars_uvRectsOpt) 
+    {
+        printwarning("Missing custom chars info.");
     }
 
-    // 3. Init texture
-    CoqFontDims const fd = coqfont_dims(gm->font);
+    // Init texture
     size_t textureWidth = info.textureWidthOpt;
-    if(textureWidth < 5*fd.solidHeight) {
-        textureWidth = textureWidthFromRefHeight_(fd.solidHeight);
+    if(textureWidth < 5*gm->fontDims.solidHeight) {
+        textureWidth = textureWidthFromRefHeight_(gm->fontDims.solidHeight);
     }
-    texture_initEmpty_(&gm->tex);
-    texture_engine_load_(&gm->tex, textureWidth, textureWidth, false, NULL);
-    gm->tex.flags |= tex_flag_shared|(info.fontInit.nearest ? tex_flag_nearest : 0);
+    texture_initEmpty_(&gm->tex, textureWidth, textureWidth, 
+        tex_flag_mutable|tex_flag_shared|(info.fontInit.nearest ? tex_flag_nearest : 0));
     *(TextureDims*)&gm->texDims = texture_dims(&gm->tex);
 
-    // 4. Prédessiner au moins le ? (init avec plus de glyph ? genre abcd...)
+    // Prédessiner au moins le `?` (init avec plus de glyph ? genre abcd...)
     gm->_defaultGlyph = glyphmap_drawCharacter_(gm, spchar_questionMark);
     map_put(gm->glyphInfos, spchar_questionMark.c_str, &gm->_defaultGlyph);
 
     return gm;
 }
-static GlyphMap* GlyphMap_default_ = NULL;
-void           glyphmapref_releaseAndNull(GlyphMap *const*const fgmOptRef) {
-    GlyphMap* const fgm = *fgmOptRef;
-    if(!fgm) return;
-    *(GlyphMap***)&fgmOptRef = (GlyphMap**)NULL;
-    // Default reste disponible (shared).
-    if(fgm == GlyphMap_default_) { return; }
 
-    glyphmap_deinit(fgm);
-    coq_free(fgm);
+// Vérifier si on peut copier le glyph sur la ligne courante
+// Retourne true si ok.
+bool      glyphmap_checkDrawingPoint_(GlyphMap*const gm, 
+              float const toAddWidth)
+{
+    if(gm->currentTexX + toAddWidth <= gm->tex.dims.width &&
+       gm->currentTexY + gm->fontDims.fullHeight <= gm->tex.dims.height)
+        return true;
+    // Plus assez d'espace sur cette "ligne", aller à la prochaine.
+    gm->currentTexX = 0;
+    gm->currentTexY += gm->fontDims.fullHeight;
+    if(gm->currentTexY + gm->fontDims.fullHeight > gm->tex.dims.height) {
+        printerror("Cannot add glyph. Glyphmap full.");
+        return false;
+    }
+    if(gm->currentTexY + gm->fontDims.fullHeight > 0.65*gm->tex.dims.height)
+        printwarning("Glyph map texture seems too small... "
+                     "Texture size is %d for font of height %f.",
+                     (int)gm->tex.dims.height, gm->fontDims.fullHeight);
+    return true;
 }
-GlyphMap* GlyphMap_default(void) {
+static inline GlyphInfo glyphmap_getGlyphInfoForPixelArrayAtDrawingPoint_(GlyphMap*const gm, PixelArray*const pa) {
+    return (GlyphInfo) {
+        .uvRect = {{
+            (float)gm->currentTexX   / gm->tex.dims.width, (float)gm->currentTexY / gm->tex.dims.height,
+            (float)pa->width / gm->tex.dims.width, (float)gm->fontDims.fullHeight / gm->tex.dims.height
+        }},
+        .relGlyphX =     pa->deltaX     / gm->fontDims.solidHeight,
+        .relGlyphY =     gm->fontDims.deltaY/gm->fontDims.solidHeight,
+        .relGlyphWidth = pa->width      / gm->fontDims.solidHeight,
+        .relGlyphHeight = gm->fontDims.fullHeight / gm->fontDims.solidHeight,
+        .relSolidWidth = pa->solidWidth / gm->fontDims.solidHeight,
+    };
+}
+GlyphInfo   glyphmap_drawCharacter_(GlyphMap* const gm, Character const c) 
+{
+    if(gm->currentTexY + gm->fontDims.fullHeight > gm->tex.dims.height) {
+        printerror("Cannot add glyph of %s. Glyphmap full.", c.c_str);
+        return (GlyphInfo) {};
+    }
+    // Création de la string en pixels
+    GlyphInfo gi = {};
+    with_beg(PixelArray, pa, PixelsArray_engine_createFromCharacter(c, gm->font))
+    if(!glyphmap_checkDrawingPoint_(gm, pa->width))
+        goto free_pixels;
+    
+    // Setter les infos (dimensions) du glyphs.
+    // -> normalisés par rapport à solidHeight (la hauteur `hit-box`)
+    gi = glyphmap_getGlyphInfoForPixelArrayAtDrawingPoint_(gm, pa); 
+    
+    // Copier les pixels du char dans la texture de la glyph map.
+    withTextureToEdit_beg(texEdit, &gm->tex)
+    pixelarray_copyAt(pa, texEdit.pa, (UintPair) { (uint32_t)gm->currentTexX, 
+                                                       (uint32_t)gm->currentTexY });
+    withTextureToEdit_end(texEdit)
+    
+    // Ok, fini, placer x tex coord pour next.
+    gm->currentTexX += pa->width;
+    
+    // Libérer les pixels
+free_pixels:
+    with_end(pa)
+    return gi;
+}
+
+// Retourne -1 si n'est pas un custom char.
+int         glyphmap_getCustomCharIndex_(GlyphMap*const gm, Character const c) 
+{
+    for(int index = 0; index < gm->cc_count; index++)
+        if(gm->cc_charsOpt[index].c_data8 == c.c_data8)
+            return index;
+    return -1;
+}
+GlyphInfo   glyphmap_tryToDrawAsCustomCharacter_(GlyphMap* const gm, Character const c) 
+{
+    // Vérifier les dimensions de la région à copier.
+    if(gm->currentTexY + gm->fontDims.fullHeight > gm->tex.dims.height) {
+        printerror("Cannot add texture glyph. Glyphmap full.");
+        return (GlyphInfo) {};
+    }
+    PixelArray* pa = NULL;
+    // Custom char ?
+    int const index = glyphmap_getCustomCharIndex_(gm, c);
+     
+    if(index < 0) {
+        if(!character_isEmoji(c)) return (GlyphInfo) {};
+        uint32_t unicode = character_toUnicode32(c);
+        char fileName[16] = {};
+        sprintf(fileName, "emoji_u%x", unicode);
+        char*const path = FileManager_getResourcePath();
+        String_pathAdd(path, fileName, "svg", "svgs");
+        pa = PixelArray_createFromSvgFileOpt(path, gm->fontDims.solidHeight, false);
+    }
+    
+    RectangleUint srcRegion = texturedims_pixelRegionFromUVrect(gm->cc_texDims, gm->cc_uvRectsOpt[index]);
+    if(srcRegion.h > gm->fontDims.fullHeight) {
+        printwarning("H > fullHeight."); srcRegion.h = (uint32_t)gm->fontDims.fullHeight;
+    }
+    if(srcRegion.w > 3*gm->fontDims.fullHeight) {
+        printwarning("W > 3*glyphHeight."); srcRegion.w = (uint32_t)(3*gm->fontDims.fullHeight);
+    }
+    size_t const extra_margin = FONT_extra_margin(gm->tex.flags & tex_flag_nearest);
+    size_t const dstWidth = srcRegion.w + 2*extra_margin;
+
+    // Vérifier s'il reste assez de place sur la ligne.
+    if(!glyphmap_checkDrawingPoint_(gm, dstWidth))
+        return (GlyphInfo){};
+    
+    // Endroit où on est rendu pour dessiner le glyph dans la glyphMap. 
+    UintPair dstOrigin = {(uint32_t)gm->currentTexX + (uint32_t)extra_margin,
+                          (uint32_t)gm->currentTexY + (uint32_t)(gm->fontDims.fullHeight - srcRegion.h)/2};
+
+    // Dessin !
+    if_let(PixelArray const*, paSrc, texture_getPixelsOpt(gm->cc_texOpt))
+    withTextureToEdit_beg(texEdit, &gm->tex)
+    pixelarray_copyRegionAt(paSrc, srcRegion, texEdit.pa, dstOrigin);
+    withTextureToEdit_end(texEdit)
+    if_let_else printerror("Cannot get pixels from custom char texture.");
+    if_let_end
+
+    // Region du dessin (avec marge)
+    RectangleUint glyphRegion = {{
+        (uint32_t)gm->currentTexX, (uint32_t)gm->currentTexY,
+        (uint32_t)dstWidth,        (uint32_t)gm->fontDims.fullHeight,
+    }};
+    // Placer x tex coord sur next.
+    gm->currentTexX += dstWidth;
+
+    // Infos du glyph dans la texture (glyphHeight_pixels est la dimension de référence)
+    Rectangle glyphUVrect = texturedims_UVrectFromPixelRegion(gm->cc_texDims, glyphRegion);
+    return (GlyphInfo) {
+        .uvRect = glyphUVrect,
+        .relGlyphX = 0,
+        .relGlyphY = gm->fontDims.deltaY / gm->fontDims.solidHeight,
+        .relGlyphWidth = dstWidth    / gm->fontDims.solidHeight,    // (avec marge)
+        .relGlyphHeight = gm->fontDims.fullHeight / gm->fontDims.solidHeight,
+        .relSolidWidth = srcRegion.w / gm->fontDims.solidHeight, // (sans marge)
+    };
+}
+
+GlyphMap*   GlyphMap_default(void) {
     if(!GlyphMap_default_) {
         printwarning("Default font glyph map not init. Setting with default params...");
         GlyphMap_default_ = GlyphMap_create((GlyphMapInit){});
     }
     return GlyphMap_default_;
 }
-bool   GlyphMap_default_isInit(void) {
+bool        GlyphMap_default_isInit(void) {
     return GlyphMap_default_ != NULL;
 }
-void          GlyphMap_default_init(GlyphMapInit info)
+void        GlyphMap_default_init(GlyphMapInit info)
 {
     if(GlyphMap_default_) {
         printwarning("Default glyph map already init.");
@@ -233,20 +275,20 @@ void          GlyphMap_default_init(GlyphMapInit info)
     }
     GlyphMap_default_ = GlyphMap_create(info);
 }
-void          GlyphMap_default_deinit(void) {
+void        GlyphMap_default_deinit(void) {
     if(!GlyphMap_default_) return;
-    glyphmap_deinit(GlyphMap_default_);
+    glyphmap_render_deinit(GlyphMap_default_);
     free(GlyphMap_default_);
     GlyphMap_default_ = NULL;
 }
-CoqFont* GlyphMap_default_font(void) {
+CoqFont*    GlyphMap_default_font(void) {
     if(!GlyphMap_default_) {
         printwarning("Default font glyph map not init. Setting default.");
         GlyphMap_default_ = GlyphMap_create((GlyphMapInit){});
     }
     return GlyphMap_default_->font;
 }
-Texture*   GlyphMap_default_texture(void) {
+Texture*    GlyphMap_default_texture(void) {
     if(!GlyphMap_default_) {
         printwarning("Default font glyph map not init. Setting default.");
         GlyphMap_default_ = GlyphMap_create((GlyphMapInit){});
@@ -256,19 +298,23 @@ Texture*   GlyphMap_default_texture(void) {
 
 // MARK: - Getters...
 GlyphInfo      glyphmap_glyphInfoOfChar(GlyphMap*const gm, Character const c) {
-    GlyphInfo* info = (GlyphInfo*)map_valueRefOptOfKey(gm->glyphInfos, c.c_str);
-    if(info) {
+    // Déjà dessiné ?
+    if_let(GlyphInfo*, info,
+            (GlyphInfo*)map_valueRefOptOfKey(gm->glyphInfos, c.c_str))
         return *info;
-    }
-    // N'existe pas encore, dessiner et enregistrer
+    if_let_end
+    // N'existe pas encore, dessiner et enregistrer.
+    // Vérifier en premier s'il est dans la liste des "custom". 
     GlyphInfo newGlyph = glyphmap_tryToDrawAsCustomCharacter_(gm, c);
+    // Sinon, dessiner normalement.
     if(newGlyph.relSolidWidth == 0.f)
         newGlyph = glyphmap_drawCharacter_(gm, c);
     // Erreur ?
     if(newGlyph.relSolidWidth == 0.f) {
-        printerror("Bad glyph for %s.", c.c_str);
+        printerror("Bad glyph for %s, %d.", c.c_str, c.c_data4);
         return gm->_defaultGlyph;
     }
+    // Ajouter à la liste.
     map_put(gm->glyphInfos, c.c_str, &newGlyph);
     return newGlyph;
 }
@@ -278,7 +324,7 @@ Texture*       glyphmap_texture(GlyphMap*const gm) {
 CoqFont const* glyphmap_font(GlyphMap const*const gm) {
     return gm->font;
 }
-CoqFontDims     glyphmap_fontDims(GlyphMap const* gm) {
+CoqFontDims    glyphmap_fontDims(GlyphMap const* gm) {
     return gm->fontDims;
 }
 
@@ -298,7 +344,7 @@ typedef struct StringGlyphed {
     size_t const     charCount;
     size_t const     maxCount;
     GlyphMap*const   glyphMap;     // La glyph map utilisée pour définir les dimensions des chars.
-    float const      xEndRel;     // Largeur totale de la string (relative à solid height)
+    float const      xEndRel;     // Largeur totale de la string (relative à solid height, négatif si right-to-left)
 //    float const      fullWidthRel; // Largeur totale + 2x x_margin.
     float const      x_margin;     // Marge en x (relative à solid height)
     float const      spacing;      // Le scaling voulu (espace entre les CharacterGlyphed).
@@ -316,7 +362,10 @@ StringGlyphed* StringGlyphed_create(StringGlyphedInit const init) {
     float_initConst(&sg->x_margin, init.x_margin);
     float_initConst(&sg->spacing, init.spacing);
     bool_initConst(&sg->isRightToLeft, init.isLocalized ? Language_currentIsRightToLeft() : init.isRightToLeft);
-    if(caOpt) stringglyphed_setChars(sg, caOpt);
+    if(caOpt) {
+        stringglyphed_setChars(sg, caOpt);
+        coq_free(caOpt);
+    }
     return sg;
 }
 StringGlyphed* StringGlyphed_createCopy(StringGlyphed const*const src) {
@@ -342,10 +391,12 @@ void stringglyphed_setChars(StringGlyphed*const sg, CharacterArray const*const c
         GlyphInfo const info = glyphmap_glyphInfoOfChar(sg->glyphMap, *c);
         float const charSolidWidth = SG_charWidth_(info.relSolidWidth, spacing);
         x += 0.5*direction*charSolidWidth;
-        cg->c = *c;
-        cg->glyph = info;
-        cg->xRel = x + info.relGlyphX;
-        cg->firstOfWord = nextIsNewWord;
+        *cg = (CharacterGlyphed) {
+            .c = *c,
+            .glyph = info,
+            .xRel = x + info.relGlyphX,
+            .firstOfWord = nextIsNewWord,
+        };
         x += 0.5*direction*charSolidWidth;
         nextIsNewWord = false;
         // Return ajouter et finir le mot.
@@ -372,6 +423,47 @@ void stringglyphed_setChars(StringGlyphed*const sg, CharacterArray const*const c
 //    float_initConst(&sg->widthRel, fabsf(x));
 //    float_initConst(&sg->fullWidthRel, 2*sg->x_margin + fabsf(x));
 }
+void stringglyphed_removeLast(StringGlyphed*const sg) {
+    if(sg->charCount < 1) { printwarning("Already empty."); return; }
+    size_initConst(&sg->charCount, sg->charCount - 1);
+    if(!sg->charCount) {
+        float_initConst(&sg->xEndRel, 0);
+        return;
+    }
+    // Mettre à jour la largeur totale
+    CharacterGlyphed const*const last = &sg->chars[sg->charCount - 1];
+    float const direction = sg->isRightToLeft ? -1.f : 1.f;
+    float const charSolidWidth = SG_charWidth_(last->glyph.relSolidWidth, sg->spacing);
+    float_initConst(&sg->xEndRel,
+        last->xRel - last->glyph.relGlyphX + 0.5*direction*charSolidWidth);
+}
+void stringglyphed_addCharacter(StringGlyphed*const sg, Character const newChar) {
+    if(sg->charCount >= sg->maxCount) { printwarning("Already full."); return; }
+    size_initConst(&sg->charCount, sg->charCount + 1);
+    CharacterGlyphed*const cgNew = &sg->chars[sg->charCount - 1];
+    GlyphInfo const glyph = glyphmap_glyphInfoOfChar(sg->glyphMap, newChar);
+    float const direction = sg->isRightToLeft ? -1.f : 1.f;
+    float const charSolidWidth = SG_charWidth_(glyph.relSolidWidth, sg->spacing);
+    // Cas premier char.
+    if(sg->charCount == 1) { 
+        *cgNew = (CharacterGlyphed) {
+            .c = newChar,
+            .glyph = glyph,
+            .xRel = 0.5*direction*charSolidWidth + glyph.relGlyphX,
+            .firstOfWord = true,
+        };
+        float_initConst(&sg->xEndRel, direction*charSolidWidth);
+        return;
+    }
+    // Cas ajout en bout de chaine
+    *cgNew = (CharacterGlyphed) {
+        .c = newChar,
+        .glyph = glyph,
+        .xRel = sg->xEndRel + 0.5*direction*charSolidWidth + glyph.relGlyphX,
+        .firstOfWord = true,
+    };
+    float_initConst(&sg->xEndRel, sg->xEndRel + direction*charSolidWidth);
+}
 
 StringGlyphedToDraw stringglyphed_getToDraw(StringGlyphed const* sg) {
     return (StringGlyphedToDraw) {
@@ -387,6 +479,29 @@ Texture* stringglyphed_glyphMapTexture(StringGlyphed*const sg) {
 }
 size_t stringglyphed_maxCount(StringGlyphed const*const sg) {
     return sg->maxCount;
+}
+size_t stringglyphed_charCount(StringGlyphed const*const sg) {
+    return sg->charCount;
+}
+#define      NS_BUFFER_SIZE_ 1024
+static char  NodeString_buffer_[NS_BUFFER_SIZE_] = {};
+// TODO: tester...
+char const* stringglyphed_getString(StringGlyphed const*const sg) {
+    char* dst =      NodeString_buffer_;
+    char* dst_end = &NodeString_buffer_[NS_BUFFER_SIZE_ - sizeof(Character)];
+    CharacterGlyphed const*const c_end = &sg->chars[sg->charCount]; 
+    memset(NodeString_buffer_, 0, sizeof(NodeString_buffer_));
+    for(CharacterGlyphed const* c = sg->chars; c < c_end; c++) {
+        if(dst >= dst_end) {
+            printwarning("String of StringGlyphed %p too big.", sg);
+            break;
+        }
+        
+        *(Character*)dst = c->c;
+        size_t const charSize = character_size(c->c);
+        dst += charSize;
+    }
+    return NodeString_buffer_;
 }
 
 // MARK: - Array de StringGlyphed.
@@ -510,7 +625,6 @@ StringGlyphArr* StringGlyphArr_create(const StringGlyphed* const str, float line
         StringGlyphArr_setAndRealloc_(&strArrOpt, newLine, currentLine);
         currentLine++;
         lineFirst = lastWordEnd;
-        width = width - lastWordWidth;
     }
     // Dernière ligne.
     StringGlyphed* newLine = StringGlyphed_createSubCopyOpt_(str,

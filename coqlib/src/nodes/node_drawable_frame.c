@@ -66,32 +66,34 @@ void   frame_update_(Frame* frame, Vector2 deltas) {
 //        node_setXYrelatively(parent, (uint32_t)parent->flags, false);
 }
 void   frame_open_getSizesOfParent_(Node* nd) {
-    Frame* f = (Frame*)nd;
-    Node* p = nd->_parent;
+    Frame*const f = (Frame*)nd;
+    Node*const  p = nd->_parent;
     if(!p) { printerror("No parent."); return; }
     f->setDims(f, (Vector2){{0.5f*p->w, 0.5f*p->h}});
 }
 void   drawable_and_frame_init_(Frame* frame, Texture* tex,
-                                float inside, float delta, uint16_t options) {
+                                float inside, float delta, uint16_t options) 
+{
+    textureref_init(&frame->d._tex, tex);
+    texturedims_initConst(&frame->d.texDims, texture_dims(tex));
     frame->d.trShow =  SmoothFlag_new();
     frame->d.trExtra = SmoothFlag_new();
-    textureref_init(&frame->d.texr, tex);
     frame->n._type |= node_type_drawable|node_type_frame;
     // Mesh (owner) et fonction pour setter les dimensions du frame.
     if(options & frame_option_horizotalBar) {
-        frame->d._mesh = Mesh_createHorizontalBar();
+        meshref_init(&frame->d._mesh, Mesh_createHorizontalBar());
         frame->setDims = bar_update_;
     } else if(options & frame_option_verticalBar) {
-        frame->d._mesh = Mesh_createVerticalBar();
+        meshref_init(&frame->d._mesh, Mesh_createVerticalBar());
         frame->setDims = vbar_update_;
     } else {
-        frame->d._mesh = Mesh_createFrame();
+        meshref_init(&frame->d._mesh, Mesh_createFrame());
         frame->setDims = frame_update_;
     }
-    frame->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms;
-    frame->n.deinitOpt = drawable_deinit_;
-    frame->n.renderIU = InstanceUniforms_default;
-    frame->n.renderIU.uvRect.size = frame->d.texr.dims.DuDv;
+    frame->n.renderer_updateInstanceUniforms = Drawable_renderer_defaultUpdateInstanceUniforms_;
+    frame->n.deinitOpt = drawable_render_deinit_;
+    frame->n.renderIU.color = Drawable_renderIU_defaultColor_;
+    frame->n.renderIU.uvRect.size = frame->d.texDims.DuDv;
     // Init as frame
     frame->delta = delta;
     frame->inside = inside;
@@ -115,9 +117,9 @@ Frame* Frame_create(Node* const refOpt, float inside, float delta,
     frame->setDims(frame, (Vector2) {{0.5f*twoDxOpt, 0.5f*twoDyOpt}});
     return frame;
 }
-void  node_tryUpdatingAsFrameOfBro(Node* nodeOpt, Node* broOpt) {
-    if(!nodeOpt || !broOpt) return;
-    if(!(nodeOpt->_type & node_type_frame)) return;
-    Frame* f = (Frame*)nodeOpt;
-    f->setDims(f, node_deltas(broOpt));
+void   frame_tryToUpdateToLittleBro(Frame*const f)
+{
+    Node*const littleBro = f->n._littleBro;
+    if(!littleBro) return;
+    f->setDims(f, node_deltas(littleBro));
 }

@@ -73,12 +73,10 @@ ParticulesPool* ParticulesPool_create(uint32_t count, float twoDx, float twoDy,
 }
 void            particulespool_update(ParticulesPool* pp) {
     // Delta T, constant à 50 ms = 0.05 s.
-    float const deltaT = (float)ChronosEvent.deltaTMS * SEC_PER_MS;  // (en sec, mieux d'avoir les vitesse/accélération en m/s, m/s2...?)
-//    int64_t time = ChronoApp_elapsedMS();
-//    int64_t deltaTMS = time - pp->last_time;
-//    deltaTMS = (deltaTMS > Chrono_UpdateDeltaTMS * 1.1f) ? 100 : (deltaTMS < 5 ? 5 : deltaTMS);
-//    pp->last_time = time;
+    float const deltaT = (float)EventTimeCapture.deltaTMS * SEC_PER_MS;  
+    // (Plus simple en sec pour les vitesse/accélération en m/s, m/s2...?)
 
+    ChronoChecker cc = chronochecker_startNew();
     // Fixer la nouvelle position (à l'aide des calcul du tick précédent)
     // et init acc pour calcul de nouvelle vitesse (actif durant jusqu'au next tick).
     Particule* const end = &pp->particules[pp->count];
@@ -96,7 +94,9 @@ void            particulespool_update(ParticulesPool* pp) {
     }
 
     // Calcul de l'accélération, à la nouvelle position.
-    for(Particule* p = pp->particules; p < end; p++) {
+    unsigned pCount = 0;
+    unsigned pCountOverflow = 0;
+    for(Particule* p = pp->particules; p < end; p++, pCount++) {
         for(Particule* p2 = p + 1; p2 < end; p2++) {
             // Position relative (distance vectoriel et scalaire)
             Vector2 d = update0 ? (Vector2){{ p->pos0.x - p2->pos0.x, p->pos0.y - p2->pos0.y }}
@@ -125,6 +125,11 @@ void            particulespool_update(ParticulesPool* pp) {
         // Position finale estimé (pour détecter les collision)
         p->_posf.x = p->_posi.x + p->_vit.x*deltaT;
         p->_posf.y = p->_posi.y + p->_vit.y*deltaT;
+        if(!((pCount + 1) % 25) && !pCountOverflow) {
+            float const elapsed = (float)chronochecker_elapsedMS(cc) * SEC_PER_MS;
+            if(elapsed < 0.95*deltaT) continue;
+            pCountOverflow = pCount+1;
+        }
     }
     // Detection des (futurs) collisions
     // Ici les collisions détectés sont durant la next `tick`.
@@ -207,6 +212,11 @@ void            particulespool_update(ParticulesPool* pp) {
 //             p->vit1.x, p->vit1.y, p->vit0.x, p->vit0.y);
 //        }
     }
+    
+    if(pCountOverflow) {
+        printwarning("Particules Pool overflow at %d particules.", pCountOverflow);
+    }
+    
     // Tout est setté, on peut faire le switch.
     if(update0) {
         pp->t0 = ChronoApp_elapsedMS(); // (nouveau temps le plus récent)
@@ -229,11 +239,9 @@ typedef struct DrawableMultiPP_ {
 // Override...
 void   drawablemultiPP_renderer_updateIU_(Node* const n) {
     DrawableMultiPP_* dmpp = (DrawableMultiPP_*)n;
+    float const show = drawable_updateShow(&dmpp->d);
+    if(!show) return;
     const Matrix4* const pm = node_parentModel(n);
-    if(!(n->flags & flag_show)) {
-        n->renderIU.flags &= ~ renderflag_toDraw;
-    }
-    n->renderIU.flags |= renderflag_toDraw;
     // Mode 0/1, DeltaT, w/h.
     bool zeroOne = dmpp->pp->t1 > dmpp->pp->t0;
     float deltaT = (float)(ChronoApp_elapsedMS() - (zeroOne ? dmpp->pp->t1 : dmpp->pp->t0))*0.001f;
@@ -243,6 +251,7 @@ void   drawablemultiPP_renderer_updateIU_(Node* const n) {
     Particule *const p_end = &dmpp->pp->particules[dmpp->pp->count];
     withIUsToEdit_beg(ius, &dmpp->dm.iusBuffer)
     for(; (p < p_end) && (ius.iu < ius.end); ius.iu++, p++) {
+        ius.iu->show = show;
         Matrix4* m = &ius.iu->model;
         // Petite translation sur la parent-matrix en fonction de la particule.
         Vector2 const pos = zeroOne ? particule_evalPos1(p, deltaT) : particule_evalPos0(p, deltaT);
@@ -257,8 +266,8 @@ void   drawablemultiPP_renderer_updateIU_(Node* const n) {
 DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     DrawableMultiPP_* dmpp = coq_callocTyped(DrawableMultiPP_);
     node_init(&dmpp->n, parent, 0, 0, 2.35*partpool_r0_, 2.35*partpool_r0_, 0, 0);
-    Texture* const tex = Texture_sharedImage(png_disks);
-    drawable_init(&dmpp->d, tex, Mesh_drawable_sprite, 0, 2.35*partpool_r0_);
+    Texture* const tex = Texture_getPng(png_disks);
+    drawable_init(&dmpp->d, tex, NULL, 0, 2.35*partpool_r0_);
     drawablemulti_init(&dmpp->dm, partpool_count_, NULL);
     dmpp->n.renderer_updateInstanceUniforms = drawablemultiPP_renderer_updateIU_;
     dmpp->pp = pp;
@@ -266,7 +275,7 @@ DrawableMultiPP_* DrawableMultiPP_create(Node* parent, ParticulesPool* pp) {
     withIUsToEdit_beg(ius, &dmpp->dm.iusBuffer)
     for(; ius.iu < ius.end; ius.iu++) {
         *ius.iu = InstanceUniforms_default;
-        ius.iu->uvRect = texturedims_uvRectOfTile(dmpp->d.texr.dims, rand(), 0);
+        ius.iu->uvRect = texturedims_uvRectOfTile(dmpp->d.texDims, rand(), 0);
     }
     ius.init = true;
     withIUsToEdit_end(ius)
@@ -302,7 +311,7 @@ PPNode* PPNode_create(Node* ref) {
     ppn->n.closeOpt =  ppnode_close_;
     ppn->n.deinitOpt = ppnode_deinit_;
     // Struct
-    Frame_create(&ppn->n, 0.5f, 0.1f*partpool_height_, 0.f, 0.f, Texture_sharedImage(png_coqlib_frame_gray_back), frame_option_getSizesFromParent);
+//    Frame_create(&ppn->n, 0.5f, 0.1f*partpool_height_, 0.f, 0.f, Texture_sharedImage(png_coqlib_frame_gray_back), frame_option_getSizesFromParent);
     DrawableMultiPP_create(&ppn->n, ppn->pp);
 
     return ppn;

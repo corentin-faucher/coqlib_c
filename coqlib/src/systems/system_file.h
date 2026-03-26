@@ -18,13 +18,14 @@
 #include <limits.h>
 #endif
 
+// MARK: Fonction utile de FILE (stdio) pour lire et écrire des fichiers (textes/binaires).
 /// Optenir le contenu d'un fichier texte (+1 à la taille pour le `\0` terminal ajouté à la string).
 /// Retourne une référence au buffer (privé de `util_file.c`).
 /// (Retourne NULL si rien à ouvrir.)
 /// Il ne faut pas `free` le buffer retourné. Pour ce faire utiliser `FILE_freeBuffer`.
-const char* FILE_stringContentOptAt(const char* path, bool hideError);
+const char* FILE_stringContentOptAt(const char* pathOpt, bool hideError);
 /// Obtenir le contenu d'un fichier binaire.
-const void* FILE_bufferContentOptAt(const char* path);
+const void* FILE_bufferContentOptAt(const char* pathOpt, bool hideError);
 /// Taille du tempon retourné par `FILE_XXXcontentOpt`.
 size_t      FILE_bufferSize(void);
 /// Libérer le tempon (facultatif sera libéré à la prochaine utilisation sinon).
@@ -34,14 +35,24 @@ void        FILE_freeBuffer(void);
 void        FILE_writeString(const char* path, const char* content);
 void        FILE_writeData(const char* path, const void* buffer, size_t buffer_size);
 
+/// Macro utile pour "FILE".
+#define withFILE_beg(file, path, mode) FILE*const file = fopen(path, mode); \
+    if(!file) { printerror("Cannot open %s.", path); } else {
+#define withFILE_end(file) fclose(file); }
+
+// MARK: Edition d'un chemin (path)
+void        String_pathAdd(char* path, const char* fileName,
+    const char* fileExtOpt, const char* subDirOpt);
+
+
+// MARK: Répertoires importants
 /// Dossier où sont situé les resources de l'application (res, Resources,...)
 /// Retourne le buffer *editable* `_FileManager_tmp_path` de taille `PATH_MAX`.
 /// (Il n'y a qu'un seul buffer `_FileManager_tmp_path`.)
-char*        FileManager_getResourcePathOpt(const char* fileNameOpt,
-                        const char* fileExtOpt, const char* subDirOpt);
-/// Dossier `local` où l'application peut stocker ses fichiers (sauvegardes).
+char*        FileManager_getResourcePath(void);
+/// Dossier `local` où l'application peut stocker ses fichiers (e.g. sauvegardes).
 /// Retourne le buffer *editable* `_FileManager_tmp_path` de taille `PATH_MAX`.
-char*        FileManager_getApplicationSupportDirectoryPathOpt(void);
+char*        FileManager_getApplicationSupportDirectoryPath(void);
 /// Dossier `Cloud` où l'application peut stocker ses fichiers.
 /// Retourne le buffer editable `_FileManager_tmp_path` de taille `PATH_MAX`.
 char*        FileManager_getApplicationCloudMainDirectoryPathOpt(void);

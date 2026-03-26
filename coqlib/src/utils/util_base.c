@@ -12,7 +12,7 @@
 
 static int32_t alloc_count_ = 0;
 
-void print_trace_(uint32_t depth) {
+void print_trace_(uint32_t const depth, bool const skip_first) {
     char sym[256];
     unw_context_t context;
     unw_cursor_t  cursor;
@@ -23,10 +23,12 @@ void print_trace_(uint32_t depth) {
         unw_word_t offset, pc;
         unw_get_reg(&cursor, UNW_REG_IP, &pc);
         if(pc == 0) break;
-        if(unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0)
-            printf(" -> %s", sym);
-        else
-            printf(" -> ⁉️");
+        if(i || !skip_first) {
+            if(unw_get_proc_name(&cursor, sym, sizeof(sym), &offset) == 0)
+                printf(" in %s", sym);
+            else
+                printf(" in ⁉️");
+        }
         i++;
     }
     printf(".\n");
@@ -55,23 +57,23 @@ void    *coq_malloc_(size_t __size, const char* filename, uint32_t line) {
     void* new = malloc(__size);
     alloc_count_++;
     size_t chunks = (__size + 15) / 16;
-    printf("🦖✅ Malloc: %p, size %zu chk, count %d -> %s line %d\n", new, chunks, alloc_count_, filename, line);
+    printf("🦖 Malloc: %p, size %zu chk, count %d → %s line %d\n", new, chunks, alloc_count_, filename, line);
     return new;
 }
 void    *coq_calloc_(size_t __count, size_t __size, const char* filename, uint32_t line) {
     void* new = calloc(__count, __size);
     alloc_count_++;
     size_t chunks = (__size*__count + 15) / 16;
-    printf("🦖✅ Calloc: %p, size %zu chk, count %d -> %s line %d\n", new, chunks, alloc_count_, filename, line);
+    printf("🦖 Calloc: %p, size %zu chk, count %d → %s line %d\n", new, chunks, alloc_count_, filename, line);
     return new;
 }
 void     coq_free_(void* ptr, const char* filename, uint32_t line) {
     alloc_count_--;
-    printf("🦖❌ Free: %p, count %d -> %s line %d\n", ptr, alloc_count_, filename, line);
+    printf("🦖 Free: %p, count %d -> %s line %d\n", ptr, alloc_count_, filename, line);
     free(ptr);
 }
 void    *coq_realloc_(void * const ptr, size_t __size, const char* filename, uint32_t line) {
-    printf("🦖  Realloc: %p", ptr);
+    printf("🦖 Realloc: %p", ptr);
     void* new = realloc(ptr, __size);
     size_t chunks = (__size + 15) / 16;
     printf(" size %zu chk (count %d) -> %s line %d\n", chunks, alloc_count_, filename, line);

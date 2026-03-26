@@ -11,10 +11,42 @@
 
 #include "../utils/util_base.h"
 
+/// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.
+/// Equivalent de :
+///     M = (parent.M T) S,
+/// i.e. On se place de le ref du parent, puis on se place à sa position (Translate)
+/// et on Scale à ses dimensions.
+void node_renderer_defaultUpdateInstanceUniforms_(Node *const n) {
+    // Cas feuille, skip...
+    if(n->_firstChild == NULL) {
+        return;
+    }
+    const Matrix4* const pm = node_parentModel(n);
+    Matrix4* const m = &n->renderIU.model;
+    Vector3 const pos = n->xyz;
+    Vector3 const scl = n->scales;
+    // Equivalent de :
+//    *m = *pm;
+//    matrix4_translate(m, pos);
+//    matrix4_scale(m, scl);
+    m->v0.v = pm->v0.v * scl.x;
+    m->v1.v = pm->v1.v * scl.y;
+    m->v2.v = pm->v2.v * scl.z; 
+    m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y + pm->v2.v * pos.z;
+}
+static void (*Node_renderer_defaultUpdateInstanceUniforms)(Node*) = node_renderer_defaultUpdateInstanceUniforms_;
+
+void Node_init(NodeInit const nodeInit) {
+    if(nodeInit.node_renderer_updateInstanceUniformsOpt) {
+        Node_renderer_defaultUpdateInstanceUniforms = nodeInit.node_renderer_updateInstanceUniformsOpt;
+    }
+    Fluid_init_(nodeInit.fluid_renderer_updateInstanceUniformsOpt, nodeInit.fluid_fadeInDeltaOpt);
+    Drawable_init_(nodeInit.drawable_spriteMeshInitOpt, nodeInit.drawable_renderer_updateInstanceUniformsOpt, nodeInit.drawable_defaultColorOpt);
+}
+
 // MARK: -- Constructors... ----------------------------------
 void node_disconnect_(Node * const node) {
     // Retrait
-
     Node* const big =    node->_bigBro;
     Node* const little = node->_littleBro;
     Node* const parent = node->_parent;
@@ -28,7 +60,6 @@ void node_disconnect_(Node * const node) {
 //    node->_parent = NULL;
 //    node->_bigBro = NULL;
 //    node->_littleBro = NULL;
-
 }
 /** Connect au parent. */
 void node_connectToParent_(Node* const node, Node * const parentOpt, const bool asElder) {
@@ -155,6 +186,7 @@ set_toDelete:
     if(pos == node) {
         if(node->deinitOpt) node->deinitOpt(node);
         coq_free(node);
+//        printdebug("Burning some nodes...");
         return;
     }
     goto set_toDelete;
@@ -173,9 +205,13 @@ void garbage_putNode_(struct Garbage_* garbage, Node* toDelete) {
     garbage->index ++;
 }
 void garbage_burnDown_(struct Garbage_* garbage) {
+    if(garbage->index == 0) return;
     Node** end = &garbage->container[garbage->index];
     for(Node** ptr = garbage->container; ptr < end; ptr++)
         node_tree_burnDown_(*ptr);
+    coq_free(garbage->container);
+    garbage->container = NULL;
+    garbage->count = 0;
     garbage->index = 0;
 }
 static bool   garbageA_active_ = true;
@@ -215,7 +251,7 @@ put_to_garbage:
     else
         garbage_putNode_(&garbageB_, node);
 }
-void  NodeGarbage_burn(void) {
+void  Node_render_burnDownGarbage(void) {
     if(garbageA_active_)
         garbage_burnDown_(&garbageB_);
     else
@@ -422,19 +458,23 @@ void    node_moveRight(Node* const n) {
     if(littleLittle) littleLittle->_bigBro = n;
     else             parent->_lastChild = n;
 }
-//#warning Tester nouvelle version.
+
 void    node_setInReferentialOf_(Node* const n, Node* const q) {
     // Pour passer de p (parent) à q (destination),
-    // Il s'agit de mettre p dans q et sortir de "p dans q"...!
+    // Il s'agit de mettre p dans q et sortir de "p dans q".
+    // On est alors dans q!
+    // (faire un dessin pour comprendre...)
     // Boîte parent
     Box p_b = box_identity;
     for(Node const* par = n->_parent; par; par = par->_parent) {
-        box_referentialOut(p_b, node_referential(par));
+        Box par_r = node_referential(par);
+        p_b = box_referentialOut(p_b, par_r);
     }
     // Boîte destination
     Box q_b = node_referential(q);
     for(Node const* par = q->_parent; par; par = par->_parent) {
-        box_referentialOut(q_b, node_referential(par));
+        Box par_r = node_referential(par);
+        q_b = box_referentialOut(q_b, par_r);
     }
     // Boîte parent dans dest.
     Box pq_b = box_referentialIn(p_b, q_b);
@@ -451,24 +491,6 @@ void    node_setInReferentialOf_(Node* const n, Node* const q) {
         fl_referentialOutAsDelta(&f->sx, pq_b.Dx);
         fl_referentialOutAsDelta(&f->sy, pq_b.Dy);
     if_let_end
-
-//    Squirrel sqP, sqQ;
-//    sq_init(&sqP, n, sq_scale_ones);
-//    while(sq_goUpPS(&sqP)) {}
-//    sq_init(&sqQ, q, sq_scale_scales);
-//    while(sq_goUpPS(&sqQ)) {}
-//
-//    Fluid* f = node_asFluidOpt(n);
-//    if(f) {
-//        fl_newReferential(&f->x, sqP.b.c_x, sqQ.b.c_x, sqP.b.Dx, sqQ.b.Dx);
-//        fl_newReferential(&f->y, sqP.b.c_y, sqQ.b.c_y, sqP.b.Dy, sqQ.b.Dy);
-//        fl_newReferentialAsDelta(&f->sx, sqP.b.Dx, sqQ.b.Dx);
-//        fl_newReferentialAsDelta(&f->sy, sqP.b.Dy, sqQ.b.Dy);
-//    }
-//    n->x = (sqP.b.c_x - sqQ.b.c_x) / sqQ.b.Dx;
-//    n->y = (sqP.b.c_y - sqQ.b.c_y) / sqQ.b.Dy;
-//    n->sx = n->sx * sqP.b.Dx / sqQ.b.Dx;
-//    n->sy = n->sy * sqP.b.Dy / sqQ.b.Dy;
 }
 /** Change de noeud de place (et ajuste sa position/scaling relatif). */
 void    node_moveToParent(Node* const n, Node* const new_parent, bool const asElder) {
@@ -486,30 +508,6 @@ void    node_moveToBro(Node* n, Node* new_bro, bool asBigBro) {
 }
 
 // MARK: - Model matrix
-/// Mise à jour ordinaire de la matrice modèle pour se placer dans le référentiel du parent.
-/// Equivalent de :
-///     M = (parent.M T) S,
-/// i.e. On se place de le ref du parent, puis on se place à sa position (Translate)
-/// et on Scale à ses dimensions.
-void node_renderer_defaultUpdateInstanceUniforms_(Node *const n) {
-    // Cas feuille, skip...
-    if(n->_firstChild == NULL) {
-        return;
-    }
-    const Matrix4* const pm = node_parentModel(n);
-    Matrix4* const m = &n->renderIU.model;
-    Vector3 const pos = n->xyz;
-    Vector3 const scl = n->scales;
-    // Equivalent de :
-//    *m = *pm;
-//    matrix4_translate(m, pos);
-//    matrix4_scale(m, scl);
-    m->v0.v = pm->v0.v * scl.x;
-    m->v1.v = pm->v1.v * scl.y;
-    m->v2.v = pm->v2.v * scl.z; 
-    m->v3.v = pm->v3.v + pm->v0.v * pos.x + pm->v1.v * pos.y + pm->v2.v * pos.z;
-}
-void (*Node_renderer_defaultUpdateInstanceUniforms)(Node*) = node_renderer_defaultUpdateInstanceUniforms_;
 const Matrix4* node_parentModel(Node const*const n) {
     Node* const parent = n->_parent;
     if(!parent) { printerror("Node without parent."); return &matrix4_identity; }

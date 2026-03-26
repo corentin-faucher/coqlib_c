@@ -50,7 +50,6 @@
 
 -(BOOL)textField:(UITextField *)textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string
 {
-    [metalView setPaused:NO];
 //#warning Inutile ?
     [self setText:@"-"];
     CoqEvent coqevent;
@@ -58,7 +57,7 @@
     if(string.length == 0) {
         coqevent = (CoqEvent){
             .type = eventtype_key_down,
-            .key = { 0, keycode_delete, mkc_delete, false }
+            .key = { 0, keycode_delete, mkc_backspace, false }
         };
     } else {
         coqevent = (CoqEvent){
@@ -67,18 +66,17 @@
         };
         strncpy(coqevent.key.typed.c_str, [string UTF8String], CHARACTER_MAX_SIZE);
     }
-    CoqEvent_addToRootEvent(coqevent);
+    [metalView addEvent:coqevent];
     
     return NO;
 }
 
 -(BOOL)textFieldShouldReturn:(UITextField *)textField {
-    [metalView setPaused:NO];
     CoqEvent coqevent = {
         .type = eventtype_key_down,
         .key = { 0, keycode_return_, mkc_return_, false, spchar_return_ }
     };
-    CoqEvent_addToRootEvent(coqevent);
+    [metalView addEvent:coqevent];
     
     return NO;
 }

@@ -268,9 +268,6 @@ static inline void  uint_initConst(const uint32_t* const u, uint32_t const initV
 static inline void  size_initConst(const size_t* const s, size_t const initValue) {
     *(size_t*)s = initValue;
 }
-static inline void  voidptr_initConst(const void**const ptr, void*const init_ptr) {
-    *(void**)ptr = init_ptr;
-}
 
 // MARK: - Extension de int
 static inline int32_t imini(int32_t const a, int32_t const b) {

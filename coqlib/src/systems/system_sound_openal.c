@@ -39,7 +39,7 @@ void         soundbuffer_test_print(SoundBuffer*const sb) {
     printf("🦫 Sound buffer : sample rate %d, count %d, samples :\n  ",
            sb->sampleRate, sb->sampleCount);
     uint32_t end = uminu(100, sb->sampleCount);
-    for(int i = 0; i < end; i++)
+    for(uint32_t i = 0; i < end; i++)
         printf("%d ", sb->buffer[i]);
     printf("\n");
 }
@@ -62,7 +62,7 @@ static uint32_t       sound_sampleRateOpt_ = 0;
 static SoundBuffer**  extraSoundBuffers = NULL;
 void Sound_freeExtraBuffers_(void) {
     if(!extraSoundBuffers) return;
-    for(int i = 0; i < extra_count_; i++) {
+    for(uint32_t i = 0; i < extra_count_; i++) {
         if(extraSoundBuffers[i])
             coq_free(extraSoundBuffers[i]);
     }
@@ -71,7 +71,7 @@ void Sound_freeExtraBuffers_(void) {
 }
 
 /// Header d'un fichier .wav. 36 bytes.
-struct WavHeader_ {
+struct __attribute__((packed)) WavHeader_ {
     char     chunkId[4];
     uint32_t chunkSize;
     char     format[4];
@@ -83,14 +83,17 @@ struct WavHeader_ {
     uint32_t avgBytesPerSec;
     uint16_t blockAlign;
     uint16_t bitsPerSample;
-}  __attribute__((packed));
+};
 SoundBuffer* SoundBuffer_createOptFromWavFile_(const char* wavName) {
     // Ouverture du fichier wav
-    const char* wav_path = FileManager_getResourcePathOpt(wavName, "wav", "wavs");
+    char*const wav_path = FileManager_getResourcePath();
+    String_pathAdd(wav_path, wavName, "wav", "wavs");
     guard_let(FILE*, f, fopen(wav_path, "rb"), 
               printerror("Cannot open %s.", wav_path), NULL)
+    SoundBuffer* buffer = NULL;
+
     // Lecture du header
-    struct WavHeader_ header;
+    struct WavHeader_ header = {};
     fread(&header, sizeof(struct WavHeader_), 1, f);
     // Chercher le text "data" après le header (de 36 bytes)
     char text_data[5] = {0};
@@ -105,21 +108,26 @@ SoundBuffer* SoundBuffer_createOptFromWavFile_(const char* wavName) {
         }
         pos ++;
     }
-    if(!text_data_found) {
-        printerror("No string `data` in wav.");
-        fclose(f);
-        return NULL;
-    }
+    if(!text_data_found) goto read_failed;
+    
     // Lire les données juste après `data`.
     fseek(f, pos+4, SEEK_SET);
     uint32_t bufferSize;
-    fread(&bufferSize, 4, 1, f);
+    size_t readCount = fread(&bufferSize, 4, 1, f);
+    if(readCount < 1) goto read_failed;
     uint32_t sampleCount = bufferSize / sizeof(int16_t);
+    buffer = SoundBuffer_createEmpty(sampleCount, header.samplesPerSec);
+    readCount = fread(buffer->buffer, bufferSize, 1, f);
+    if(readCount < 1) goto read_failed;
     
-    SoundBuffer* buffer = SoundBuffer_createEmpty(sampleCount, header.samplesPerSec);
-    fread(buffer->buffer, bufferSize, 1, f);
     fclose(f);
     return buffer;
+    
+read_failed:
+    printerror("Problem reading wav %s.", wavName);
+    if(buffer) coq_free(buffer);
+    fclose(f);
+    return NULL;
 }
 void Sound_checkSampleRate_(uint32_t const sampleRate) {
     if(!sound_sampleRateOpt_) {
@@ -143,7 +151,7 @@ void  Sound_resume_(void) {
         AL_source_ids_ = calloc(total_count_, sizeof(ALuint));
         alGenBuffers(total_count_, AL_buffer_ids_);
         alGenSources(total_count_, AL_source_ids_);
-        for(int i = 0; i < total_count_; i ++) {
+        for(uint32_t i = 0; i < total_count_; i ++) {
             if(i < waves_count_) {
                 with_beg(SoundBuffer, buffer, SoundBuffer_createOptFromWavFile_(wav_namesOpt_[i]))
                 Sound_checkSampleRate_(buffer->sampleRate);
@@ -172,7 +180,7 @@ void  Sound_suspend_(void) {
     AL_device_ = NULL;
     // 1. Delier sources et buffer (utile ?)
     if(total_count_) {
-        for(int i = 0; i < total_count_; i ++) {
+        for(uint32_t i = 0; i < total_count_; i ++) {
             alSourcei(AL_source_ids_[i], AL_BUFFER, 0);
         }
         // 2. Effacer les sources et les buffers.
@@ -267,7 +275,7 @@ static int64_t Music_beatDTMS_ = 300;
 static int64_t Music_maxSleepMS = 50;
 static void (*Music_callback_)(void) = NULL;
 #include <inttypes.h>
-void* music_loop_(void* unused_) {
+void* music_loop_(void* UNUSED()) {
     Music_Playing_ = true;
     void (*const callback)(void) = Music_callback_;
     if(!callback) { 

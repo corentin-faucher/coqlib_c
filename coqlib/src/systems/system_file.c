@@ -7,6 +7,7 @@
 #include "system_file.h"
 
 #include <math.h>
+#include <errno.h>
 #include "../graphs/graph_base.h"
 #include "../utils/util_base.h"
 
@@ -23,67 +24,112 @@ const char* FILE_stringContentOptAt(const char* path, bool const hideError) {
     fseek(f, 0, SEEK_END);
     // Ajouter + 1 pour le `\0` de fin de string.
     FILE_buffer_size_ = ftell(f) + 1;
+    if(FILE_buffer_size_ < 2) goto read_failed;
+    errno = 0;
     rewind(f);
+    if(errno) goto read_failed;
     FILE_buffer_ = calloc(1, FILE_buffer_size_);
     if(!FILE_buffer_) {
         FILE_buffer_size_ = 0;
-        printerror("Cannot alloc %s.", path);
-        goto close_file;
+        goto read_failed;
     }
     size_t n = fread(FILE_buffer_, FILE_buffer_size_ - 1, 1, f);
-    if(n != 1) {
-        FILE_freeBuffer();
-        printerror("Cannot read %s.", path);
-    }
-close_file:
+    if(n != 1) goto read_failed;
+    
     fclose(f);
     return FILE_buffer_;
+    
+read_failed:
+    if(!hideError) printerror("Error %d, reading %s.", errno, path);
+    fclose(f);
+    return NULL;
 }
-const void* FILE_bufferContentOptAt(const char* path) {    
+const void* FILE_bufferContentOptAt(const char* path, bool const hideError) {    
     FILE_freeBuffer();
-    if(!path) {  printerror("No path to open."); return NULL; }
-    guard_let(FILE*, f, fopen(path, "rb"), printerror("Cannot open %s.", path), NULL)
+    if(!path) { if(!hideError) printerror("No path to open."); return NULL; }
+    guard_let(FILE*, f, fopen(path, "rb"), if(!hideError) { printerror("Cannot open %s.", path); }, NULL)
     fseek(f, 0, SEEK_END);
     FILE_buffer_size_ = ftell(f);
+    if(FILE_buffer_size_ < 1) goto read_failed;
+    errno = 0;
     rewind(f);
+    if(errno) goto read_failed;
     FILE_buffer_ = calloc(1, FILE_buffer_size_);
     if(!FILE_buffer_) {
         FILE_buffer_size_ = 0;
-        printerror("Cannot alloc %s.", path);
-        goto close_file;
+        goto read_failed;
     }
     size_t n = fread(FILE_buffer_, FILE_buffer_size_, 1, f);
-    fclose(f);
-    if(n != 1) {
-        FILE_freeBuffer();
-        printerror("Cannot read %s.", path);
-    }
-close_file:
+    if(n != 1) goto read_failed;
+    
     fclose(f);
     return FILE_buffer_;
+    
+read_failed:
+    if(!hideError) printerror("Error %d, reading %s.", errno, path);
+    fclose(f);
+    return NULL;
 }
-void     FILE_writeString(const char* path, const char* content) {
+void        FILE_writeString(const char* path, const char* content) {
     if(!path) { printwarning("No path to open."); return; }
     if(!content) { printwarning("No content to write."); return; }
     guard_let(FILE*, f, fopen(path, "w"), printerror("Cannot write at %s.", path), )
     fputs(content, f);
     fclose(f);
 }
-void   FILE_writeData(const char* path, const void* buffer, size_t buffer_size) {
+void        FILE_writeData(const char* path, const void* buffer, size_t buffer_size) {
     if(!path) { printwarning("No path to open."); return; }
     if(!buffer) { printwarning("No content to write."); return; }
     guard_let(FILE*, f, fopen(path, "wb"), printerror("Cannot write at %s.", path), )
     fwrite(buffer, buffer_size, 1, f);
     fclose(f);
 }
-size_t FILE_bufferSize(void) {
+size_t      FILE_bufferSize(void) {
     return FILE_buffer_size_;
 }
-void   FILE_freeBuffer(void) {
+void        FILE_freeBuffer(void) {
     if(!FILE_buffer_) return;
     free(FILE_buffer_);
     FILE_buffer_ = NULL;
     FILE_buffer_size_ = 0;
+}
+
+void String_pathAdd(char*const path, const char*const fileNameOpt,
+    const char*const fileExtOpt, const char*const subDirOpt)
+{
+    char* c = path;
+    while(*c && (c - path < PATH_MAX)) c++;
+    
+    if(subDirOpt && *subDirOpt) {
+        *c = '/'; c++;
+        char const* src = subDirOpt;
+        while(*src && (c - path < PATH_MAX)) {
+            *c = *src;
+            c++; src++;
+        }
+    }
+    if(fileNameOpt && *fileNameOpt) {
+        *c = '/'; c++;
+        char const* src = fileNameOpt;
+        while(*src && (c - path < PATH_MAX)) {
+            *c = *src;
+            c++; src++;
+        }
+    }
+    if(fileExtOpt && *fileExtOpt) {
+        if(!fileNameOpt || !*fileNameOpt) {
+            printerror("No file name.");
+            goto pathadd_exit;
+        }
+        *c = '.'; c++;
+        char const* src = fileExtOpt;
+        while(*src && (c - path < PATH_MAX)) {
+            *c = *src;
+            c++; src++;
+        }
+    }
+pathadd_exit:
+    if(c - path >= PATH_MAX) { printerror("Path too long."); }
 }
 
 // Garbage

@@ -19,8 +19,8 @@
 
 
 // Prendre le temps ChronoRender ou ChronoApp comme ref ?
-#define Chrono_inEvent_elapsedMS  (uint32_t)ChronosEvent.render_elapsedMS
-#define Chrono_inRender_elapsedMS (uint32_t)ChronosRender.render_elapsedMS
+#define Chrono_inEvent_elapsedMS  (uint32_t)EventTimeCapture.render_elapsedMS
+#define Chrono_inRender_elapsedMS (uint32_t)RendererTimeCapture.render_elapsedMS
 //#define Chrono_inEvent_elapsedMS  (uint32_t)ChronoEvent_chronoApp_elapsedMS
 //#define Chrono_inRender_elapsedMS (uint32_t)ChronoRender_chronoApp_elapsedMS
 static inline float coretime_inEvent_toElapsedSec_(uint32_t const coreTime) {

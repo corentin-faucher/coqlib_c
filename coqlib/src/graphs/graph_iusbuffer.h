@@ -1,6 +1,6 @@
 //  graph_iusbuffer.h
+//  Instance Uniforms buffer
 //
-//  Instance Uniforms buffer.
 //  Contient un array d'"instance uniforms"
 //  pour dessiner une série d'objets semblables, 
 //  e.g. les glyphes d'une string de char. 
@@ -18,6 +18,7 @@ typedef struct IUsBuffer {
     size_t const                 actual_size;
     size_t const                 max_count;
     // En tant que simple array d'instance uniforms (peut être un lien vers MTLBuffer...)
+    // Constant a priori, mais casté mutable avec `iusbuffer_retainIUsToEdit`.
     InstanceUniforms const*const iusOpt;
     // Lien vers MTLBuffer. Bridger de C à Objective-C avec `(__bridge id<MTLBuffer>)`.
     const void* const            mtlBufferOpt; 
@@ -32,7 +33,10 @@ void   iusbuffer_init(IUsBuffer* iusbuffer, uint32_t maxCount, InstanceUniforms 
 /// Libère l'espace du buffer (et array de piu si nécessaire)
 void   iusbuffer_deinit(IUsBuffer* iusbuffer);
 
-// Info pour préparer les Instance uniforms dans `renderer_updateInstanceUniforms`.
+// MARK: IUsBufferToEdit, info pour préparer les Instance uniforms
+// Utilisé typiquement dans la fonction `renderer_updateInstanceUniforms` d'un noeud drawable.
+// Exemple, voir `nodestring_renderer_updateIUs_` dans `node_string.c`
+// pour le rendu des glyphes d'une string.
 typedef struct IUsBufferToEdit {
     InstanceUniforms *const beg;
     InstanceUniforms *const end;

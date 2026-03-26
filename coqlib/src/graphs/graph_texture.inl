@@ -4,7 +4,12 @@
 //
 //  Created by Corentin Faucher on 2025-01-17.
 //
-
+static inline void  texturedims_initConst(const TextureDims* const texDims, TextureDims const initValue) {
+    *(TextureDims*)texDims = initValue;
+}
+static inline float         texturedims_tileRatio(TextureDims const texDims) {
+    return (float)texDims.width / (float)texDims.height * (float)texDims.n / (float)texDims.m;
+}
 static inline Rectangle texturedims_uvRectOfTile(TextureDims const texDims, uint32_t const i, uint32_t const j) {
     return (Rectangle) {
         .origin = {{ 

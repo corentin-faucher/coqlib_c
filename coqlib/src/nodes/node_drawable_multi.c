@@ -12,8 +12,8 @@
 void drawablemulti_deinit(Node* n) {
     DrawableMulti* dm = (DrawableMulti*)n;
     // drawable_deinit_
-    meshref_releaseAndNull(&dm->d._mesh);
-    textureref_releaseAndNull(&dm->d.texr);
+    meshref_render_releaseAndNull(&dm->d._mesh);
+    textureref_render_releaseAndNull(&dm->d._tex);
     // DrawableMulti : liberer le buffer.
     iusbuffer_deinit(&dm->iusBuffer);
 }
@@ -22,8 +22,6 @@ void drawablemulti_init(DrawableMulti* dm, uint32_t const maxInstanceCount, Inst
     dm->n.deinitOpt = drawablemulti_deinit;  // (override drawable deinit)
     iusbuffer_init(&dm->iusBuffer, maxInstanceCount, defaultIUOpt);
 }
-
-
 
 // Fonction par défaut pour l'affichage des instances du drawable multi. -> Un tilling carré...
 // Devrait être overridée.

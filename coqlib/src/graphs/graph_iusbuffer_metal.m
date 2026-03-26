@@ -34,9 +34,9 @@ void       iusbuffer_init(IUsBuffer*const iusbuffer, uint32_t maxCount, Instance
     }
     // Cas double buffer de MTLBuffer
     else {
-        id<MTLBuffer> mtlBufferA = [CoqGraph_metal_device newBufferWithLength:max_size
+        id<MTLBuffer> mtlBufferA = [CoqMtl_device newBufferWithLength:max_size
                                     options:MTLResourceCPUCacheModeDefaultCache];
-        id<MTLBuffer> mtlBufferB = [CoqGraph_metal_device newBufferWithLength:max_size
+        id<MTLBuffer> mtlBufferB = [CoqMtl_device newBufferWithLength:max_size
                                     options:MTLResourceCPUCacheModeDefaultCache];
         *(const void**)&iusbuffer->_mtlBufferOptA = CFBridgingRetain(mtlBufferA);
         *(const void**)&iusbuffer->_mtlBufferOptB = CFBridgingRetain(mtlBufferB);

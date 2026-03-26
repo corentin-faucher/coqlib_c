@@ -20,6 +20,19 @@
 #include "../utils/util_base.h"
 #include "../utils/util_map.h"
 
+#define FONT_USE_APPLE 0
+// Fonts locales
+#if FONT_USE_APPLE != 1
+#define FONT_defaultPath          "./res/fonts"
+#define FONT_defaultFontFileName  "ComicRelief-Regular.ttf"
+#define FONT_defaultEmojiFileName "NotoColorEmoji-Regular.ttf"
+#else
+// Avec fonts d'Apple
+#define FONT_defaultPath          "/System/Library/Fonts" 
+#define FONT_defaultFontFileName  "Courier.ttc"
+#define FONT_defaultEmojiFileName "Apple Color Emoji.ttc"
+#endif
+
 typedef struct {
     // Infos supplémentaire manquante avec freetype... 
     float heightRef; // Hauteur de référence `face->metrics.height` (pour normaliser).
@@ -35,10 +48,14 @@ typedef struct {
 static const ExtraInfoMapEntry_ fontInfo_arr_[] = {
 // Ici, les infos sont généré avec fontSize = 60.
 //   height, bottom, top, bottomMargin, topMargin (voir FontExtraInfo_)
+//    {"Apple Color Emoji",   { 63, 15, 15, 0, 0, },},
+//    {"Noto Color Emoji",    { 80,  5, 60, 0, 0, }, },
     {"Arial Unicode MS",    { 80,  5, 60, 0, 0, }, },
     {"American Typewriter", { 69,  3, 56, 0, 0, },},
     {"Chalkduster",         { 77, -7, 61, 16, 3, },}, // Dépasse pas mal... e.g. `q`, `p`.
     {"Comic Sans MS",       { 84,  1, 61, 0, 0, },},
+    {"Comic Relief",        { 84,  4, 65, 0, 0, },},
+    {"EmojiOne",            { 38,  5, 27, 0, 0, },},
     {"Futura",              { 80,  1, 64, 0, 0, },},
     {"Snell Roundhand",     { 76,  2, 63, 0, 0, },},
     {"Brush Script MT",     { 74,  7, 60, 0, 0, },},
@@ -48,14 +65,14 @@ static const ExtraInfoMapEntry_ fontInfo_arr_[] = {
     // ... continuer...
 };
 
-
 typedef struct coq_Font {
     FT_Face const  ft_face;
-    PixelBGR const color;
+    PixelRGB const color;
     bool const     nearest; // Pixelisé ou smooth ?
     /// Hauteur total requise pour dessiner les glyphes en pixels *avec* les fioritures qui depassent,
     ///  i.e. `ascender - descender`.
     size_t const   fullHeight;
+    float const    fontSize;
     /// Hauteur de la hitbox en pixels sans les fioritures, i.e. `capHeight - descender`
     /// (et on a `solidHeight < glyphHeight`).
     /// ** -> Les autres dimensions sont normalisé par rapport à `solidHeight` **,
@@ -66,6 +83,7 @@ typedef struct coq_Font {
 
 #pragma mark - Dessin de fonts/glyphs dans buffer de pixels -
 static char  Font_dir_[PATH_MAX-64] = {};
+static char  Font_emojiFileName_[PATH_MAX] = {};
 static char  Font_tmpFontPath_[PATH_MAX] = {};
 static FT_Library ft_library_ = NULL;
 static FT_Face    ft_defaultFont_ = NULL;
@@ -74,24 +92,31 @@ const char* CoqFont_getFontPath_(const char* fileName) {
     sprintf(Font_tmpFontPath_, "%s/%s", Font_dir_, fileName);
     return Font_tmpFontPath_;
 }
-void  CoqFont_freetype_init(const char* fontsPath, const char* defaultFontFileName) {
-    if(!fontsPath || !defaultFontFileName) {
-        printerror("No fonts path or default font."); return;
-    }
+void  CoqFont_freetype_init_(const char*const fontsPathOpt, 
+                    const char*const defaultFontFileNameOpt,
+                    const char*const defaultEmojiFileNameOpt) 
+{
     if(ft_library_) {
         printwarning("Fonts path already set."); return;
     }
-    strcpy(Font_dir_, fontsPath);
+    // Init de la librairie Freetype, paths...
     if(FT_Init_FreeType(&ft_library_)) {
         printerror("Could not init freetype."); return;
     }
-    const char* defaultFontPath = CoqFont_getFontPath_(defaultFontFileName);
-    if(FT_New_Face(ft_library_, defaultFontPath, 0, &ft_defaultFont_)) {
+    strcpy(Font_dir_, fontsPathOpt ? fontsPathOpt : FONT_defaultPath);
+    strcpy(Font_emojiFileName_, defaultEmojiFileNameOpt ? 
+            defaultEmojiFileNameOpt : FONT_defaultEmojiFileName);
+    
+    // Font par défaut
+    const char*const defaultFontFileName = defaultFontFileNameOpt ?
+                    defaultFontFileNameOpt : FONT_defaultFontFileName;
+    const char* fontPath = CoqFont_getFontPath_(defaultFontFileName);
+    if(FT_New_Face(ft_library_, fontPath, 0, &ft_defaultFont_)) {
         printerror("could not load default font %s.", defaultFontFileName); return;
     }
     FT_Set_Pixel_Sizes(ft_defaultFont_, 0, 60);
 }
-void  CoqFont_freetype_quit(void) {
+void  CoqFont_freetype_quit_(void) {
     FT_Done_Face(ft_defaultFont_);
     FT_Done_FreeType(ft_library_);
     ft_defaultFont_ = NULL;
@@ -104,19 +129,18 @@ void CoqFont_test_calculateFontExtraInfo_(CoqFont const* font);
 CoqFont* CoqFont_engine_create(CoqFontInit const init)
 {
     if(!ft_library_ || !ft_defaultFont_) { printerror("Freetype not init."); return NULL;}
-    double fontSize = init.sizeOpt ? init.sizeOpt : 32;
-    if(!fontSize) fontSize = 32; // (Default)
-    if(fontSize < 12) { printwarning("Font too small."); fontSize = 12; }
-    if(fontSize > 200) { printwarning("Font too big.");  fontSize = 200; }
+    double fontSize = init.sizeOpt ? init.sizeOpt : FONT_defaultSize;
+    if(fontSize < FONT_minSize) { printwarning("Font too small."); fontSize = FONT_minSize; }
+    if(fontSize > FONT_maxSize) { printwarning("Font too big.");  fontSize = FONT_maxSize; }
     // Obtenir une font
     FT_Face ft_font = NULL;
-    if(init.fileNameOpt) {
-        int error = FT_New_Face(ft_library_, CoqFont_getFontPath_(init.fileNameOpt), 0, &ft_font);
+    if(init.freetype_fileNameOpt) {
+        int error = FT_New_Face(ft_library_, CoqFont_getFontPath_(init.freetype_fileNameOpt), 0, &ft_font);
         if(error) {
             printerror("Could not load font %s : %d, %s.", 
-                       init.nameOpt, error, FT_Error_String(error)); 
+                       init.freetype_fileNameOpt, error, FT_Error_String(error)); 
         } else {
-            FT_Set_Pixel_Sizes(ft_font, 0, fontSize);
+            FT_Set_Pixel_Sizes(ft_font, fontSize, fontSize);
         }
     }
     if(!ft_font) {
@@ -166,8 +190,9 @@ CoqFont* CoqFont_engine_create(CoqFontInit const init)
     // Save data
     CoqFont*const cf = coq_callocTyped(CoqFont);
     *(FT_Face*)&cf->ft_face = ft_font;
-    *(PixelBGR*)&cf->color = init.color;
+    *(PixelRGB*)&cf->color = init.color;
     bool_initConst(&cf->nearest, init.nearest);
+    float_initConst(&cf->fontSize, fontSize);
     size_initConst(&cf->fullHeight, fullHeight);
     float_initConst(&cf->solidHeight, solidHeight);
     float_initConst(&cf->deltaY, deltaY);
@@ -181,6 +206,7 @@ CoqFont* CoqFont_engine_create(CoqFontInit const init)
 void     coqfont_engine_destroy(CoqFont**const cfRef) {
     CoqFont*const cf = *cfRef;
     *cfRef = (CoqFont*)NULL;
+    if(!cf) return;
     FT_Face const face = cf->ft_face;
     *(FT_Face*)&cf->ft_face = (FT_Face)NULL;
     if(face && (face != ft_defaultFont_))
@@ -195,6 +221,7 @@ CoqFontDims coqfont_dims(CoqFont const* cf) {
         .solidHeight = cf->solidHeight,
 //        .relFullHeihgt = cf->fullHeight / cf->solidHeight,
 //        .relDeltaY = cf->deltaY / cf->solidHeight,
+        .fontSize = cf->fontSize,
         .nearest = cf->nearest,
     };
 }
@@ -207,17 +234,29 @@ typedef struct {
     uint64_t bitmapWidth, bitmapHeight;
     int64_t  bitmapFirstRow, bitmapLastRow; 
     uint8_t* bitmapPixels;
+    uint8_t  pixel_mode;
 } GlyphInfos_;
 GlyphInfos_ freetype_generateCharAndGetDims_(CoqFont const*const font, Character const c) {
     guard_let(FT_Face, face, font->ft_face, , (GlyphInfos_) {})
     uint32_t c_u32 = character_toUnicode32(c);
-    int error = FT_Load_Char(face, c_u32, FT_LOAD_RENDER); // FT_LOAD_COLOR...
+    printdebug("char %s : font has color %d", c.c_str, FT_HAS_COLOR(font->ft_face));
+    int error;
+    if(character_isEmoji(c)) {
+        FT_UInt glyphIndex = FT_Get_Char_Index(face, c_u32);
+        error = FT_Load_Glyph(face, glyphIndex, FT_LOAD_COLOR|FT_LOAD_RENDER);
+        printdebug("glyph format %#010x.", face->glyph->format);
+        (void)FT_GLYPH_FORMAT_BITMAP;
+    } else {
+        error = FT_Load_Char(face, c_u32, FT_LOAD_RENDER);
+    }
     if(error) {
         printerror("Could not load character %s %d: %d %s.",
             c.c_str, c_u32, error, FT_Error_String(error));
         return (GlyphInfos_) {};
-    } 
+    }
     FT_GlyphSlot const g = face->glyph;
+    printdebug("pixel mode %d.", g->bitmap.pixel_mode);
+    (void)FT_PIXEL_MODE_BGRA;
     int64_t const gh =  g->metrics.height / 64;
     int64_t const deltaY = g->metrics.horiBearingY / 64 - gh;
     int64_t const maxDes = labs(g->face->size->metrics.descender / 64);
@@ -238,57 +277,71 @@ GlyphInfos_ freetype_generateCharAndGetDims_(CoqFont const*const font, Character
         .bitmapFirstRow = firstRow,
         .bitmapLastRow = lastRow,
         .bitmapPixels = g->bitmap.buffer,
+        .pixel_mode =   g->bitmap.pixel_mode,
     };
 }
-PixelBGRAArray* Pixels_createDummy_(void) {
+PixelArray* Pixels_createDummy_(void) {
     static uint32_t const test_pixels_[4] = {
         0x00FFFFFF, 0xFFFFFFFF, 0x1F00FFFF, 0xFFFF00FF,
     };
-    PixelBGRAArray* pa = PixelBGRAArray_createEmpty(2, 2);
+    PixelArray* pa = PixelArray_createEmpty(2, 2);
     memcpy(pa->pixels, test_pixels_, 16);
     return pa;
 }
-PixelBGRAArray* Pixels_engine_createArrayFromCharacter(Character const c, 
-                    CoqFont const*const coqFont) 
+PixelArray* PixelsArray_engine_createFromCharacter(Character const c, 
+                    CoqFont const*const coqFont)
 {
     guard_let(FT_Face, font, coqFont->ft_face, printerror("Font not init."), Pixels_createDummy_())
+    // Génération du glyph avec freetype
     GlyphInfos_ const glyph = freetype_generateCharAndGetDims_(coqFont, c);
-    // Init du PixelArray à exporter
-    size_t const extra_margin = FONT_extra_margin(coqFont->nearest);
-    size_t const pa_width = glyph.bitmapWidth + 2*extra_margin;
+    // Init du PixelArray
+    size_t const pa_width = glyph.bitmapWidth;
     size_t const pa_height = coqFont->fullHeight;
     size_t const pa_pixelCount = pa_width * pa_height;
-    PixelBGRAArray* pa = PixelBGRAArray_createEmpty(pa_width, pa_height);
-    pa->deltaX = glyph.deltaX;
-    pa->deltaY = glyph.deltaY;
+    PixelArray* pa = PixelArray_createEmpty(pa_width, pa_height);
+    pa->deltaX =     glyph.deltaX;
+    pa->deltaY =     glyph.deltaY;
     pa->solidWidth = glyph.solidWidth;
     pa->solidHeight = coqFont->solidHeight;
-               
-    // Filling pixels loop
+    
+    // Copie des pixels: freetype.glyph -> pixel array
     int64_t firstRow = glyph.bitmapFirstRow;
     if(firstRow < 0) {
         printwarning("Missing %d y top margin...", -(int)firstRow);
         firstRow = 0;
     }
-    PixelBGRA (*dst_row)[pa_width] =      (void*)&pa->pixels[pa_width * firstRow]; 
-    PixelBGRA (*const dst_row_end)[pa_width] = (void*)&pa->pixels[pa_pixelCount];
+    PixelRGBA (*dst_row)[pa_width] =      (void*)&pa->pixels[pa_width * firstRow]; 
+    PixelRGBA (*const dst_row_end)[pa_width] = (void*)&pa->pixels[pa_pixelCount];
     size_t const bitmap_pixelCount = glyph.bitmapWidth * glyph.bitmapHeight;
-    uint8_t (*src_row)[glyph.bitmapWidth] = (void*)&glyph.bitmapPixels[0];
-    uint8_t (*const src_row_end)[glyph.bitmapWidth] = (void*)&glyph.bitmapPixels[bitmap_pixelCount];
-    PixelBGR const fontColor = coqFont->color; 
+    bool const isColor = glyph.pixel_mode == FT_PIXEL_MODE_BGRA;
+    size_t const rowWidth = isColor ?
+        4*glyph.bitmapWidth : glyph.bitmapWidth;
+    uint8_t (*src_row)[rowWidth] = (void*)&glyph.bitmapPixels[0];
+    uint8_t (*const src_row_end)[rowWidth] = (void*)&glyph.bitmapPixels[isColor ? 4*bitmap_pixelCount : bitmap_pixelCount];
+    PixelRGB const fontColor = coqFont->color;
+    // Loop sur les lignes du glyph.
     for(; (dst_row < dst_row_end) && (src_row < src_row_end); dst_row++, src_row++) {
-        PixelBGRA* p =          &(*dst_row)[extra_margin]; // (décalage pour marge en x)
-        PixelBGRA*const p_end = *(dst_row + 1);
-        uint8_t* gp =          *src_row;
-        uint8_t*const gp_end = *(src_row + 1);
+        PixelRGBA*      p =    &(*dst_row)[0];
+        PixelRGBA*const p_end = *(dst_row + 1);
+        uint8_t* gp =            *src_row;
+        uint8_t*const gp_end =  *(src_row + 1);
+        // Copie d'une ligne dans le pixel array.
+        if(isColor) {
+            for(; (p < p_end) && (gp < gp_end); p++, gp += 4) {
+                *p = (PixelRGBA) { .b = gp[0], .g = gp[1], .r = gp[2], .a = gp[3] };
+            }
+            continue;
+        }
         for(; (p < p_end) && (gp < gp_end); p++, gp++) {
-            *p = (PixelBGRA) { .bgr = fontColor, .a = *gp };
+            *p = (PixelRGBA) { .rgb = fontColor, .a = *gp };
         }
     }
     return pa;
 }
-PixelBGRAArray* Pixels_engine_test_createArrayFromString_(const char* c_str, CoqFont const* coqFont)
+PixelArray* PixelsArray_engine_test_createFromString_(const char* c_str, CoqFont const* coqFont)
 {
+    (void)c_str;
+    (void)coqFont;
     printerror("Undefined with freetype...");
     return Pixels_createDummy_();
 }
@@ -356,7 +409,7 @@ void CoqFont_test_calculateFontExtraInfo_(CoqFont const*const font) {
 //    glyph_printinfo(c, glyph);
     int64_t firstRow = glyph.bitmapFirstRow;
     int64_t extraTopMargin = (firstRow < 0) ? -firstRow : 0;
-    int64_t extraBottomMargin = (lastRow > font->fullHeight) ? lastRow - font->fullHeight : 0;
+    int64_t extraBottomMargin = (lastRow > (int64_t)font->fullHeight) ? lastRow - font->fullHeight : 0;
     printf("🐷 Font %s : height %d, bottom %d, top %d, extraBottom %d, extraTop %d.\n",
         face->family_name, (int)fontHeight,
         (int)bottom, (int)top, 

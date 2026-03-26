@@ -4,7 +4,6 @@
 //
 //  Created by Corentin Faucher on 2023-10-26.
 //
-
 #ifndef COQ_GRAPH_MESH_H
 #define COQ_GRAPH_MESH_H
 
@@ -12,6 +11,14 @@
 
 // Structure "privée"
 typedef struct Mesh Mesh;
+
+// Type de cull mode. Telles que dans Metal, voir MTLRenderCommandEncoder.h.
+// (Comme OpenGL aussi...)
+enum MeshCullMode {
+    mesh_cullMode_none = 0,
+    mesh_cullMode_front = 1,
+    mesh_cullMode_back = 2,
+};
 
 /// Type de primitives. Telles que dans Metal.
 /// (C'est aussi la même chose pour DirectX,
@@ -32,46 +39,22 @@ enum MeshPrimitiveType {
 //    MTLPrimitiveTypeTriangleStrip = 4,
 //} API_AVAILABLE(macos(10.11), ios(8.0));
 
-// Type de cull mode. Telles que dans Metal, voir MTLRenderCommandEncoder.h.
-// (Comme OpenGL aussi...)
-enum MeshCullMode {
-    mesh_cullMode_none = 0,
-    mesh_cullMode_front = 1,
-    mesh_cullMode_back = 2,
-};
-// Flags d'une mesh, seulement needUpdate peut changer.
-enum {
-    // Si shared, `meshref_releaseAndNull` ne dealloc pas la mesh. Il faut caller explicitement `mesh_engine_deinit_` + `free`.
-    mesh_flag_shared =          0x0001,  // Pas besoin de libérer lors du release (on n'est pas l'owner).
-    mesh_flag_mutable =         0x0002,  // On peut éditer les vertex (si absent init sans le champ `vertices`)
-    mesh_flag_firstCustomFlag = 0x0200,
-    
-// Flags "privé"
-    mesh_flag__editing =        0x0004, // (privé. En train d'éditer les vertices.)
-    mesh_flag__needUpdate =     0x0008, // (privé. Besoin de mettre à jour les vertices (doit être mutable))
-    mesh_flag_metal_bufferInit =     0x0010, // (privé. Buffer (Metal) de la mesh est setté (mesh init))
-    mesh_flag_metal_mutableDoubleVertices =   0x0020, // Mutable avec double _vertices.
-    mesh_flag_metal_useVerticesMTLBuffer =   0x0040,
-    mesh_flag_metal_useVerticesDoubleMTLBuffer = 0x0080,
-    mesh_flag_metal_isFirstVertMTLBufferActive =    0x0100,
-    mesh_flags__privates =      0x01FC,
-};
-
-// Structure temporaire pour créer une mesh.
+// Structure d'init d'une mesh.
 typedef struct MeshInit {
-    const void* verticesOpt;
-    uint32_t    vertexCount;
-    uint32_t    vertexSizeOpt;
+    const void*     verticesOpt;
+    uint32_t        vertexCount;
+    uint32_t        vertexSizeOpt;
     const uint16_t* indicesOpt;
-    uint32_t    indexCountOpt;
-    enum MeshPrimitiveType primitive_type;
-    enum MeshCullMode      cull_mode;
-    uint32_t    flags;
+    uint32_t        indexCountOpt;
+    enum MeshPrimitiveType primitiveType;
+    enum MeshCullMode      cullMode;
+    uint32_t        flags;
 } MeshInit;
 /// Init d'une mesh. Par défaut la taille d'un vertex est sizeof(Vertex) == 32 bytes. Si taille custom setter vertexSizeOpt.
 Mesh*    Mesh_create(MeshInit initInfo);
+void     meshref_init(Mesh*const* meshRef, Mesh* initValue);
 /// Libérer la mesh (non shared seulement. Pour libérer une shared, le faire manuellement avec `mesh_engine_deinit_`...)
-void     meshref_releaseAndNull(Mesh** meshRef);
+void     meshref_render_releaseAndNull(Mesh*const* meshRef);
 
 // MARK: - Edition
 typedef struct MeshToEdit {
@@ -82,7 +65,7 @@ typedef struct MeshToEdit {
     uint32_t const vertexSize;
     Mesh*const     _mesh;
 } MeshToEdit;
-bool       mesh_isReadyToEdit(Mesh const* mesh);
+//bool       mesh_isReadyToEdit(Mesh const* mesh);
 /// Obtenir la référence aux vertices pour édition (NULL si non mutable)
 MeshToEdit mesh_retainToEditOpt(Mesh* mesh);
 /// Fini d'éditer, flager pour que la thread de rendering met à jour le vertex buffer.
@@ -95,8 +78,6 @@ void       meshtoedit_release(MeshToEdit meshEdit);
             else { printerror("Cannot edit mesh."); } }
 
 // MARK: - Dessin (par renderer)
-/// Update des vertices dans mesh->vertices vers le buffer Metal/OpenGL (pour mesh mutable)
-void       mesh_render_tryToUpdateVerticesAndIndiceCount(Mesh *mesh);
 // Info pour dessiner par le renderer.
 typedef struct MeshToDraw {
     uint32_t vertexCount;
@@ -116,17 +97,15 @@ typedef struct MeshToDraw {
         // OpenGL : index des buffers
         struct {
             uint32_t glVertexArrayId;   // VAO
-            uint32_t glVertexBufferId;  // VBO
-            uint32_t glIndicesBufferId; // VBO des indices
+            // (Juste le VAO est nécessaire...)
             uint32_t glPrimitiveType;
         };
     };
 } MeshToDraw;
-MeshToDraw mesh_render_getMeshToDraw(Mesh const* mesh);
+void       mesh_render_checkMeshInit(Mesh* mesh);
+void       mesh_render_checkMeshUpdate(Mesh* mesh);
+MeshToDraw mesh_render_getToDraw(Mesh const* mesh);
 
-// MARK: - Meshes Globales
-extern Mesh* Mesh_drawable_sprite;
-extern Mesh* Mesh_rendering_quad;
 // MARK: - Default Vertex structure
 /// Le vertex par défaut a :
 ///  - Position (x,y,z) ;
@@ -170,17 +149,16 @@ Mesh*  Mesh_createPlotGrid(float xmin, float xmax, float xR, float deltaX,
 /// Pas très optimale... Version simple : liste de triangle non indexé.       
 Mesh*  Mesh_createFromObjFile(char const* path);
 
+// Flags d'une mesh, seulement needUpdate peut changer.
+enum {
+    // Si shared, `meshref_releaseAndNull` ne dealloc pas la mesh. Il faut caller explicitement `mesh_engine_deinit_` + `free`.
+    mesh_flag_shared =          0x0001,  // Pas besoin de libérer lors du release (on n'est pas l'owner).
+    mesh_flag_mutable =         0x0002,  // On peut éditer les vertex (si absent init sans le champ `vertices`)
+    mesh_flag_firstCustomFlag = 0x1000,
+};
+
 // MARK: - Private stuff...
 /// "privé". Libère les resouces (OpenGL/Metal) de la mesh. Utiliser a priori `meshref_releaseAndNull`.
-void     mesh_engine_deinit_(Mesh* mesh);
-void     mesh_engine_initBuffers_(Mesh* const mesh, const void* verticesOpt, const uint16_t* const indicesOpt);
-/// Init de la "sprite". Mesh partagée par la plupart des Drawable Node...
-/// Customizable, a priori centrée en (0,0) de dimensions (1, 1), i.e. [-0.5, 0.5] x [-0.5, 0.5].
-/// Pour second/final pass du renderer (Quad [-1, 1] x [-1, 1]). (Customizable)
-void   Mesh_initDefaultMeshes_(MeshInit const* drawableSpriteInitOpt,
-                               MeshInit const* renderingQuadInitOpt);
-
-
-
+void     mesh_render_deinit_(Mesh* mesh);
 
 #endif /* graph_mesh_h */

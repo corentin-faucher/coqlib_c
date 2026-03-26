@@ -37,7 +37,7 @@ void PopingNode_setFrontView(View* frontView) {
     Poping_frontView_ = frontView;
 }
 
-void PopingNode_checkAll_callback_(void* unused) {
+void PopingNode_checkAll_callback_(void* UNUSED()) {
     if(!Poping_frontView_) goto terminate_callbacks;
     if(Poping_frontView_->n.flags & flag_toDelete_) {
         printwarning("Front view deleted and not updated in PopingNode.");
@@ -69,7 +69,7 @@ terminate_callbacks:
 }
 
 void PopingNode_newAdded_(void) {
-    if(!Poping_frontView_) { printerror("No front view."); return; }
+    if(!Poping_frontView_) { printerror("No front view, missing `PopingNode_setFrontView`."); return; }
     if(Poping_timer_) return;
     timer_scheduled(&Poping_timer_, 1, true, NULL, PopingNode_checkAll_callback_);
 }
@@ -181,7 +181,7 @@ void popdisk_updateCallback_(Fluid* f, Countdown* cd) {
     float deltaT = (float)cd->ringTimeMS * 0.001f;
     Drawable* const fan = node_asDrawableOpt(f->n._firstChild);
     if(!fan) { printerror("No drawable in popdisk."); return; }
-    if(elapsedSec < deltaT + 0.10f && mesh_isReadyToEdit(fan->_mesh)) {
+    if(elapsedSec < deltaT + 0.10f) {
         float ratio = fminf(elapsedSec / deltaT, 1.f);
         mesh_fan_update(fan->_mesh, ratio);
         return;
@@ -203,7 +203,8 @@ void   PopDisk_spawnOverAndOpen(Node *const nodeOverOpt, PopingNode_ **const ref
     // Structure
     Drawable* const fan = coq_callocTyped(Drawable);
     node_init(&fan->n, &f->n, 0, 0, twoDyRel, twoDyRel, 0, 0);
-    drawable_init(fan, Texture_sharedImage(pngId), Mesh_createFan(), 0, twoDyRel);
+    drawable_init(fan, Texture_getPng(pngId), Mesh_createFan(), 0, twoDyRel);
+    drawable_setTile(fan, tile, 0);
     // Open
     popingnode_last_open();
 }
@@ -254,7 +255,7 @@ void drawablemultiSparkle_updateIUs_(Node* const n) {
 DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const height, Texture* tex) {
     DrawableMultiSparkles_* dmsp = coq_callocTyped(DrawableMultiSparkles_);
     node_init(&dmsp->n, parent, 0, 0, height, height, 0, 0);
-    drawable_init(&dmsp->d, tex, Mesh_drawable_sprite, 0, height);
+    drawable_init(&dmsp->d, tex, NULL, 0, height);
     drawablemulti_init(&dmsp->dm, SPARKLES_N_, NULL);
     dmsp->n.renderer_updateInstanceUniforms = drawablemultiSparkle_updateIUs_;
     dmsp->t0 = ChronoApp_elapsedMS();
@@ -262,10 +263,11 @@ DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const 
     // Init des per instance uniforms
     Vector2* p0 = dmsp->p0s;
     Vector2* p1 = dmsp->p1s;
-    TextureDims const td = dmsp->d.texr.dims;
+    TextureDims const td = dmsp->d.texDims;
+    Vector4 const color = dmsp->n.renderIU.color;
     withIUsToEdit_beg(iusEdit, &dmsp->dm.iusBuffer)
     for(; iusEdit.iu < iusEdit.end; iusEdit.iu++, p0++, p1++) {
-        iusEdit.iu->color = Drawable_renderIU_defaultColor;
+        iusEdit.iu->color = color;
         iusEdit.iu->uvRect = texturedims_uvRectOfTile(td, rand(), 0);
         *p0 = (Vector2) {{ rand_floatAt(0, 0.25f*height), rand_floatAt(0, 0.25f*height) }};
         *p1 = (Vector2) {{ rand_floatAt(0, 3.00f*height), rand_floatAt(0, 3.00f*height) }};
@@ -278,13 +280,21 @@ DrawableMultiSparkles_* DrawableMultiSparkles_create_(Node* parent, float const 
 
 static Texture* Sparkle_tex_ = NULL;
 static uint32_t Sparkle_soundId_ = 0;
-void Sparkle_init(Texture* sparkleTex, uint32_t sparkleSoundId) {
-    Sparkle_tex_ = sparkleTex;
+void Sparkle_init(Texture* sparkleTexOpt, uint32_t sparkleSoundId) {
+    if(sparkleTexOpt)
+        Sparkle_tex_ = sparkleTexOpt;
+    else {
+        Sparkle_tex_ = Texture_getPngByName("coqlib_sparkle_stars");
+        if(!Sparkle_tex_) printerror("No texture for sparkles.");
+    }
     Sparkle_soundId_ = sparkleSoundId;
 }
 
 void Sparkle_spawnAtAndOpen(float xabs, float yabs, float delta, Texture* texOpt) {
-    if(!texOpt && !Sparkle_tex_) { printerror("No texture for sparkles."); return; }
+    if(!texOpt && !Sparkle_tex_) { 
+        printerror("No texture for sparkles. Missing call to `Sparkle_init`."); 
+        return; 
+    }
     PopingInfo info = {
         {{ rand_floatAt(0, 0.25*delta), rand_floatAt(0, 0.25*delta), 0, 0 }},
         {{ rand_floatAt(0, 0.50*delta), rand_floatAt(0, 0.50*delta), 0, 0 }},

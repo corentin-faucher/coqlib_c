@@ -7,19 +7,18 @@ OBJDIR :=  obj
 BINDIR :=  bin
 BINNAME := coqlib_test
 BIN :=     $(BINDIR)/$(BINNAME)
+COQLIBDIR:= ../coqlib
 OS_NAME := $(shell uname -s)
 
-CFLAGS=-g -DDEBUG -Wall -I../coqlib/src
-# Pas de SDL...
-# `sdl2-config --cflags`  -Iinclude  -Wno-unknown-pragmas
-
+WARNINGS := -Wall -Wextra -Werror
+CFLAGS=-g -DDEBUG $(WARNINGS) -I$(COQLIBDIR)/src
 ifeq ($(OS_NAME), Darwin)
-	LFLAGS=-L../coqlib/lib -framework OpenGL -framework OpenAL \
+	LFLAGS=-L$(COQLIBDIR)/lib -framework OpenGL -framework OpenAL \
 		-lglfw -lfreetype
 	LFLAGS2=-lcoqlib
 else
 	LFLAGS=  
-	LFLAGS2= -L../coqlib/lib -lcoqlib -lunwind -lopenal -lm -lglad -lglfw -lfreetype
+	LFLAGS2= -L$(COQLIBDIR)/lib -lcoqlib -lunwind -lopenal -lm -lglad -lglfw -lfreetype
 endif
 
 # Lister les fichiers c.
@@ -28,20 +27,19 @@ SRCS := $(shell find $(SRCDIR) -name "*.c")
 OBJS := $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 
 all: $(BIN)
-	@echo Running app $(BIN)
+	@echo 🐁 Running app $(BIN)
 	@./$(BIN)
 
 $(BIN): $(OBJS)
-	@echo Linking $@
+	@echo 🦄 Linking $@
 	@test -d $(@D) || mkdir -p $(@D)
 	@$(CC) $(LFLAGS) $(OBJS) -o $@ $(LFLAGS2)
-# 	@$(CC) -o $@ $(LFLAGS) $(OBJS)  $(LFLAGS2)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
-	@echo Compiling object $@...
+	@echo 🦫 Compiling object $@...
 	@test -d $(@D) || mkdir -p $(@D)
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	@echo Removing objects and bin.
+	@echo 🦤 Removing objects and bin.
 	@rm -r $(OBJDIR) $(BINDIR)
